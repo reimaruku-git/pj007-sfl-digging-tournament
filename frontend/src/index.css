@@ -7,21 +7,21 @@
 }
 
 :root {
-  --bg: #140f08;
-  --panel: #1e160c;
-  --panel-2: #2a1e10;
-  --line: rgba(232, 185, 35, 0.18);
-  --gold: #e8b923;
-  --gold-dim: rgba(232, 185, 35, 0.14);
-  --sand: #c4a574;
-  --cream: #f4ead4;
-  --mute: #8a7354;
-  --green: #6fbf63;
-  --red: #e07a5f;
-  --cyan: #7ec8c8;
-  --rank1: #e8b923;
-  --rank2: #c0c7d1;
-  --rank3: #c47a3a;
+  --bg: #1a1815;
+  --panel: #23201c;
+  --panel-2: #2b2722;
+  --line: rgba(196, 184, 164, 0.14);
+  --gold: #b89a56;
+  --gold-dim: rgba(184, 154, 86, 0.12);
+  --sand: #b4a890;
+  --cream: #e4dfd5;
+  --mute: #9b9488;
+  --green: #7ea87a;
+  --red: #c98978;
+  --cyan: #86a8a8;
+  --rank1: #b89a56;
+  --rank2: #b4b8bf;
+  --rank3: #b8885c;
   --r: 14px;
 }
 
@@ -32,12 +32,12 @@ body,
 }
 
 body {
-  background:
-    radial-gradient(1200px 500px at 50% -10%, rgba(232, 185, 35, 0.12), transparent 55%),
-    var(--bg);
+  background: var(--bg);
   color: var(--cream);
   font-family: "Source Sans 3", system-ui, sans-serif;
   font-size: 15px;
+  line-height: 1.5;
+  color-scheme: dark;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -114,12 +114,21 @@ textarea {
   cursor: pointer;
 }
 
+.nav a:hover,
+.btn:hover:not(:disabled) {
+  border-color: rgba(184, 154, 86, 0.45);
+}
+
 .nav a.active,
 .btn.primary {
-  background: var(--gold);
-  color: #1a1408;
-  border-color: var(--gold);
-  font-weight: 700;
+  background: #5e4c2c;
+  color: var(--cream);
+  border-color: #7a6540;
+  font-weight: 600;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #6b5733;
 }
 
 .btn.ghost {
@@ -139,7 +148,7 @@ textarea {
 }
 
 .card {
-  background: linear-gradient(180deg, var(--panel) 0%, #18120a 100%);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r);
   padding: 18px;
@@ -192,7 +201,7 @@ textarea {
 
 input,
 textarea {
-  background: #120d08;
+  background: #161411;
   border: 1px solid var(--line);
   color: var(--cream);
   border-radius: 10px;
@@ -202,7 +211,7 @@ textarea {
 
 input:focus,
 textarea:focus {
-  outline: 1px solid var(--gold);
+  outline: 1px solid rgba(184, 154, 86, 0.55);
 }
 
 .search {
@@ -235,13 +244,13 @@ th {
 }
 
 tr.rank-1 {
-  background: rgba(232, 185, 35, 0.1);
+  background: rgba(184, 154, 86, 0.07);
 }
 tr.rank-2 {
-  background: rgba(192, 199, 209, 0.06);
+  background: rgba(180, 184, 191, 0.05);
 }
 tr.rank-3 {
-  background: rgba(196, 122, 58, 0.08);
+  background: rgba(184, 136, 92, 0.06);
 }
 
 .rank {
@@ -339,7 +348,7 @@ tr.rank-3 {
   overflow: auto;
   font-family: "DM Mono", monospace;
   font-size: 12px;
-  background: #100c07;
+  background: #161411;
   padding: 12px;
   border-radius: 10px;
   white-space: pre-wrap;
