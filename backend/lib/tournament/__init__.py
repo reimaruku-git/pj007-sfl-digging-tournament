@@ -1,0 +1,1 @@
+"""SFL Digging Tournament domain."""

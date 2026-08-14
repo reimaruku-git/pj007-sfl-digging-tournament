@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+.env.local
+backend/.env
+backend/.admin-password
+backend/.secrets.env
+
+# SAM
+.aws-sam/
+samconfig.toml.bak
+env.local.json
+
+# Node
+node_modules/
+dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# Scratch
+/tmp/
+*.log

@@ -1,0 +1,831 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  pj007-digging-tournament
+  SFL Digging Tournament — public leaderboard + master-admin API.
+  GitHub OIDC deploys this stack only. Does not create the account OIDC provider.
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.13
+    Environment:
+      Variables:
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+        ALLOWED_ORIGINS: !If
+          - IsDev
+          - !Join
+            - ","
+            - - http://localhost:5173
+              - !Ref AllowedOrigin
+          - !Ref AllowedOrigin
+        DATA_BUCKET: !Ref AppBucket
+        CONFIG_TABLE: !Ref TournamentConfigTable
+        SCORES_TABLE: !Ref DigScoresTable
+        SUBMISSIONS_TABLE: !Ref PendingSubmissionsTable
+        SFL_API_KEY: !Ref SFLApiKey
+        ADMIN_PASSWORD_HASH: !Ref AdminPasswordHash
+        ADMIN_SESSION_SECRET: !Ref AdminSessionSecret
+        DISCORD_WEBHOOK_URL: !Ref DiscordWebhookUrl
+        SFL_MIN_INTERVAL_SECONDS: "12"
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prd]
+  ProjectNo:
+    Type: String
+    Default: "pj007"
+  ProjectName:
+    Type: String
+    Default: "digging-tournament"
+  BillingTag:
+    Type: String
+    Default: "pj007"
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: Allowed CORS origin (CloudFront URL)
+  SFLApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: SFL Community API key (X-Api-Key). Never sent to the browser.
+  AdminPasswordHash:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: pbkdf2$iterations$salt$hash of the master-admin password
+  AdminSessionSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: HMAC secret used to sign admin session tokens
+  DiscordWebhookUrl:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional Discord webhook for new 1st-place notifications
+  GitHubRepo:
+    Type: String
+    Default: "reimaruku-git/pj007-sfl-digging-tournament"
+    Description: GitHub repository in org/repo format for OIDC trust
+
+Conditions:
+  IsDev: !Equals [!Ref Environment, dev]
+
+Resources:
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-common-layer
+      Description: Shared tournament scoring, SFL client, and stores
+      ContentUri: lib/
+      CompatibleRuntimes:
+        - python3.13
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.13
+
+  # ----------------------------------------------------------------
+  # S3 — frontend/ origin + config/tracked-farms.json
+  # ----------------------------------------------------------------
+
+  AppBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub ${ProjectNo}-${Environment}-${ProjectName}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  # ----------------------------------------------------------------
+  # DynamoDB
+  # ----------------------------------------------------------------
+
+  TournamentConfigTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-config
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  DigScoresTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-scores
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+      AttributeDefinitions:
+        - AttributeName: farm_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: farm_id
+          KeyType: HASH
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  PendingSubmissionsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-submissions
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+      AttributeDefinitions:
+        - AttributeName: farm_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: farm_id
+          KeyType: HASH
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  # ----------------------------------------------------------------
+  # HTTP API — public reads + password-gated admin
+  # ----------------------------------------------------------------
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration: !If
+        - IsDev
+        - AllowOrigins:
+            - http://localhost:5173
+            - !Ref AllowedOrigin
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+            - X-Amz-Date
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          AllowMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+        - AllowOrigins:
+            - !Ref AllowedOrigin
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+            - X-Amz-Date
+            - X-Api-Key
+            - X-Amz-Security-Token
+            - X-Amz-User-Agent
+          AllowMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+
+  MainFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-main-function
+      RetentionInDays: 14
+
+  FarmSyncLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-farm-sync
+      RetentionInDays: 14
+
+  MainFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-main-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: MainLogging
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-main-function
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-main-function:*
+        - PolicyName: MainDynamoDB
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt TournamentConfigTable.Arn
+                  - !GetAtt DigScoresTable.Arn
+                  - !GetAtt PendingSubmissionsTable.Arn
+        - PolicyName: MainS3
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub ${AppBucket.Arn}/config/*
+                  - !Sub ${AppBucket.Arn}/snapshots/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt AppBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - config/*
+                      - snapshots/*
+        - PolicyName: MainInvokeSync
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: !GetAtt FarmSyncFunction.Arn
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  FarmSyncRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: FarmSyncLogging
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-farm-sync
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-farm-sync:*
+        - PolicyName: FarmSyncDynamoDB
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt TournamentConfigTable.Arn
+                  - !GetAtt DigScoresTable.Arn
+                  - !GetAtt PendingSubmissionsTable.Arn
+        - PolicyName: FarmSyncS3
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${AppBucket.Arn}/config/*
+                  - !Sub ${AppBucket.Arn}/snapshots/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt AppBucket.Arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - config/*
+                      - snapshots/*
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  MainFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-main-function
+      Description: HTTP API router — public leaderboard + master admin
+      CodeUri: lambda_functions/main_function/
+      Handler: app.lambda_handler
+      MemorySize: 256
+      Timeout: 60
+      Role: !GetAtt MainFunctionRole.Arn
+      Layers:
+        - !Ref CommonLayer
+      Environment:
+        Variables:
+          FARM_SYNC_FUNCTION: !Ref FarmSyncFunction
+      Tags:
+        BillingTag: !Ref BillingTag
+        ProjectNo: !Ref ProjectNo
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /health
+            Method: GET
+        GetConfig:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /config
+            Method: GET
+        GetLeaderboard:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /leaderboard
+            Method: GET
+        GetFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /farms/{farm_id}
+            Method: GET
+        PostSubmission:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /submissions
+            Method: POST
+        AdminLogin:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/login
+            Method: POST
+        AdminSession:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/session
+            Method: GET
+        AdminGetConfig:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/config
+            Method: GET
+        AdminPutConfig:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/config
+            Method: PUT
+        AdminListFarms:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/farms
+            Method: GET
+        AdminAddFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/farms
+            Method: POST
+        AdminUpdateFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/farms/{farm_id}
+            Method: PUT
+        AdminDeleteFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/farms/{farm_id}
+            Method: DELETE
+        AdminListSubmissions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/submissions
+            Method: GET
+        AdminApproveSubmission:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/submissions/{farm_id}/approve
+            Method: POST
+        AdminRejectSubmission:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/submissions/{farm_id}
+            Method: DELETE
+        AdminRefreshFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/farms/{farm_id}/refresh
+            Method: POST
+        AdminSync:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/sync
+            Method: POST
+        AdminPutScore:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/scores/{farm_id}
+            Method: PUT
+        AdminGetSnapshot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/scores/{farm_id}/snapshot
+            Method: GET
+
+  FarmSyncFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
+      Description: Walks tracked farms with a 12s SFL delay and caches the leaderboard
+      CodeUri: lambda_functions/farm_sync/
+      Handler: app.lambda_handler
+      MemorySize: 256
+      Timeout: 900
+      Role: !GetAtt FarmSyncRole.Arn
+      Layers:
+        - !Ref CommonLayer
+      Tags:
+        BillingTag: !Ref BillingTag
+        ProjectNo: !Ref ProjectNo
+      Events:
+        ScheduledSync:
+          Type: Schedule
+          Properties:
+            Schedule: rate(15 minutes)
+            Name: !Sub ${ProjectNo}-${Environment}-${ProjectName}-sync
+            Description: Refresh tracked farm scores every 15 minutes
+            Enabled: true
+
+  # ----------------------------------------------------------------
+  # GitHub Actions OIDC — this repo only. Provider already exists.
+  # ----------------------------------------------------------------
+
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-github-deploy-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepo}:*"
+      Policies:
+        - PolicyName: FrontendDeployPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt AppBucket.Arn
+                  - !Sub "${AppBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+        - PolicyName: BackendDeployPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListStackResources
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:ValidateTemplate
+                Resource:
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
+                  - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:GetTemplateSummary
+                Resource:
+                  - arn:aws:cloudformation:ap-southeast-1:aws:transform/Serverless-2016-10-31
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                  - s3:CreateBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !GetAtt AppBucket.Arn
+                  - !Sub "${AppBucket.Arn}/*"
+                  - arn:aws:s3:::aws-sam-cli-managed-*
+                  - arn:aws:s3:::aws-sam-cli-managed-*/*
+              - Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:PublishLayerVersion
+                  - lambda:GetLayerVersion
+                  - lambda:DeleteLayerVersion
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetPolicy
+                  - lambda:ListVersionsByFunction
+                  - lambda:PublishVersion
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectNo}-${Environment}-${ProjectName}-*
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:${ProjectNo}-${Environment}-${ProjectName}-*
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:PassRole
+                  - iam:UpdateAssumeRolePolicy
+                Resource:
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-*
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                Resource:
+                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis
+                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:CreateTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTimeToLive
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:UpdateContinuousBackups
+                  - dynamodb:ListTagsOfResource
+                  - dynamodb:TagResource
+                Resource:
+                  - !GetAtt TournamentConfigTable.Arn
+                  - !GetAtt DigScoresTable.Arn
+                  - !GetAtt PendingSubmissionsTable.Arn
+              - Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DescribeRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                  - events:DeleteRule
+                  - events:ListTargetsByRule
+                  - events:TagResource
+                Resource:
+                  - !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${ProjectNo}-${Environment}-${ProjectName}-*
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DescribeLogGroups
+                  - logs:TagResource
+                  - logs:ListTagsForResource
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectNo}-${Environment}-${ProjectName}-*
+              - Effect: Allow
+                Action:
+                  - cloudfront:GetDistribution
+                  - cloudfront:GetDistributionConfig
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:TagResource
+                Resource: "*"
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  # ----------------------------------------------------------------
+  # CloudFront — origin path /frontend
+  # ----------------------------------------------------------------
+
+  FrontendOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${ProjectNo}-${Environment}-${ProjectName}-oac
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Origins:
+          - Id: FrontendBucketOrigin
+            DomainName: !GetAtt AppBucket.RegionalDomainName
+            OriginPath: /frontend
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt FrontendOAC.Id
+        DefaultCacheBehavior:
+          TargetOriginId: FrontendBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AppBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontReadFrontend
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${AppBucket.Arn}/frontend/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-api-url"
+
+  AppBucketName:
+    Description: "S3 bucket (frontend/ + config/tracked-farms.json)"
+    Value: !Ref AppBucket
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-bucket"
+
+  FrontendPrefix:
+    Description: "S3 prefix CloudFront reads from"
+    Value: frontend/
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-frontend-prefix"
+
+  CloudFrontDomainName:
+    Description: "CloudFront URL — paste this as AllowedOrigin after first deploy"
+    Value: !Sub "https://${FrontendDistribution.DomainName}"
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-cloudfront-domain"
+
+  CloudFrontDistributionId:
+    Description: "CloudFront distribution ID — for GitHub Actions cache invalidation"
+    Value: !Ref FrontendDistribution
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-cloudfront-id"
+
+  GitHubActionsDeployRoleArn:
+    Description: "IAM role ARN for GitHub Actions OIDC (this repo only)"
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-github-deploy-role"
+
+  TournamentConfigTableName:
+    Value: !Ref TournamentConfigTable
+  DigScoresTableName:
+    Value: !Ref DigScoresTable
+  PendingSubmissionsTableName:
+    Value: !Ref PendingSubmissionsTable

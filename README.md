@@ -1,0 +1,49 @@
+# SFL Digging Tournament (pj007)
+
+Players compete to collect **all 3 Otter Pebbles** in the fewest digs.
+
+- Sand Shovel = **1 dig**
+- Sand Drill = **4 digs** (nested 4-tile array is flattened)
+- Official score = flattened dig number of the **3rd Otter Pebble**
+- Lower score ranks higher
+- Farm IDs live in `s3://pj007-dev-digging-tournament/config/tracked-farms.json`
+- The browser talks **only** to our API. The SFL Community API key stays on Lambda.
+
+## Layout
+
+```
+backend/     SAM Python 3.13 — HTTP API + scheduled farm sync
+frontend/    Vite + React — public leaderboard + master admin
+.github/     OIDC deploy on push to `dev`
+```
+
+## Local
+
+```bash
+# backend
+cd backend
+poetry install
+poetry run pytest tests/unit -v
+# secrets in backend/.env (gitignored)
+make local-api   # http://localhost:3001
+
+# frontend
+cd frontend
+cp .env.example .env.local
+npm install
+npm test
+npm run dev      # http://localhost:5173
+```
+
+Live dev site: https://d1balcacprl09z.cloudfront.net  
+API: https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev
+
+## Deploy
+
+First deploy is local (creates the GitHub OIDC **role** for this repo; the account OIDC provider already exists). After that, `git push origin dev` deploys backend + frontend.
+
+See [SETUP_CHECKLIST.md](SETUP_CHECKLIST.md).
+
+## Scoring
+
+See `backend/lib/tournament/scoring.py` and `backend/tests/unit/test_scoring.py`.

@@ -1,0 +1,28 @@
+version = 0.1
+
+[dev]
+[dev.deploy]
+[dev.deploy.parameters]
+stack_name = "sfl-pj007-dev-digging-tournament"
+resolve_s3 = true
+s3_prefix = "sfl-pj007-dev-digging-tournament"
+region = "ap-southeast-1"
+capabilities = "CAPABILITY_NAMED_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false
+parameter_overrides = [
+    "ProjectNo=pj007",
+    "ProjectName=digging-tournament",
+    "Environment=dev",
+    "BillingTag=pj007",
+    "AllowedOrigin=https://d1balcacprl09z.cloudfront.net",
+    "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament",
+]
+
+[default.deploy.parameters]
+stack_name = "sfl-pj007-dev-digging-tournament"
+resolve_s3 = true
+s3_prefix = "sfl-pj007-dev-digging-tournament"
+region = "ap-southeast-1"
+capabilities = "CAPABILITY_NAMED_IAM"
+parameter_overrides = []
