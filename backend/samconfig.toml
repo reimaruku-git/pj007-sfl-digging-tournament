@@ -4,7 +4,8 @@ version = 0.1
 [dev.deploy]
 [dev.deploy.parameters]
 stack_name = "sfl-pj007-dev-digging-tournament"
-resolve_s3 = true
+resolve_s3 = false
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-mfrfb3arh90t"
 s3_prefix = "sfl-pj007-dev-digging-tournament"
 region = "ap-southeast-1"
 capabilities = "CAPABILITY_NAMED_IAM"

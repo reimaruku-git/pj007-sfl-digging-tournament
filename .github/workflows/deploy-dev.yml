@@ -43,6 +43,7 @@ jobs:
         run: |
           sam deploy \
             --config-env dev \
+            --resolve-s3 false \
             --s3-bucket aws-sam-cli-managed-default-samclisourcebucket-mfrfb3arh90t \
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
