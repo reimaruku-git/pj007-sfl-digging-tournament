@@ -55,8 +55,7 @@ jobs:
               "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*" \
               "SFLApiKey=${{ secrets.SFL_API_KEY }}" \
               "AdminPasswordHash=${{ secrets.ADMIN_PASSWORD_HASH }}" \
-              "AdminSessionSecret=${{ secrets.ADMIN_SESSION_SECRET }}" \
-              "DiscordWebhookUrl=${{ secrets.DISCORD_WEBHOOK_URL }}"
+              "AdminSessionSecret=${{ secrets.ADMIN_SESSION_SECRET }}"
 
   deploy-frontend:
     name: Deploy frontend (S3 + CloudFront)
