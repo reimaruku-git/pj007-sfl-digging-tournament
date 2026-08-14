@@ -97,7 +97,9 @@ Repo secrets:
 | `ADMIN_SESSION_SECRET` | HMAC secret |
 | `DISCORD_WEBHOOK_URL` | optional |
 
-The OIDC role trusts **only** `repo:reimaruku-git/pj007-sfl-digging-tournament:*`.
+The OIDC role trusts this repo only. New GitHub repos emit an immutable
+`sub` (`repo:owner@id/name@id:…`). This stack allows both that form and the
+classic `repo:reimaruku-git/pj007-sfl-digging-tournament:*` form.
 
 ## 4. Environment variables (Lambda)
 

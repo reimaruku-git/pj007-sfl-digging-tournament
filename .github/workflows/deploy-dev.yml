@@ -52,6 +52,7 @@ jobs:
               "BillingTag=pj007" \
               "AllowedOrigin=${{ vars.DEV_ALLOWED_ORIGIN }}" \
               "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
+              "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*" \
               "SFLApiKey=${{ secrets.SFL_API_KEY }}" \
               "AdminPasswordHash=${{ secrets.ADMIN_PASSWORD_HASH }}" \
               "AdminSessionSecret=${{ secrets.ADMIN_SESSION_SECRET }}" \

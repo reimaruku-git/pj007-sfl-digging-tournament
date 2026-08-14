@@ -17,6 +17,7 @@ parameter_overrides = [
     "BillingTag=pj007",
     "AllowedOrigin=https://d1balcacprl09z.cloudfront.net",
     "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament",
+    "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*",
 ]
 
 [default.deploy.parameters]

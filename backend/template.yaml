@@ -72,6 +72,12 @@ Parameters:
     Type: String
     Default: "reimaruku-git/pj007-sfl-digging-tournament"
     Description: GitHub repository in org/repo format for OIDC trust
+  GitHubOidcSubject:
+    Type: String
+    Default: "repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*"
+    Description: >
+      GitHub Actions OIDC `sub` StringLike. New repos emit an immutable
+      owner@id/repo@id subject; CloudTrail showed this value for pj007.
 
 Conditions:
   IsDev: !Equals [!Ref Environment, dev]
@@ -564,7 +570,9 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepo}:*"
+                token.actions.githubusercontent.com:sub:
+                  - !Sub "repo:${GitHubRepo}:*"
+                  - !Ref GitHubOidcSubject
       Policies:
         - PolicyName: FrontendDeployPolicy
           PolicyDocument:
