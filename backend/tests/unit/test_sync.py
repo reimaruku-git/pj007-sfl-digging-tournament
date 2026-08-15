@@ -3,7 +3,13 @@ from datetime import datetime, timezone
 from tournament.farms import FarmRegistry
 from tournament.sfl_client import SFLApiError
 from tournament.store import Store
-from tournament.sync import sync_all_farms, sync_one_farm
+from tournament.scoring import score_grid
+from tournament.sync import (
+    apply_computed_score,
+    rescore_from_snapshots,
+    sync_all_farms,
+    sync_one_farm,
+)
 
 NOW = datetime(2026, 8, 14, 12, 0, tzinfo=timezone.utc)
 
@@ -85,3 +91,50 @@ def test_sync_all_records_failures_and_rebuilds_cache(aws_env):
     assert cache["count"] == 2
     assert store.get_score("2")["error"] == "SFL HTTP 500"
     assert client.called == ["1", "2"]
+
+
+def test_rescore_from_snapshots_applies_new_window(aws_env):
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-20T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    early = int(datetime(2026, 8, 2, tzinfo=timezone.utc).timestamp() * 1000)
+    late = int(datetime(2026, 8, 15, tzinfo=timezone.utc).timestamp() * 1000)
+    grid = [
+        {"dugAt": early, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"},
+        {"dugAt": early, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"},
+        {"dugAt": late, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"},
+    ]
+    computed = score_grid(
+        grid,
+        now=NOW,
+        window_start=datetime(2026, 8, 1, tzinfo=timezone.utc),
+        window_end=datetime(2026, 8, 20, tzinfo=timezone.utc),
+    )
+    apply_computed_score(store, farm_id="99", name="rmr", computed=computed)
+    store.write_snapshot("99", {"farm_id": "99", "grid": grid, "score": computed.to_dict()})
+    assert store.get_score("99")["digs_to_third_op"] == 3
+
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-10T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    result = rescore_from_snapshots(store, now=NOW)
+    assert result["rescored"] == 1
+    assert result["missing_snapshots"] == 0
+    row = store.get_score("99")
+    assert row["otter_count"] == 2
+    assert row["digs_to_third_op"] is None
+    assert row["status"] == "in_progress"

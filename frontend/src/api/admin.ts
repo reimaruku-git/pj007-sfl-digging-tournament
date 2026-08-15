@@ -73,17 +73,43 @@ export async function rejectSubmission(farmId: string): Promise<void> {
   if (!response.ok) throw new Error(errorMessage(data, "failed to reject"));
 }
 
+export async function fetchAdminConfig(): Promise<TournamentConfig> {
+  const { response, data } = await requestJson<{ config: TournamentConfig }>("admin/config");
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load config"));
+  return data.config;
+}
+
+export type ConfigRescore = {
+  rescored: number;
+  missing_snapshots: number;
+  sync_accepted: boolean;
+};
+
+export type ConfigSaveResult = {
+  config: TournamentConfig;
+  rescore?: ConfigRescore;
+};
+
 export async function saveConfig(input: {
   start_at: string;
   end_at: string;
   prize_amount: string;
-}): Promise<TournamentConfig> {
-  const { response, data } = await requestJson<{ config: TournamentConfig }>("admin/config", {
+}): Promise<ConfigSaveResult> {
+  const { response, data } = await requestJson<ConfigSaveResult>("admin/config", {
     method: "PUT",
     body: JSON.stringify(input),
   });
-  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to save config"));
-  return data.config;
+  if (!response.ok || !data?.config) {
+    throw new Error(errorMessage(data, "failed to save config"));
+  }
+  return {
+    config: data.config,
+    rescore: data.rescore ?? {
+      rescored: 0,
+      missing_snapshots: 0,
+      sync_accepted: false,
+    },
+  };
 }
 
 export async function refreshFarm(farmId: string): Promise<LeaderboardEntry> {

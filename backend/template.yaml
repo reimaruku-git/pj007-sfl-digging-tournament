@@ -738,7 +738,14 @@ Resources:
                   - iam:PassRole
                   - iam:UpdateAssumeRolePolicy
                 Resource:
-                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-*
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-main-role
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-farm-sync-role
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                Resource:
+                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis
               - Effect: Allow
                 Action:
                   - apigateway:GET
@@ -747,8 +754,8 @@ Resources:
                   - apigateway:PATCH
                   - apigateway:DELETE
                 Resource:
-                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis
-                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis/*
+                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis/${HttpApi}
+                  - !Sub arn:aws:apigateway:${AWS::Region}::/apis/${HttpApi}/*
               - Effect: Allow
                 Action:
                   - dynamodb:DescribeTable
@@ -789,10 +796,14 @@ Resources:
                   - cloudfront:GetDistribution
                   - cloudfront:GetDistributionConfig
                   - cloudfront:UpdateDistribution
+                  - cloudfront:TagResource
+                Resource:
+                  - !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
+              - Effect: Allow
+                Action:
                   - cloudfront:CreateOriginAccessControl
                   - cloudfront:GetOriginAccessControl
                   - cloudfront:UpdateOriginAccessControl
-                  - cloudfront:TagResource
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -813,7 +824,7 @@ Resources:
                   - cognito-idp:ListTagsForResource
                   - cognito-idp:AddCustomAttributes
                 Resource:
-                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
+                  - !GetAtt CognitoUserPool.Arn
       Tags:
         - Key: BillingTag
           Value: !Ref BillingTag

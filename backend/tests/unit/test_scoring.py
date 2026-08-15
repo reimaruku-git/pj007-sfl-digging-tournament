@@ -162,6 +162,43 @@ def test_tournament_window_ignores_old_tiles():
     assert result.digs_to_third_op == 3
 
 
+def test_tournament_window_ignores_tiles_after_end():
+    start = datetime(2026, 8, 14, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2026, 8, 14, 18, 0, tzinfo=timezone.utc)
+    after = int(datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    grid = [pebble(), pebble(), pebble(dug_at=after)]
+    result = score_grid(grid, now=NOW, window_start=start, window_end=end)
+    assert result.total_digs == 2
+    assert result.otter_count == 2
+    assert result.digs_to_third_op is None
+    assert result.status == STATUS_IN_PROGRESS
+
+
+def test_missing_dug_at_still_counts_inside_a_window():
+    start = datetime(2026, 8, 14, 0, 0, tzinfo=timezone.utc)
+    end = datetime(2026, 8, 21, 0, 0, tzinfo=timezone.utc)
+    grid = [
+        pebble(),
+        pebble(),
+        {"items": {"Otter Pebble": 1}, "tool": "Sand Shovel"},
+    ]
+    result = score_grid(grid, now=NOW, window_start=start, window_end=end)
+    assert result.total_digs == 3
+    assert result.digs_to_third_op == 3
+    assert result.status == STATUS_COMPLETED
+
+
+def test_unknown_tool_costs_one():
+    grid = [
+        {"dugAt": TODAY_MS, "items": {"Sand": 1}, "tool": "Mystery Scoop"},
+        pebble(),
+    ]
+    result = score_grid(grid, now=NOW)
+    assert result.total_digs == 2
+    assert result.otter_count == 1
+    assert result.status == STATUS_IN_PROGRESS
+
+
 def test_digs_today_only_counts_today():
     grid = [pebble(dug_at=YESTERDAY_MS), shovel(), shovel()]
     result = score_grid(grid, now=NOW)

@@ -161,15 +161,54 @@ Moves a pending farm into the S3 registry.
 
 Rejects a pending farm.
 
+### `GET /admin/config`
+
+Same public shape as `GET /config` — never the raw DynamoDB item.
+
+```json
+{
+  "config": {
+    "start_at": "2026-08-14T12:00:00+00:00",
+    "end_at": "2026-08-21T12:00:00+00:00",
+    "prize_amount": "30",
+    "status": "active",
+    "last_full_sync_at": "2026-08-14T13:00:00+00:00",
+    "updated_at": "2026-08-14T13:00:00+00:00"
+  }
+}
+```
+
 ### `PUT /admin/config`
 
 Minimum duration is 7 days. `prize_amount` is a JSON string.
+
+After a successful write the handler re-scores every farm that has an S3
+snapshot against the new window, then kicks the farm-sync Lambda so farms
+without a snapshot catch up.
 
 ```json
 {
   "start_at": "2026-08-14T00:00:00+00:00",
   "end_at": "2026-08-21T00:00:00+00:00",
   "prize_amount": "30"
+}
+```
+
+```json
+{
+  "config": {
+    "start_at": "2026-08-14T00:00:00+00:00",
+    "end_at": "2026-08-21T00:00:00+00:00",
+    "prize_amount": "30",
+    "status": "active",
+    "last_full_sync_at": "2026-08-14T13:00:00+00:00",
+    "updated_at": "2026-08-14T13:00:00+00:00"
+  },
+  "rescore": {
+    "rescored": 2,
+    "missing_snapshots": 0,
+    "sync_accepted": true
+  }
 }
 ```
 

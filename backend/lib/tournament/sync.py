@@ -79,6 +79,52 @@ def refresh_leaderboard(store: Store) -> dict[str, Any]:
     return cached
 
 
+def rescore_from_snapshots(
+    store: Store,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Re-run score_grid on stored snapshots using the current tournament window.
+
+    Farms with no snapshot are counted in ``missing_snapshots`` and left as-is
+    until the next live SFL fetch.
+    """
+    clock = now or datetime.now(timezone.utc)
+    config = ensure_default_config(store, now=clock)
+    window_start = parse_iso(config.get("start_at"))
+    window_end = parse_iso(config.get("end_at"))
+    rescored = 0
+    missing = 0
+    for row in store.list_scores():
+        farm_id = str(row.get("farm_id") or "").strip()
+        if not farm_id:
+            continue
+        snapshot = store.read_snapshot(farm_id)
+        grid = snapshot.get("grid") if isinstance(snapshot, dict) else None
+        if not isinstance(grid, list):
+            missing += 1
+            continue
+        computed = score_grid(
+            grid,
+            now=clock,
+            window_start=window_start,
+            window_end=window_end,
+        )
+        apply_computed_score(
+            store,
+            farm_id=farm_id,
+            name=str(row.get("name") or ""),
+            computed=computed,
+            previous=row,
+        )
+        updated = dict(snapshot)
+        updated["score"] = computed.to_dict()
+        store.write_snapshot(farm_id, updated)
+        rescored += 1
+    refresh_leaderboard(store)
+    return {"rescored": rescored, "missing_snapshots": missing}
+
+
 def apply_computed_score(
     store: Store,
     *,

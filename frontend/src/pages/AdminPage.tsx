@@ -5,6 +5,7 @@ import {
   addFarm,
   adminSession,
   approveSubmission,
+  fetchAdminConfig,
   fetchSnapshot,
   listFarms,
   listSubmissions,
@@ -16,7 +17,6 @@ import {
   triggerSync,
   updateFarm,
 } from "../api/admin";
-import { fetchConfig } from "../api/public";
 import { getAuthToken } from "../auth/session";
 import { formatWhen } from "../components/Layout";
 
@@ -161,13 +161,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const queryClient = useQueryClient();
   const farms = useQuery({ queryKey: ["admin-farms"], queryFn: listFarms });
   const submissions = useQuery({ queryKey: ["admin-submissions"], queryFn: listSubmissions });
-  const config = useQuery({ queryKey: ["config"], queryFn: fetchConfig });
+  const config = useQuery({ queryKey: ["admin-config"], queryFn: fetchAdminConfig });
   const [farmId, setFarmId] = useState("");
   const [farmName, setFarmName] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [prize, setPrize] = useState("30");
-  const [message, setMessage] = useState<string | null>(null);
+  const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string>("");
 
   useEffect(() => {
@@ -177,13 +177,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     setPrize(config.data.prize_amount);
   }, [config.data, startAt]);
 
-  function note(text: string) {
-    setMessage(text);
+  function note(text: string, kind: "ok" | "err" = "ok") {
+    setFlash({ kind, text });
   }
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-farms"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     void queryClient.invalidateQueries({ queryKey: ["config"] });
     void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
   };
@@ -196,7 +197,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       note("Farm added to S3 registry.");
       invalidate();
     },
-    onError: (error: Error) => note(error.message),
+    onError: (error: Error) => note(error.message, "err"),
   });
 
   return (
@@ -211,13 +212,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           onClick={() =>
             triggerSync()
               .then(() => note("Full sync started. Scores refresh in the background."))
-              .catch((error: Error) => note(error.message))
+              .catch((error: Error) => note(error.message, "err"))
           }
         >
           Force full sync
         </button>
       </div>
-      {message && <div className="flash ok">{message}</div>}
+      {flash && <div className={`flash ${flash.kind}`}>{flash.text}</div>}
 
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="kicker">Tournament window</div>
@@ -225,31 +226,55 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           className="form-grid"
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
+            const start = new Date(startAt);
+            const end = new Date(endAt);
+            if (!startAt || !endAt || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+              note("Start and end must be valid dates.", "err");
+              return;
+            }
             saveConfig({
-              start_at: new Date(startAt).toISOString(),
-              end_at: new Date(endAt).toISOString(),
+              start_at: start.toISOString(),
+              end_at: end.toISOString(),
               prize_amount: prize,
             })
-              .then(() => {
-                note("Config saved.");
+              .then((result) => {
+                const rescored = result.rescore?.rescored ?? 0;
+                const missing = result.rescore?.missing_snapshots ?? 0;
+                let text = `Config saved. Re-scored ${rescored} farm(s) from snapshots.`;
+                if (missing > 0) {
+                  text += ` ${missing} missing a snapshot; full sync started if configured.`;
+                }
+                note(text);
                 invalidate();
               })
-              .catch((error: Error) => note(error.message));
+              .catch((error: Error) => note(error.message, "err"));
           }}
         >
           <label>
             Start
-            <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+            <input
+              type="datetime-local"
+              value={startAt}
+              onChange={(e) => setStartAt(e.target.value)}
+              required
+              disabled={!config.data}
+            />
           </label>
           <label>
             End
-            <input type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+            <input
+              type="datetime-local"
+              value={endAt}
+              onChange={(e) => setEndAt(e.target.value)}
+              required
+              disabled={!config.data}
+            />
           </label>
           <label>
             Prize (Flower)
             <input value={prize} onChange={(e) => setPrize(e.target.value)} />
           </label>
-          <button className="btn primary" type="submit">
+          <button className="btn primary" type="submit" disabled={!config.data || !startAt || !endAt}>
             Save dates & prize
           </button>
         </form>
@@ -272,7 +297,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     note("Approved.");
                     invalidate();
                   })
-                  .catch((error: Error) => note(error.message))
+                  .catch((error: Error) => note(error.message, "err"))
               }
             >
               Approve
@@ -286,7 +311,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     note("Rejected.");
                     invalidate();
                   })
-                  .catch((error: Error) => note(error.message))
+                  .catch((error: Error) => note(error.message, "err"))
               }
             >
               Reject
@@ -340,7 +365,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       onClick={() =>
                         updateFarm(farm.farm_id, { active: !farm.active })
                           .then(invalidate)
-                          .catch((error: Error) => note(error.message))
+                          .catch((error: Error) => note(error.message, "err"))
                       }
                     >
                       {farm.active ? "Disable" : "Enable"}
@@ -351,7 +376,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       onClick={() =>
                         refreshFarm(farm.farm_id)
                           .then(() => note(`Refreshed ${farm.farm_id}`))
-                          .catch((error: Error) => note(error.message))
+                          .catch((error: Error) => note(error.message, "err"))
                       }
                     >
                       Refresh
@@ -362,7 +387,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       onClick={() =>
                         fetchSnapshot(farm.farm_id)
                           .then((payload) => setSnapshot(JSON.stringify(payload, null, 2)))
-                          .catch((error: Error) => note(error.message))
+                          .catch((error: Error) => note(error.message, "err"))
                       }
                     >
                       Snapshot
@@ -382,7 +407,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                             note("Score override saved.");
                             invalidate();
                           })
-                          .catch((error: Error) => note(error.message));
+                          .catch((error: Error) => note(error.message, "err"));
                       }}
                     >
                       Override
@@ -396,7 +421,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                             note("Score invalidated.");
                             invalidate();
                           })
-                          .catch((error: Error) => note(error.message))
+                          .catch((error: Error) => note(error.message, "err"))
                       }
                     >
                       Invalidate
@@ -410,7 +435,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                             note("Removed from S3 registry.");
                             invalidate();
                           })
-                          .catch((error: Error) => note(error.message))
+                          .catch((error: Error) => note(error.message, "err"))
                       }
                     >
                       Remove

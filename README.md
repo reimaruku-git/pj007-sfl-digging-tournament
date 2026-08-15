@@ -1,5 +1,8 @@
 # SFL Digging Tournament (pj007)
 
+Agent rules (read first): **[AGENTS.md](AGENTS.md)**. House HTTP contract:
+`~/.grok/skills/fullstack-api/SKILL.md`.
+
 Players compete to collect **all 3 Otter Pebbles** in the fewest digs.
 
 - Sand Shovel = **1 dig**

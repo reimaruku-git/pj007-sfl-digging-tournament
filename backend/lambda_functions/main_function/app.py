@@ -23,6 +23,7 @@ from tournament.sync import (
     parse_iso,
     public_config,
     refresh_leaderboard,
+    rescore_from_snapshots,
     sync_one_farm,
     tournament_status,
 )
@@ -200,8 +201,29 @@ def handle_admin_session(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"ok": True})
 
 
+def _kick_farm_sync(source: str) -> bool:
+    if not FARM_SYNC_FUNCTION:
+        return False
+    try:
+        _lambda_client().invoke(
+            FunctionName=FARM_SYNC_FUNCTION,
+            InvocationType="Event",
+            Payload=json.dumps({"source": source}),
+        )
+        return True
+    except Exception:
+        logger.exception("Failed to invoke farm sync (%s)", source)
+        return False
+
+
 def handle_admin_get_config(_event: dict[str, Any]) -> dict[str, Any]:
-    return create_response(200, {"config": ensure_default_config(_get_store())})
+    store = _get_store()
+    config = ensure_default_config(store)
+    start = parse_iso(config.get("start_at"))
+    end = parse_iso(config.get("end_at"))
+    if start and end:
+        config["status"] = tournament_status(start, end, datetime.now(timezone.utc))
+    return create_response(200, {"config": public_config(config)})
 
 
 def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
@@ -235,8 +257,19 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
             "leader_farm_id": existing.get("leader_farm_id"),
         }
     )
-    refresh_leaderboard(store)
-    return create_response(200, {"config": public_config(config)})
+    rescore = rescore_from_snapshots(store)
+    sync_accepted = _kick_farm_sync("admin-config")
+    return create_response(
+        200,
+        {
+            "config": public_config(config),
+            "rescore": {
+                "rescored": rescore["rescored"],
+                "missing_snapshots": rescore["missing_snapshots"],
+                "sync_accepted": sync_accepted,
+            },
+        },
+    )
 
 
 def handle_admin_list_farms(event: dict[str, Any]) -> dict[str, Any]:
@@ -260,7 +293,9 @@ def handle_admin_add_farm(event: dict[str, Any]) -> dict[str, Any]:
         store.put_score(store.empty_score(farm_id, name))
         refresh_leaderboard(store)
     farm = next(item for item in saved["farms"] if item["farm_id"] == farm_id)
-    return create_response(201, {"farm": farm, "farms": saved["farms"], "count": len(saved["farms"])})
+    return create_response(
+        201, {"farm": farm, "farms": saved["farms"], "count": len(saved["farms"])}
+    )
 
 
 def handle_admin_update_farm(event: dict[str, Any]) -> dict[str, Any]:
@@ -307,9 +342,7 @@ def handle_admin_approve_submission(event: dict[str, Any]) -> dict[str, Any]:
     submission = store.get_submission(farm_id)
     if not submission:
         return create_error_response(404, "submission not found", "NOT_FOUND")
-    saved = _get_registry().upsert(
-        farm_id, name=submission.get("name") or "", active=True
-    )
+    saved = _get_registry().upsert(farm_id, name=submission.get("name") or "", active=True)
     store.delete_submission(farm_id)
     if not store.get_score(farm_id):
         store.put_score(store.empty_score(farm_id, submission.get("name") or ""))
@@ -341,11 +374,8 @@ def handle_admin_refresh_farm(event: dict[str, Any]) -> dict[str, Any]:
 def handle_admin_sync(event: dict[str, Any]) -> dict[str, Any]:
     if not FARM_SYNC_FUNCTION:
         return create_error_response(500, "sync function is not configured", "CONFIG_ERROR")
-    _lambda_client().invoke(
-        FunctionName=FARM_SYNC_FUNCTION,
-        InvocationType="Event",
-        Payload=json.dumps({"source": "admin"}),
-    )
+    if not _kick_farm_sync("admin"):
+        return create_error_response(500, "failed to start sync", "SYNC_ERROR")
     return create_response(202, {"accepted": True})
 
 
@@ -380,9 +410,9 @@ def handle_admin_put_score(event: dict[str, Any]) -> dict[str, Any]:
             row["status"] = STATUS_COMPLETED
             row["otter_count"] = 3
     if "override_reason" in body or "overrideReason" in body:
-        row["override_reason"] = str(
-            body.get("override_reason") or body.get("overrideReason") or ""
-        ).strip() or None
+        row["override_reason"] = (
+            str(body.get("override_reason") or body.get("overrideReason") or "").strip() or None
+        )
     stored = store.put_score(row)
     refresh_leaderboard(store)
     stored["digs_to_third_op"] = official_score(stored)
