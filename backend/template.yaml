@@ -740,6 +740,7 @@ Resources:
                 Resource:
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-main-role
                   - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-farm-sync-role
+                  - !Sub arn:aws:iam::${AWS::AccountId}:role/${ProjectNo}-${Environment}-${ProjectName}-github-deploy-role
               - Effect: Allow
                 Action:
                   - apigateway:GET
