@@ -177,6 +177,48 @@ def test_top_level_sand_drill_object_costs_four():
     assert result.digs_to_third_op is None
 
 
+def test_five_shovels_then_last_tile_drill_op_is_ninth():
+    """After 5 shovel digs the next drill is 6–9; OP on the last tile is #9."""
+    grid = [
+        pebble(),
+        pebble(),
+        shovel(),
+        shovel(),
+        shovel(),
+        [
+            shovel({"Sand": 1}),
+            shovel({"Sand": 1}),
+            shovel({"Sand": 1}),
+            pebble(),
+        ],
+        pebble(),
+        shovel(),
+    ]
+    result = score_grid(grid, now=NOW)
+    assert result.digs_to_third_op == 9
+    assert result.otter_count == 3
+    assert result.status == STATUS_COMPLETED
+    # Extra tiles after the 3rd OP do not move the official score.
+    assert result.total_digs == 11
+
+    standalone = [
+        pebble(),
+        pebble(),
+        shovel(),
+        shovel(),
+        shovel(),
+        {
+            "dugAt": TODAY_MS,
+            "items": {"Otter Pebble": 1},
+            "tool": "Sand Drill",
+        },
+        pebble(),
+    ]
+    again = score_grid(standalone, now=NOW)
+    assert again.digs_to_third_op == 9
+    assert again.otter_count == 3
+
+
 def test_third_op_on_standalone_drill_is_position_after_four_digs():
     grid = [
         pebble(),

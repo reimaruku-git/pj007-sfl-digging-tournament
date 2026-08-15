@@ -70,30 +70,36 @@ export function LeaderboardPage() {
         <div className="card prize-card" id="rules">
           <div className="kicker">Prize pool</div>
           <div className="prize">{config?.prize_amount ?? "30"} Flower</div>
-          <p className="meta">Collect all 3 Otter Pebbles in the fewest digs. Lower score wins.</p>
+          <p className="meta">
+            Get the 3 Otter Pebbles as early as possible. Digs after that do not affect your score.
+          </p>
           <ul className="rules-list">
             <li>
               <span>Shovel</span>
-              <span>1 numbered dig.</span>
+              <span>Counts as 1 dig</span>
             </li>
             <li>
               <span>Drill</span>
               <span>
-                4 numbered digs. An Otter Pebble found with a drill counts as the last of those
-                4. After 4 shovel digs, that drill is 5, 6, 7, and 8 — the pebble is the 8th.
+                Counts as 4 digs. An Otter Pebble found with a Drill is counted as the exact dig
+                number within those 4. Example: After 5 shovel digs, the next Drill becomes digs
+                6, 7, 8 and 9. A pebble in the last tile is dig #9.
               </span>
             </li>
             <li>
               <span>Score</span>
-              <span>The numbered dig of your 3rd Otter Pebble.</span>
+              <span>The dig number when you get the 3rd Otter Pebble</span>
             </li>
             <li>
               <span>Refresh</span>
-              <span>14:00, 16:00, 18:00, 20:00, 23:00 UTC. Digs after 23:00 do not count.</span>
+              <span>14:00, 16:00, 18:00, 20:00, 23:00 UTC. Digs after 23:00 UTC do not count</span>
             </li>
             <li>
               <span>Unfinished</span>
-              <span>At 23:00: worst finished score or 30, whichever is higher, plus 5 per missing pebble.</span>
+              <span>
+                Score of the worst finisher that day (or 30, whichever is higher) + 5 per missing
+                Otter Pebble
+              </span>
             </li>
           </ul>
         </div>
