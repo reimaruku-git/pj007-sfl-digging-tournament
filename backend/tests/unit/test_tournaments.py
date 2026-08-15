@@ -63,6 +63,42 @@ def test_empty_store_has_no_default_live(aws_env):
     assert not store.get_config().get("start_at")
 
 
+def test_can_edit_active_duration(aws_env):
+    from tournament.catalog import update_tournament
+
+    store = _store(aws_env)
+    clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
+    live = create_tournament(
+        store,
+        {
+            "name": "Now cup",
+            "start_at": "2026-08-10T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    assert live["status"] == "active"
+    updated = update_tournament(
+        store,
+        live["tournament_id"],
+        {
+            "name": "Now cup long",
+            "start_at": "2026-08-10T00:00:00+00:00",
+            "duration_days": 14,
+            "prize_amount": "45",
+        },
+        now=clock,
+    )
+    assert updated["status"] == "active"
+    assert updated["name"] == "Now cup long"
+    assert updated["duration_days"] == 14
+    assert updated["prize_amount"] == "45"
+    assert updated["end_at"].startswith("2026-08-24")
+    assert store.get_config()["current_tournament_id"] == updated["tournament_id"]
+    assert store.get_config()["duration_days"] == 14
+
+
 def test_can_delete_active_and_scheduled(aws_env):
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
@@ -244,6 +280,26 @@ def test_admin_http_create_and_cancel(aws_env, monkeypatch):
     assert live["statusCode"] == 201
     live_id = json.loads(live["body"])["tournament"]["tournament_id"]
     assert json.loads(live["body"])["tournament"]["status"] == "active"
+    edited = app.lambda_handler(
+        {
+            "rawPath": f"/admin/tournaments/{live_id}",
+            "requestContext": {"http": {"method": "PUT"}, "stage": "dev"},
+            "headers": {},
+            "body": json.dumps(
+                {
+                    "name": "Live now",
+                    "start_at": "2026-08-10T00:00:00+00:00",
+                    "duration_days": 14,
+                    "prize_amount": "30",
+                }
+            ),
+            "pathParameters": {"tournament_id": live_id},
+        },
+        None,
+    )
+    assert edited["statusCode"] == 200
+    assert json.loads(edited["body"])["tournament"]["duration_days"] == 14
+    live_id = json.loads(edited["body"])["tournament"]["tournament_id"]
     cancelled = app.lambda_handler(
         {
             "rawPath": f"/admin/tournaments/{live_id}",

@@ -291,53 +291,70 @@ def update_tournament(
     prize = str(body.get("prize_amount") if "prize_amount" in body or "prizeAmount" in body else existing.get("prize_amount") or "30")
     prize = prize.strip() or "30"
 
-    if status == STATUS_ACTIVE:
-        if any(key in body for key in ("start_at", "startAt", "end_at", "endAt", "duration_days", "durationDays")):
-            raise CatalogError("dates are locked once a tournament is live", code="CONFLICT", status=409)
-        updated = dict(existing)
-        updated["name"] = name
-        updated["prize_amount"] = prize
-        store.put_tournament(updated)
-        apply_live_config(store, updated)
-        return updated
-
-    start, end, days = parse_window(
-        {
+    window_keys = ("start_at", "startAt", "end_at", "endAt", "duration_days", "durationDays")
+    window_changed = any(key in body for key in window_keys)
+    if window_changed:
+        payload = {
             "start_at": body.get("start_at", body.get("startAt", existing.get("start_at"))),
             "end_at": body.get("end_at", body.get("endAt", existing.get("end_at"))),
-            "duration_days": body.get("duration_days", body.get("durationDays")),
         }
-        if any(key in body for key in ("start_at", "startAt", "end_at", "endAt", "duration_days", "durationDays"))
-        else {
-            "start_at": existing.get("start_at"),
-            "end_at": existing.get("end_at"),
-            "duration_days": existing.get("duration_days"),
-        }
-    )
+        if "duration_days" in body or "durationDays" in body:
+            payload["duration_days"] = body.get("duration_days", body.get("durationDays"))
+        elif "end_at" not in body and "endAt" not in body:
+            payload["duration_days"] = existing.get("duration_days")
+        start, end, days = parse_window(payload)
+    else:
+        start, end, days = parse_window(
+            {
+                "start_at": existing.get("start_at"),
+                "end_at": existing.get("end_at"),
+                "duration_days": existing.get("duration_days"),
+            }
+        )
+
     assert_no_overlap(store, start, end, ignore_id=tournament_id_value)
     new_id = tournament_id({"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days})
-    updated = tournament_record(start=start, end=end, days=days, name=name, prize=prize, status=STATUS_SCHEDULED)
+    if clock < start:
+        next_status = STATUS_SCHEDULED
+    elif status == STATUS_ACTIVE or clock < end:
+        next_status = STATUS_ACTIVE
+    else:
+        raise CatalogError("that window has already ended", code="CONFLICT", status=409)
+
+    if next_status == STATUS_ACTIVE:
+        other = next(
+            (
+                item
+                for item in store.list_tournament_items()
+                if item.get("status") == STATUS_ACTIVE
+                and item.get("tournament_id") not in {tournament_id_value, new_id}
+            ),
+            None,
+        )
+        if other:
+            raise CatalogError("another tournament is already live", code="CONFLICT", status=409)
+
     if new_id != tournament_id_value:
         if store.get_tournament(new_id):
             raise CatalogError("a tournament with that window already exists", code="CONFLICT", status=409)
         store.delete_tournament(tournament_id_value)
-    if start <= clock:
-        active = next(
-            (
-                item
-                for item in store.list_tournament_items()
-                if item.get("status") == STATUS_ACTIVE and item.get("tournament_id") != new_id
-            ),
-            None,
-        )
-        if active:
-            raise CatalogError("another tournament is already live", code="CONFLICT", status=409)
-        updated["status"] = STATUS_ACTIVE
-        store.put_tournament(updated)
-        apply_live_config(store, updated)
-        rescore_from_snapshots(store, now=clock)
-        return updated
+
+    updated = tournament_record(
+        start=start,
+        end=end,
+        days=days,
+        name=name,
+        prize=prize,
+        status=next_status,
+        tournament_id_value=new_id,
+    )
     store.put_tournament(updated)
+    if next_status == STATUS_ACTIVE:
+        apply_live_config(store, updated)
+        if window_changed:
+            rescore_from_snapshots(store, now=clock)
+    elif status == STATUS_ACTIVE:
+        clear_live_config(store)
     return updated
 
 

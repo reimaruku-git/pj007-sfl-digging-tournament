@@ -335,8 +335,9 @@ live. Otherwise it is `scheduled`.
 
 ### `PUT /admin/tournaments/{tournament_id}`
 
-Scheduled: name, dates, prize. Active: name and prize only (`409` if
-dates change). Ended: `409`.
+Scheduled or live: name, `start_at`, `duration_days` (or `end_at`), and
+prize. Changing the live window re-scores farms from snapshots. Ended:
+`409`.
 
 ### `DELETE /admin/tournaments/{tournament_id}`
 

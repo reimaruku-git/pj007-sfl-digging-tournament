@@ -12,6 +12,12 @@ wins.
 
 Default branch for push/deploy: **`dev`**.
 
+**Auto-push (this repo only):** when a change is finished and the tests
+that belong with it pass, commit and `git push origin dev` without
+waiting to be asked. House commit rules still apply (message, stage by
+path, no secrets). Do not push mid-task, `temp/`, or `.env`. This file
+wins over the commit skill’s “do not push unless asked.”
+
 ---
 
 ## What this is
@@ -189,7 +195,8 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Default prize is `"30"` Flower (JSON **string**). Min period **7 days**.
   Admin creates named tournaments (`POST /admin/tournaments`) with from/to
   or start + `duration_days`. Empty catalog is valid — do not invent a
-  default Active window. Admin can delete scheduled and live events.
+  default Active window. Admin can create, edit (including live duration),
+  and delete scheduled and live events.
   One live event; others are scheduled or ended. Ended events freeze to
   S3 `archives/{id}/` (meta + standings + farm snapshots). Public
   `GET /tournaments` lists upcoming, live, and past.
@@ -282,7 +289,7 @@ npm run dev                  # http://localhost:5173
 ### Deploy
 
 After the first local SAM deploy, **do not deploy from the laptop by
-default.** Push `dev`:
+default.** A finished change is pushed to `dev` in the same turn:
 
 ```
 git push origin dev
@@ -389,7 +396,8 @@ our API — it must not POST `/submissions` or call SFL.
 1. Trust **this AGENTS.md**, then the fullstack-api skill.
 2. HTTP changes → `backend/docs/API_DOCUMENTATION.md` in the same diff.
 3. Scoring changes → `scoring.py` + unit tests together.
-4. Deploy → push `dev`. Do not improvise a second pipeline.
+4. Deploy → push `dev` when the change is done. Do not wait to be asked.
+   Do not improvise a second pipeline.
 5. Auth → Cognito ID token on `/admin/*` only. Public stays public.
 6. Repeatable review / post-deploy probe → `/workflow pj007-review` or
    `/workflow pj007-live-check` (see Workflows).

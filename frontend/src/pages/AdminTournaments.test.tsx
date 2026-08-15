@@ -1,0 +1,119 @@
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { TournamentSummary } from "../api/public";
+import { AdminTournaments } from "./AdminTournaments";
+
+let root: Root;
+let container: HTMLDivElement;
+
+function row(partial: Partial<TournamentSummary> & Pick<TournamentSummary, "tournament_id" | "name" | "status">): TournamentSummary {
+  return {
+    start_at: "2026-08-10T00:00:00.000Z",
+    end_at: "2026-08-17T00:00:00.000Z",
+    duration_days: 7,
+    prize_amount: "30",
+    archived_at: null,
+    count: 0,
+    leader_farm_id: null,
+    ...partial,
+  };
+}
+
+function render(items: TournamentSummary[], handlers = {}) {
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+  const props = {
+    items,
+    onCreate: vi.fn().mockResolvedValue(undefined),
+    onUpdate: vi.fn().mockResolvedValue(undefined),
+    onDelete: vi.fn().mockResolvedValue(undefined),
+    ...handlers,
+  };
+  act(() => {
+    root.render(<AdminTournaments {...props} />);
+  });
+  return { container, props };
+}
+
+afterEach(() => {
+  act(() => {
+    root.unmount();
+  });
+  container.remove();
+});
+
+describe("AdminTournaments", () => {
+  it("hides the create form until the button is clicked and has a single length field", () => {
+    const { container } = render([]);
+    expect(container.textContent).toMatch(/Ongoing/);
+    expect(container.textContent).toMatch(/Upcoming/);
+    expect(container.textContent).not.toMatch(/Custom days/);
+    expect(container.querySelector("form")).toBeNull();
+    expect(container.querySelector('input[placeholder="Late August Otter Cup"]')).toBeNull();
+
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    expect(container.querySelector("form")).not.toBeNull();
+    expect(container.textContent).toMatch(/Length \(days\)/);
+    expect(container.textContent).not.toMatch(/Custom days/);
+    expect(container.textContent).not.toMatch(/To \(optional\)/);
+    expect(container.querySelectorAll('input[type="number"]')).toHaveLength(1);
+  });
+
+  it("splits current and upcoming and lets both be edited", () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "live",
+          name: "Live cup",
+          status: "active",
+          start_at: "2026-08-10T00:00:00.000Z",
+          end_at: "2026-08-20T00:00:00.000Z",
+          duration_days: 10,
+        }),
+        row({
+          tournament_id: "next",
+          name: "September cup",
+          status: "scheduled",
+          start_at: "2026-09-01T00:00:00.000Z",
+          end_at: "2026-09-08T00:00:00.000Z",
+        }),
+      ],
+      { onUpdate },
+    );
+    expect(container.querySelector('[data-testid="admin-ongoing-group"]')?.textContent).toMatch(/Live cup/);
+    expect(container.querySelector('[data-testid="admin-upcoming-group"]')?.textContent).toMatch(
+      /September cup/,
+    );
+
+    act(() => {
+      const edit = container.querySelector('[data-testid="admin-card-live"] button');
+      (edit as HTMLButtonElement | null)?.click();
+    });
+    const name = container.querySelector('input[placeholder="Late August Otter Cup"]') as HTMLInputElement;
+    const days = container.querySelector('input[type="number"]') as HTMLInputElement;
+    expect(name.value).toBe("Live cup");
+    expect(days.value).toBe("10");
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(days, "14");
+      days.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      const save = [...container.querySelectorAll("button")].find((node) => node.textContent === "Save changes");
+      save?.click();
+    });
+    expect(onUpdate).toHaveBeenCalledWith(
+      "live",
+      expect.objectContaining({ duration_days: 14, name: "Live cup" }),
+    );
+  });
+});

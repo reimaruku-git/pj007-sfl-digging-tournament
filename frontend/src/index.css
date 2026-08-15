@@ -345,6 +345,22 @@ textarea {
   align-content: start;
 }
 
+.admin-tourney-home {
+  margin-top: 12px;
+}
+
+@media (min-width: 801px) {
+  .admin-tourney-home {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-tourney-form {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
 .tourney-group {
   background: var(--panel-2);
   border-radius: 12px;
@@ -682,8 +698,11 @@ tr.is-you,
 }
 
 .podium-score {
-  font-family: Fraunces, Georgia, serif;
-  font-size: 28px;
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
   line-height: 1;
   color: var(--gold);
 }

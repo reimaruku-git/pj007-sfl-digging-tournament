@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatDateRangeUtc, formatDateUtc, formatRelative, formatScore, formatWhenUtc } from "./format";
+import {
+  formatDateRangeUtc,
+  formatDateUtc,
+  formatRelative,
+  formatScore,
+  formatWhenUtc,
+  isoToDateInput,
+} from "./format";
 
 describe("formatScore", () => {
   it("prints two decimal places", () => {
@@ -25,6 +32,12 @@ describe("formatDateUtc", () => {
     expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z")).not.toMatch(
       /UTC/,
     );
+  });
+});
+
+describe("isoToDateInput", () => {
+  it("keeps the UTC calendar date", () => {
+    expect(isoToDateInput("2026-08-13T14:44:00.000Z")).toBe("2026-08-13");
   });
 });
 

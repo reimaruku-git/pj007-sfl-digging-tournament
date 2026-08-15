@@ -21,7 +21,7 @@ import {
   updateTournament,
 } from "../api/admin";
 import { getAuthToken } from "../auth/session";
-import { formatDateRangeUtc, statusLabel } from "../lib/format";
+import { AdminTournaments } from "./AdminTournaments";
 
 export function AdminPage() {
   const [authed, setAuthed] = useState(false);
@@ -167,11 +167,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const tournaments = useQuery({ queryKey: ["admin-tournaments"], queryFn: listAdminTournaments });
   const [farmId, setFarmId] = useState("");
   const [farmName, setFarmName] = useState("");
-  const [eventName, setEventName] = useState("");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
-  const [durationDays, setDurationDays] = useState(7);
-  const [prize, setPrize] = useState("30");
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string>("");
 
@@ -220,159 +215,25 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </div>
       {flash && <div className={`flash ${flash.kind}`}>{flash.text}</div>}
 
-      <section className="card" style={{ marginBottom: 16 }}>
-        <div className="kicker">Tournaments</div>
-        {(tournaments.data ?? []).length === 0 && !tournaments.isLoading && (
-          <p className="muted">No tournaments yet. Create one below.</p>
-        )}
-        {(tournaments.data ?? []).map((row) => (
-          <div key={row.tournament_id} className="toolbar" style={{ alignItems: "center" }}>
-            <span>
-              <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>{" "}
-              <b>{row.name || row.tournament_id}</b>
-              <div className="meta">
-                {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
-                Flower
-              </div>
-            </span>
-            {(row.status === "scheduled" || row.status === "active") && (
-              <button
-                className="btn"
-                type="button"
-                onClick={() =>
-                  deleteTournament(row.tournament_id)
-                    .then(() => {
-                      note(
-                        row.status === "active"
-                          ? "Live tournament deleted."
-                          : "Scheduled tournament cancelled.",
-                      );
-                      invalidate();
-                    })
-                    .catch((error: Error) => note(error.message, "err"))
-                }
-              >
-                Delete
-              </button>
-            )}
-            {row.status === "active" && (
-              <button
-                className="btn"
-                type="button"
-                onClick={() => {
-                  const nextName = window.prompt("Tournament name", row.name || "");
-                  if (nextName === null) return;
-                  const nextPrize = window.prompt("Prize (Flower)", row.prize_amount);
-                  if (nextPrize === null) return;
-                  updateTournament(row.tournament_id, {
-                    name: nextName.trim(),
-                    prize_amount: nextPrize.trim() || "30",
-                  })
-                    .then(() => {
-                      note("Live tournament updated.");
-                      invalidate();
-                    })
-                    .catch((error: Error) => note(error.message, "err"));
-                }}
-              >
-                Edit name / prize
-              </button>
-            )}
-          </div>
-        ))}
-        <form
-          className="form-grid"
-          style={{ marginTop: 16 }}
-          onSubmit={(event: FormEvent) => {
-            event.preventDefault();
-            if (!startAt) {
-              note("Start must be a valid date.", "err");
-              return;
-            }
-            const payload: {
-              name: string;
-              start_at: string;
-              end_at?: string;
-              duration_days?: number;
-              prize_amount: string;
-            } = {
-              name: eventName.trim(),
-              start_at: `${startAt}T00:00:00.000Z`,
-              prize_amount: prize.trim() || "30",
-            };
-            if (endAt) {
-              payload.end_at = `${endAt}T00:00:00.000Z`;
-            } else {
-              if (durationDays < 7) {
-                note("Tournament must run at least 7 days.", "err");
-                return;
-              }
-              payload.duration_days = durationDays;
-            }
-            createTournament(payload)
-              .then((created) => {
-                note(`Created ${created.name} (${created.status}).`);
-                setEventName("");
-                invalidate();
-              })
-              .catch((error: Error) => note(error.message, "err"));
-          }}
-        >
-          <label>
-            Name
-            <input
-              value={eventName}
-              onChange={(event) => setEventName(event.target.value)}
-              placeholder="Late August Otter Cup"
-              required
-            />
-          </label>
-          <label>
-            From
-            <input
-              type="date"
-              value={startAt}
-              onChange={(event) => setStartAt(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            To (optional)
-            <input type="date" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
-          </label>
-          <label>
-            Length (days)
-            <select
-              value={[7, 14, 30].includes(durationDays) ? String(durationDays) : "custom"}
-              onChange={(event) => {
-                if (event.target.value === "custom") return;
-                setDurationDays(Number(event.target.value));
-              }}
-            >
-              <option value="7">7 days</option>
-              <option value="14">14 days</option>
-              <option value="30">30 days</option>
-              <option value="custom">Custom</option>
-            </select>
-          </label>
-          <label>
-            Custom days
-            <input
-              type="number"
-              min={7}
-              value={durationDays}
-              onChange={(event) => setDurationDays(Number(event.target.value))}
-            />
-          </label>
-          <label>
-            Prize (Flower)
-            <input value={prize} onChange={(event) => setPrize(event.target.value)} />
-          </label>
-          <button className="btn primary" type="submit" disabled={!startAt || !eventName.trim()}>
-            Create tournament
-          </button>
-        </form>
-      </section>
+      <AdminTournaments
+        items={tournaments.data ?? []}
+        loading={tournaments.isLoading}
+        onCreate={async (draft) => {
+          const created = await createTournament(draft);
+          note(`Created ${created.name} (${created.status}).`);
+          invalidate();
+        }}
+        onUpdate={async (id, draft) => {
+          await updateTournament(id, draft);
+          note("Tournament updated.");
+          invalidate();
+        }}
+        onDelete={async (row) => {
+          await deleteTournament(row.tournament_id);
+          note(row.status === "active" ? "Live tournament deleted." : "Scheduled tournament cancelled.");
+          invalidate();
+        }}
+      />
 
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="kicker">Pending submissions</div>
