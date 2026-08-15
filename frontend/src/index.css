@@ -286,7 +286,7 @@ textarea {
 
 .hero {
   display: grid;
-  grid-template-columns: 1.25fr 0.95fr;
+  grid-template-columns: 1.55fr 0.85fr;
   gap: 16px;
   margin-bottom: 18px;
 }
@@ -684,14 +684,29 @@ tr.is-you,
 }
 
 .rules-list {
-  margin: 12px 0 0 18px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
   color: var(--mute);
   display: grid;
-  gap: 7px;
+  gap: 8px;
 }
 
-.prize-card .rules-list {
-  max-width: 46ch;
+.rules-list li {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+  line-height: 1.45;
+}
+
+.rules-list li > span:first-child {
+  color: var(--sand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-top: 2px;
 }
 
 .farm-sheet h2 {
@@ -839,6 +854,11 @@ tr.is-you,
 
   .utc-chip {
     display: none;
+  }
+
+  .rules-list li {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 
   .board-table {

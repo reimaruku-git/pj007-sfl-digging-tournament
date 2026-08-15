@@ -72,20 +72,28 @@ export function LeaderboardPage() {
           <div className="prize">{config?.prize_amount ?? "30"} Flower</div>
           <p className="meta">Collect all 3 Otter Pebbles in the fewest digs. Lower score wins.</p>
           <ul className="rules-list">
-            <li>Sand Shovel = 1 numbered dig.</li>
             <li>
-              Sand Drill = 4 numbered digs. The game may stamp the whole drill as one number
-              (for example “5th dig” on all 4 holes). We count those as 5, 6, 7, and 8. An
-              Otter Pebble from that drill sits on the last hole — the 8th dig.
-            </li>
-            <li>Official score is the numbered dig of your 3rd Otter Pebble.</li>
-            <li>
-              Scores refresh at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC. 23:00 is the last
-              sync of the day — later digs do not count.
+              <span>Shovel</span>
+              <span>1 numbered dig.</span>
             </li>
             <li>
-              Missing pebbles at 23:00: worst completed score that day or 30 (whichever is
-              higher), plus 5 per Otter Pebble still missing.
+              <span>Drill</span>
+              <span>
+                4 numbered digs. If the game stamps all 4 holes as the “5th dig”, we count 5,
+                6, 7, and 8. An Otter Pebble from that drill is the last hole — the 8th.
+              </span>
+            </li>
+            <li>
+              <span>Score</span>
+              <span>The numbered dig of your 3rd Otter Pebble.</span>
+            </li>
+            <li>
+              <span>Refresh</span>
+              <span>14:00, 16:00, 18:00, 20:00, 23:00 UTC. Digs after 23:00 do not count.</span>
+            </li>
+            <li>
+              <span>Unfinished</span>
+              <span>At 23:00: worst finished score or 30, whichever is higher, plus 5 per missing pebble.</span>
             </li>
           </ul>
         </div>
