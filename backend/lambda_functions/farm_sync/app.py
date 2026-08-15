@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from tournament.farms import FarmRegistry
 from tournament.sfl_client import RateLimitedSFLClient
 from tournament.store import Store
-from tournament.sync import parse_iso, refresh_leaderboard, sync_all_farms, sync_one_farm
+from tournament.sync import drop_untracked_scores, parse_iso, refresh_leaderboard, sync_all_farms, sync_one_farm
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -60,6 +60,9 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
     from tournament.catalog import rollover
 
     farm_id = _event_farm_id(event)
+    dropped = drop_untracked_scores(store, registry)
+    if dropped:
+        logger.info("farm_sync dropped untracked scores: %s", dropped)
     if not farm_id:
         rollover(store, now=clock)
     if farm_id:
@@ -68,7 +71,7 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
             logger.info("farm_sync skip: farm %s is not tracked", farm_id)
             return {"synced": 0, "failures": 0, "skipped": "not_tracked", "farm_id": farm_id}
         row = sync_one_farm(store, client, farm, now=clock, finalize=False)
-        refresh_leaderboard(store)
+        refresh_leaderboard(store, registry=registry)
         failed = bool(row.get("error"))
         logger.info("farm_sync one farm %s error=%s", farm_id, row.get("error"))
         return {

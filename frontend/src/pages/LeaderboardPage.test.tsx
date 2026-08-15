@@ -207,6 +207,8 @@ describe("LeaderboardPage home", () => {
     const firstBoard = page.querySelector('[data-testid="live-board-one"]');
     const secondBoard = page.querySelector('[data-testid="live-board-two"]');
     expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
+    expect(firstBoard?.textContent).toMatch(/Score/);
+    expect(firstBoard?.textContent).toMatch(/Avg \/ day/);
     expect(firstBoard?.textContent).toMatch(/Player 1/);
     expect(firstBoard?.textContent).toMatch(/Player 10/);
     expect(firstBoard?.textContent).not.toMatch(/Player 11/);

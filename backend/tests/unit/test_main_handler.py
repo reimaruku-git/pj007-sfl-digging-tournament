@@ -99,6 +99,7 @@ def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
             "invalidated": False,
         }
     )
+    app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "99", "name": "rmr"}), None)
     refresh_leaderboard(store, now=datetime(2026, 8, 15, tzinfo=timezone.utc))
     cached = store.get_leaderboard_cache()
     assert cached is not None
@@ -195,6 +196,99 @@ def test_admin_override_score(aws_env, monkeypatch):
     board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
     assert board["entries"][0]["digs_to_third_op"] == 11
     assert board["entries"][0]["status"] == "completed"
+
+
+def _open_live_cup(app):
+    created = app.lambda_handler(
+        _event(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "Live cup",
+                "start_at": "2026-08-10T00:00:00+00:00",
+                "end_at": "2026-08-20T00:00:00+00:00",
+                "prize_amount": "30",
+            },
+        ),
+        None,
+    )
+    assert created["statusCode"] == 201
+
+
+def test_untracked_farm_is_purged_from_leaderboard(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    _open_live_cup(app)
+    store = app._get_store()
+    store.put_score(
+        {
+            "farm_id": "ghost",
+            "name": "ghost",
+            "status": "completed",
+            "digs_to_third_op": 8,
+            "otter_count": 3,
+            "total_digs": 8,
+            "digs_today": 0,
+            "invalidated": False,
+        }
+    )
+    app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "42", "name": "kept"}), None)
+    board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
+    ids = [row["farm_id"] for row in board["entries"]]
+    assert "ghost" not in ids
+    assert "42" in ids
+    assert store.get_score("ghost") is None
+
+
+def test_remove_farm_deletes_score_and_board_row(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    _open_live_cup(app)
+    added = app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "42", "name": "x"}), None)
+    assert added["statusCode"] == 201
+    store = app._get_store()
+    store.put_score(
+        {
+            "farm_id": "42",
+            "name": "x",
+            "status": "completed",
+            "digs_to_third_op": 9,
+            "otter_count": 3,
+            "total_digs": 9,
+            "digs_today": 0,
+            "invalidated": False,
+        }
+    )
+    removed = app.lambda_handler(_event("DELETE", "/admin/farms/42", farm_id="42"), None)
+    assert removed["statusCode"] == 200
+    assert store.get_score("42") is None
+    board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
+    assert [row["farm_id"] for row in board["entries"]] == []
+
+
+def test_disabled_farm_hidden_from_board_but_score_kept(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    _open_live_cup(app)
+    app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "42", "name": "x"}), None)
+    store = app._get_store()
+    store.put_score(
+        {
+            "farm_id": "42",
+            "name": "x",
+            "status": "completed",
+            "digs_to_third_op": 9,
+            "otter_count": 3,
+            "total_digs": 9,
+            "digs_today": 0,
+            "invalidated": False,
+        }
+    )
+    updated = app.lambda_handler(
+        _event("PUT", "/admin/farms/42", {"active": False}, farm_id="42"),
+        None,
+    )
+    assert updated["statusCode"] == 200
+    board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
+    assert [row["farm_id"] for row in board["entries"]] == []
+    assert store.get_score("42") is not None
 
 
 def test_admin_get_config_is_public_shape(aws_env, monkeypatch):

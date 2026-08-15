@@ -93,11 +93,26 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def refresh_leaderboard(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
+def drop_untracked_scores(store: Store, registry) -> list[str]:
+    """Delete score rows whose farm is no longer in the S3 registry."""
+    kept = registry.farm_ids(active_only=False)
+    dropped: list[str] = []
+    for row in store.list_scores():
+        farm_id = str(row.get("farm_id") or "").strip()
+        if farm_id and farm_id not in kept:
+            store.delete_score(farm_id)
+            dropped.append(farm_id)
+    return dropped
+
+
+def refresh_leaderboard(store: Store, *, now: datetime | None = None, registry=None) -> dict[str, Any]:
     _ = now
     config = store.get_config()
     days = configured_duration_days(config)
     rows = store.list_scores()
+    if registry is not None:
+        allowed = registry.farm_ids(active_only=True)
+        rows = [row for row in rows if str(row.get("farm_id") or "") in allowed]
     board = build_leaderboard(rows, tournament_days=days)
     cached = store.put_leaderboard_cache(board)
     return cached
@@ -326,7 +341,7 @@ def sync_all_farms(
 
     if finalize:
         apply_day_finalize(store, now=clock)
-    cache = refresh_leaderboard(store)
+    cache = refresh_leaderboard(store, registry=registry)
     store.mark_synced()
     config = store.get_config()
     new_leader = cache.get("leader_farm_id")

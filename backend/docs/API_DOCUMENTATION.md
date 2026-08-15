@@ -259,7 +259,9 @@ Writes the S3 JSON source of truth.
 
 ### `DELETE /admin/farms/{farm_id}`
 
-Removes the farm from `config/tracked-farms.json`.
+Removes the farm from `config/tracked-farms.json` and deletes its score
+row. The public leaderboard only lists farms that are still tracked and
+active. Leftover untracked scores are purged on the next board refresh.
 
 ### `GET /admin/submissions`
 

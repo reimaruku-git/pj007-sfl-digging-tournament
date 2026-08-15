@@ -274,6 +274,7 @@ function LiveBoard({
               <tr>
                 <th>Rank</th>
                 <th>Farm</th>
+                <th>Score</th>
                 <th>
                   <button
                     type="button"
@@ -306,6 +307,7 @@ function LiveBoard({
                       <div className="farm-id">{row.farm_id}</div>
                     </Link>
                   </td>
+                  <td>{row.digs_to_third_op ?? "—"}</td>
                   <td>{formatScore(row.score)}</td>
                   <td>
                     <Pebbles count={row.otter_count} />
@@ -340,8 +342,9 @@ function LiveBoard({
                   </div>
                 </div>
                 <div className="farm-card-score">
-                  <b>{formatScore(row.score)}</b>
-                  <span>avg / day</span>
+                  <b>{row.digs_to_third_op ?? "—"}</b>
+                  <span>score</span>
+                  <span className="muted">{formatScore(row.score)} avg/day</span>
                 </div>
               </Link>
             ))}

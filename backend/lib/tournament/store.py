@@ -99,6 +99,9 @@ class Store:
         item = response.get("Item")
         return _from_ddb(item) if item else None
 
+    def delete_score(self, farm_id: str) -> None:
+        self.scores_table.delete_item(Key={"farm_id": str(farm_id)})
+
     def list_scores(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         scan_kwargs: dict[str, Any] = {}

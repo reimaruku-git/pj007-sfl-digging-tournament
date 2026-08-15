@@ -33,6 +33,7 @@ from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.scoring import STATUS_COMPLETED
 from tournament.store import Store
 from tournament.sync import (
+    drop_untracked_scores,
     parse_iso,
     public_config,
     refresh_leaderboard,
@@ -145,6 +146,13 @@ def handle_get_config(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, public_config(config))
 
 
+def _refresh_public_board(store: Store | None = None) -> dict[str, Any]:
+    store = store or _get_store()
+    registry = _get_registry()
+    drop_untracked_scores(store, registry)
+    return refresh_leaderboard(store, registry=registry)
+
+
 def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
     seed_catalog(store)
@@ -160,9 +168,7 @@ def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
             },
             extra_headers={"Cache-Control": "public, max-age=30"},
         )
-    cache = store.get_leaderboard_cache()
-    if not cache or not cache.get("entries"):
-        cache = refresh_leaderboard(store)
+    cache = _refresh_public_board(store)
     entries = [public_entry(row) for row in (cache.get("entries") or [])]
     return create_response(
         200,
@@ -184,14 +190,20 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     registry = _get_registry()
     tracked = registry.get(farm_id)
     score = store.get_score(farm_id)
-    if not tracked and not score:
+    if not tracked:
+        if score:
+            store.delete_score(farm_id)
+            _refresh_public_board(store)
         return create_error_response(404, "farm not found", "NOT_FOUND")
-    row = score or store.empty_score(farm_id, (tracked or {}).get("name") or "")
-    if tracked:
-        row["name"] = tracked.get("name") or row.get("name") or ""
+    row = score or store.empty_score(farm_id, tracked.get("name") or "")
+    row["name"] = tracked.get("name") or row.get("name") or ""
     config = store.get_config()
     days = configured_duration_days(config)
-    ranked = rank_scores(store.list_scores(), tournament_days=days)
+    allowed = registry.farm_ids(active_only=True)
+    ranked = rank_scores(
+        [item for item in store.list_scores() if str(item.get("farm_id") or "") in allowed],
+        tournament_days=days,
+    )
     match = next((item for item in ranked if item.get("farm_id") == farm_id), row)
     return create_response(200, {"farm": public_entry(match)})
 
@@ -257,7 +269,9 @@ def handle_get_tournament(event: dict[str, Any]) -> dict[str, Any]:
     tournament = _path_params(event).get("tournament_id", "").strip()
     if not tournament:
         return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
-    payload = get_public_tournament(_get_store(), tournament)
+    store = _get_store()
+    _refresh_public_board(store)
+    payload = get_public_tournament(store, tournament)
     if payload is None:
         return create_error_response(404, "tournament archive not found", "NOT_FOUND")
     return create_response(200, {"tournament": payload})
@@ -379,7 +393,7 @@ def handle_admin_add_farm(event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
     if not store.get_score(farm_id):
         store.put_score(store.empty_score(farm_id, name))
-        refresh_leaderboard(store)
+    _refresh_public_board(store)
     farm = next(item for item in saved["farms"] if item["farm_id"] == farm_id)
     return create_response(
         201, {"farm": farm, "farms": saved["farms"], "count": len(saved["farms"])}
@@ -403,7 +417,7 @@ def handle_admin_update_farm(event: dict[str, Any]) -> dict[str, Any]:
     if score:
         score["name"] = name
         _get_store().put_score(score)
-        refresh_leaderboard(_get_store())
+    _refresh_public_board()
     return create_response(200, {"farm": farm})
 
 
@@ -415,6 +429,9 @@ def handle_admin_delete_farm(event: dict[str, Any]) -> dict[str, Any]:
         saved = _get_registry().remove(farm_id)
     except KeyError:
         return create_error_response(404, "farm not found", "NOT_FOUND")
+    store = _get_store()
+    store.delete_score(farm_id)
+    _refresh_public_board(store)
     return create_response(200, {"farms": saved["farms"], "count": len(saved["farms"])})
 
 
@@ -434,7 +451,7 @@ def handle_admin_approve_submission(event: dict[str, Any]) -> dict[str, Any]:
     store.delete_submission(farm_id)
     if not store.get_score(farm_id):
         store.put_score(store.empty_score(farm_id, submission.get("name") or ""))
-        refresh_leaderboard(store)
+    _refresh_public_board(store)
     farm = next(item for item in saved["farms"] if item["farm_id"] == farm_id)
     return create_response(200, {"farm": farm})
 
@@ -504,7 +521,7 @@ def handle_admin_put_score(event: dict[str, Any]) -> dict[str, Any]:
             str(body.get("override_reason") or body.get("overrideReason") or "").strip() or None
         )
     stored = store.put_score(row)
-    refresh_leaderboard(store)
+    _refresh_public_board(store)
     stored["digs_to_third_op"] = official_score(stored)
     return create_response(200, {"score": stored})
 

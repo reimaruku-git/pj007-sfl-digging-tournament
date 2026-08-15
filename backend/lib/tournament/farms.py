@@ -136,3 +136,6 @@ class FarmRegistry:
             if farm["farm_id"] == farm_id:
                 return farm
         return None
+
+    def farm_ids(self, *, active_only: bool = False) -> set[str]:
+        return {farm["farm_id"] for farm in self.list_farms(active_only=active_only)}
