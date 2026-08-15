@@ -89,7 +89,7 @@ def test_nested_sand_drill_is_four_flattened_positions():
     assert result.status == STATUS_IN_PROGRESS
 
 
-def test_third_op_inside_nested_drill_uses_flattened_index():
+def test_third_op_inside_nested_drill_lands_on_last_of_four():
     grid = [
         pebble(),
         pebble(),
@@ -102,10 +102,58 @@ def test_third_op_inside_nested_drill_uses_flattened_index():
         shovel(),
     ]
     result = score_grid(grid, now=NOW)
-    # 2 shovels + 2nd tile of the drill = position 4
-    assert result.digs_to_third_op == 4
+    # 2 shovels + 4 drill slots; OP is attributed to the last drill slot
+    assert result.digs_to_third_op == 6
     assert result.total_digs == 7
     assert result.status == STATUS_COMPLETED
+
+
+def test_api_numbers_one_drill_as_fifth_official_count_is_eighth():
+    """Four prior shovels + one drill the API stamps as the 5th dig on all 4 holes."""
+    fifth = TODAY_MS + 5_000
+    holes = [
+        {"dugAt": fifth, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"},
+        {"dugAt": fifth, "items": {"Sand": 1}, "tool": "Sand Shovel"},
+        {"dugAt": fifth, "items": {"Sand": 1}, "tool": "Sand Shovel"},
+        {"dugAt": fifth, "items": {"Sand": 1}, "tool": "Sand Shovel"},
+    ]
+    # Nested group (how SFL often returns a drill)
+    nested = [pebble(), pebble(), shovel(), shovel(), holes]
+    nested_score = score_grid(nested, now=NOW)
+    assert [tile.source for tile in flatten_grid(nested)[4:]] == [
+        "drill_group",
+        "drill_group",
+        "drill_group",
+        "drill_group",
+    ]
+    assert nested_score.digs_to_third_op == 8
+    assert nested_score.total_digs == 8
+    assert nested_score.otter_count == 3
+    assert nested_score.status == STATUS_COMPLETED
+
+    # Four sibling Sand Drill holes stamped with the same dugAt
+    drill_holes = [
+        {"dugAt": fifth, "items": {"Otter Pebble": 1}, "tool": "Sand Drill"},
+        {"dugAt": fifth, "items": {"Sand": 1}, "tool": "Sand Drill"},
+        {"dugAt": fifth, "items": {"Sand": 1}, "tool": "Sand Drill"},
+        {"dugAt": fifth, "items": {"Sand": 1}, "tool": "Sand Drill"},
+    ]
+    sibling_score = score_grid(
+        [pebble(), pebble(), shovel(), shovel(), *drill_holes],
+        now=NOW,
+    )
+    assert sibling_score.digs_to_third_op == 8
+    assert sibling_score.total_digs == 8
+    assert sibling_score.otter_count == 3
+
+
+def test_drill_does_not_count_the_same_op_four_times():
+    fifth = TODAY_MS + 5_000
+    holes = [{"dugAt": fifth, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}] * 4
+    result = score_grid([holes], now=NOW)
+    assert result.total_digs == 4
+    assert result.otter_count == 1
+    assert result.digs_to_third_op is None
 
 
 def test_nested_drill_with_fewer_than_four_tiles_still_costs_four():

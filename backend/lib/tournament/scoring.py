@@ -3,10 +3,13 @@
 Rules
 -----
 * Walk ``farm.desert.digging.grid`` in order.
-* A nested list is a Sand Drill: flatten its tiles. Each tile is one position
-  in the flattened sequence (a 4-tile drill therefore costs 4 digs).
-* A top-level dict with ``tool == "Sand Drill"`` (not already nested) costs
-  **4 digs**. Its items are attributed to the last of those 4 positions.
+* A Sand Drill always costs **4 numbered digs**. The API may stamp the
+  whole drill once (the same ``dugAt`` / “Nth dig” on all 4 holes). Those
+  still become four positions, and any items (including an Otter Pebble)
+  sit on the **last** of those four.
+* A nested list is one Sand Drill. A top-level ``tool == "Sand Drill"``
+  object is one Sand Drill. Four sibling tiles that share the same
+  ``dugAt`` are one Sand Drill the API numbered once.
 * Every other top-level tile (Sand Shovel / unknown) costs **1 dig**.
 * The official score is the 1-based flattened position of the tile that
   produced the **3rd Otter Pebble**.
@@ -117,69 +120,101 @@ def _in_window(
     return True
 
 
+def _merge_drill_items(tiles: list[Any]) -> dict[str, Any]:
+    """Combine hole items onto one slot without quadrupling a duplicated OP."""
+    merged: dict[str, int] = {}
+    for tile in tiles:
+        for name, qty in _tile_items(tile).items():
+            key = str(name)
+            merged[key] = max(merged.get(key, 0), _as_int(qty))
+    return merged
+
+
+def _expand_drill(
+    *,
+    items: dict[str, Any],
+    dug_at_ms: int | None,
+    source: str,
+) -> list[FlatTile]:
+    """One Sand Drill → four numbered positions; items on the last."""
+    return [
+        FlatTile(
+            items=items if index == 3 else {},
+            tool=SAND_DRILL,
+            dug_at_ms=dug_at_ms,
+            source=source,
+        )
+        for index in range(4)
+    ]
+
+
 def flatten_grid(grid: Any) -> list[FlatTile]:
     """Flatten ``desert.digging.grid`` into 1-dig positions.
 
-    Nested lists are Sand Drill groups: each child tile is one flattened
-    position. A top-level ``Sand Drill`` object is expanded to 4 positions
-    with its items on the 4th position.
+    Every Sand Drill becomes four numbered slots with its items on the
+    last slot. A nested list is one drill. A top-level ``Sand Drill``
+    object is one drill. Four sibling tiles that share the same ``dugAt``
+    are one drill the API numbered once (e.g. “5th dig” on all four holes).
     """
     if not isinstance(grid, list):
         return []
 
     tiles: list[FlatTile] = []
-    for entry in grid:
+    index = 0
+    while index < len(grid):
+        entry = grid[index]
         if isinstance(entry, list):
             children = [child for child in entry if isinstance(child, dict)]
-            # A drill group always costs 4, even if the API returned fewer tiles.
-            for child in children:
-                tiles.append(
-                    FlatTile(
-                        items=_tile_items(child),
-                        tool=str(child.get("tool") or SAND_DRILL),
-                        dug_at_ms=_tile_dug_at_ms(child),
-                        source="drill_group",
-                    )
+            last = children[-1] if children else None
+            tiles.extend(
+                _expand_drill(
+                    items=_merge_drill_items(children),
+                    dug_at_ms=_tile_dug_at_ms(last) if last else None,
+                    source="drill_group",
                 )
-            missing = 4 - len(children)
-            if missing > 0:
-                last_dug = children[-1] if children else None
-                pad_dug = _tile_dug_at_ms(last_dug) if last_dug else None
-                for _ in range(missing):
-                    tiles.append(
-                        FlatTile(
-                            items={},
-                            tool=SAND_DRILL,
-                            dug_at_ms=pad_dug,
-                            source="drill_group",
-                        )
-                    )
+            )
+            index += 1
             continue
 
         if not isinstance(entry, dict):
+            index += 1
             continue
 
         tool = str(entry.get("tool") or SAND_SHOVEL)
         dug_at_ms = _tile_dug_at_ms(entry)
         if tool == SAND_DRILL:
-            for index in range(4):
-                tiles.append(
-                    FlatTile(
-                        items=_tile_items(entry) if index == 3 else {},
-                        tool=SAND_DRILL,
-                        dug_at_ms=dug_at_ms,
-                        source="drill_object",
-                    )
-                )
-        else:
-            tiles.append(
-                FlatTile(
-                    items=_tile_items(entry),
-                    tool=tool,
+            # One object, or four holes the API stamped as Sand Drill once.
+            siblings = [entry]
+            look = index + 1
+            while look < len(grid) and len(siblings) < 4:
+                nxt = grid[look]
+                if not isinstance(nxt, dict):
+                    break
+                if str(nxt.get("tool") or "") != SAND_DRILL:
+                    break
+                if dug_at_ms is not None and _tile_dug_at_ms(nxt) != dug_at_ms:
+                    break
+                siblings.append(nxt)
+                look += 1
+            tiles.extend(
+                _expand_drill(
+                    items=_merge_drill_items(siblings),
                     dug_at_ms=dug_at_ms,
-                    source="shovel",
+                    source="drill_object",
                 )
             )
+            index = look
+            continue
+
+        tiles.append(
+            FlatTile(
+                items=_tile_items(entry),
+                tool=tool,
+                dug_at_ms=dug_at_ms,
+                source="shovel",
+            )
+        )
+        index += 1
     return tiles
 
 

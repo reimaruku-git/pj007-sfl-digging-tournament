@@ -63,11 +63,12 @@ def test_sync_one_farm_writes_score_and_snapshot(aws_env):
         {"farm_id": "99", "name": "rmr", "active": True},
         now=NOW,
     )
-    assert row["digs_to_third_op"] == 4
+    # 2 shovel OPs + 4 drill slots; the 3rd OP sits on the last drill hole
+    assert row["digs_to_third_op"] == 6
     assert row["otter_count"] == 3
     assert row["status"] == "completed"
     snapshot = store.read_snapshot("99")
-    assert snapshot["score"]["digs_to_third_op"] == 4
+    assert snapshot["score"]["digs_to_third_op"] == 6
 
 
 def test_sync_all_records_failures_and_rebuilds_cache(aws_env):

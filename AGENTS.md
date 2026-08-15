@@ -165,10 +165,11 @@ Canonical: `backend/lib/tournament/scoring.py` +
 `backend/tests/unit/test_scoring.py`.
 
 - Walk `farm.desert.digging.grid` in order.
-- Nested list = Sand Drill: flatten. Each tile is one flattened position
-  (a 4-tile drill costs **4**).
-- Top-level dict with `tool == "Sand Drill"` (not already nested) costs
-  **4**. Items sit on the last of those 4 slots.
+- Nested list = one Sand Drill: **4** numbered slots. Items (including an
+  Otter Pebble) sit on the **last** slot.
+- Top-level `tool == "Sand Drill"` is the same: **4** slots, items on last.
+- Four sibling `Sand Drill` tiles that share the same `dugAt` are one
+  drill the API numbered once (e.g. “5th dig” on all 4 holes → 5–8).
 - Every other top-level tile (Sand Shovel / unknown) costs **1**.
 - Official score = **1-based flattened position of the 3rd Otter Pebble**.
 - Once that score is set, later tiles do not change it.

@@ -307,8 +307,7 @@ textarea {
 .card + .card,
 .podium + .you-banner,
 .you-banner + .toolbar,
-.table-wrap + .card,
-#rules {
+.table-wrap + .card {
   margin-top: 16px;
 }
 
@@ -685,10 +684,14 @@ tr.is-you,
 }
 
 .rules-list {
-  margin: 8px 0 0 18px;
+  margin: 12px 0 0 18px;
   color: var(--mute);
   display: grid;
-  gap: 6px;
+  gap: 7px;
+}
+
+.prize-card .rules-list {
+  max-width: 46ch;
 }
 
 .farm-sheet h2 {

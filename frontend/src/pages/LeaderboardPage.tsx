@@ -67,13 +67,27 @@ export function LeaderboardPage() {
   return (
     <>
       <section className="hero">
-        <div className="card prize-card">
+        <div className="card prize-card" id="rules">
           <div className="kicker">Prize pool</div>
           <div className="prize">{config?.prize_amount ?? "30"} Flower</div>
-          <p className="meta">
-            Collect all 3 Otter Pebbles in the fewest digs. Sand Shovel = 1, Sand Drill = 4.
-            Lower score wins.
-          </p>
+          <p className="meta">Collect all 3 Otter Pebbles in the fewest digs. Lower score wins.</p>
+          <ul className="rules-list">
+            <li>Sand Shovel = 1 numbered dig.</li>
+            <li>
+              Sand Drill = 4 numbered digs. The game may stamp the whole drill as one number
+              (for example “5th dig” on all 4 holes). We count those as 5, 6, 7, and 8. An
+              Otter Pebble from that drill sits on the last hole — the 8th dig.
+            </li>
+            <li>Official score is the numbered dig of your 3rd Otter Pebble.</li>
+            <li>
+              Scores refresh at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC. 23:00 is the last
+              sync of the day — later digs do not count.
+            </li>
+            <li>
+              Missing pebbles at 23:00: worst completed score that day or 30 (whichever is
+              higher), plus 5 per Otter Pebble still missing.
+            </li>
+          </ul>
         </div>
         <div className="card stats">
           <div className="stat">
@@ -220,22 +234,6 @@ export function LeaderboardPage() {
           </>
         )}
       </div>
-
-      <section className="card" id="rules">
-        <div className="kicker">Rules</div>
-        <ul className="rules-list">
-          <li>Sand Shovel costs 1 dig. Sand Drill costs 4, even if it uncovers 4 tiles.</li>
-          <li>Official score is the dig number of the 3rd Otter Pebble. Lower is better.</li>
-          <li>
-            Scores refresh at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC. 23:00 is the last sync
-            of the day — later digs do not count.
-          </li>
-          <li>
-            Missing pebbles at 23:00: worst completed score that day or 30 (whichever is higher),
-            plus 5 per Otter Pebble still missing.
-          </li>
-        </ul>
-      </section>
 
       <section className="card" id="join">
         <div className="kicker">Join the tournament</div>

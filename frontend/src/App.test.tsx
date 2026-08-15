@@ -76,7 +76,15 @@ describe("routes", () => {
     });
     expect(home.textContent).toMatch(/Prize pool/);
     expect(home.textContent).toMatch(/Join the tournament/);
-    expect(home.querySelector("#rules")).not.toBeNull();
+    const rules = home.querySelector("#rules");
+    expect(rules).not.toBeNull();
+    expect(rules?.className).toMatch(/prize-card/);
+    expect(rules?.textContent).toMatch(/5th dig/);
+    expect(rules?.textContent).toMatch(/8th/);
+    expect(rules?.textContent).toMatch(/last hole/);
+    expect(home.textContent).not.toMatch(/even if it uncovers 4 tiles/);
+    expect(home.querySelectorAll("#rules").length).toBe(1);
+    expect(home.querySelector("section#rules")).toBeNull();
     expect([...home.querySelectorAll("a")].map((n) => n.getAttribute("href"))).not.toContain(
       "/admin",
     );

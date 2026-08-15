@@ -6,7 +6,7 @@ Agent rules (read first): **[AGENTS.md](AGENTS.md)**. House HTTP contract:
 Players compete to collect **all 3 Otter Pebbles** in the fewest digs.
 
 - Sand Shovel = **1 dig**
-- Sand Drill = **4 digs** (nested 4-tile array is flattened)
+- Sand Drill = **4 numbered digs** (API may stamp the whole drill as one number; an OP from that drill sits on the last of the 4)
 - Official score = flattened dig number of the **3rd Otter Pebble**
 - Auto-sync at **14:00, 16:00, 18:00, 20:00, 23:00 UTC**. After 23:00, later digs do not count. Farms missing Otter Pebbles get `max(highest completed, 30) + 5 × missing`.
 - Lower score ranks higher
