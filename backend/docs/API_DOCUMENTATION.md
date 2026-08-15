@@ -22,6 +22,10 @@ Errors:
 
 ### `GET /config`
 
+An empty catalog does **not** invent a default Active window. Then
+`start_at` / `end_at` are `null`, `duration_days` is `0`, and `status`
+is `scheduled`.
+
 ```json
 {
   "tournament_id": "20260814T120000Z_7d",
@@ -131,7 +135,8 @@ Shareable personal result.
 ### `GET /tournaments`
 
 Scheduled, live, and ended events. Ended standings are frozen to S3
-`archives/{id}/`.
+`archives/{id}/`. With no admin-created events the list is empty
+(`tournaments: []`, `count: 0`).
 
 ```json
 {
@@ -335,24 +340,12 @@ dates change). Ended: `409`.
 
 ### `DELETE /admin/tournaments/{tournament_id}`
 
-Cancel a scheduled event. Live or ended → `409`.
+Cancel a scheduled or live event. Ended → `409`. Deleting the live
+event clears the current window; the catalog stays empty until an
+admin creates another.
 
 ```json
-{
-  "config": {
-    "start_at": "2026-08-14T00:00:00+00:00",
-    "end_at": "2026-08-21T00:00:00+00:00",
-    "prize_amount": "30",
-    "status": "active",
-    "last_full_sync_at": "2026-08-14T13:00:00+00:00",
-    "updated_at": "2026-08-14T13:00:00+00:00"
-  },
-  "rescore": {
-    "rescored": 2,
-    "missing_snapshots": 0,
-    "sync_accepted": true
-  }
-}
+{ "ok": true }
 ```
 
 ### `POST /admin/farms/{farm_id}/refresh`

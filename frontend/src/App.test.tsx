@@ -15,7 +15,20 @@ vi.mock("./auth/amplify", () => ({}));
 
 vi.mock("./api/public", () => ({
   listTournaments: vi.fn().mockResolvedValue({ tournaments: [], count: 0 }),
-  fetchTournament: vi.fn(),
+  fetchTournament: vi.fn().mockResolvedValue({
+    tournament_id: "",
+    archived_at: "",
+    config: {
+      start_at: null,
+      end_at: null,
+      prize_amount: "30",
+      status: "scheduled",
+      last_full_sync_at: null,
+    },
+    entries: [],
+    count: 0,
+    leader_farm_id: null,
+  }),
   fetchLeaderboard: vi.fn().mockResolvedValue({
     entries: [
       {
@@ -93,6 +106,11 @@ describe("routes", () => {
     expect(home.textContent).toMatch(/Prize pool/);
     expect(home.textContent).toMatch(/Join the tournament/);
     expect(home.textContent).toMatch(/3rd pebble/);
+    expect(home.textContent).toMatch(/Ongoing/);
+    expect(home.textContent).toMatch(/Upcoming/);
+    expect(home.textContent).not.toMatch(/Finished \/ tracked/);
+    expect(home.textContent).not.toMatch(/Active/);
+    expect(home.querySelector("table.board-table")).toBeNull();
     expect(home.textContent).not.toMatch(/Avg\/day/);
     const rules = home.querySelector("#rules");
     expect(rules).not.toBeNull();
@@ -141,6 +159,7 @@ describe("routes", () => {
       await Promise.resolve();
     });
     expect(page.textContent).toMatch(/Upcoming|Tournaments/);
+    expect(page.textContent).not.toMatch(/Create tournament/);
   });
 
   it("sends unknown paths to the leaderboard", async () => {

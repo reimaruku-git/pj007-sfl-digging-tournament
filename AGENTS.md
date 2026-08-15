@@ -188,9 +188,11 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Lower score ranks higher.
 - Default prize is `"30"` Flower (JSON **string**). Min period **7 days**.
   Admin creates named tournaments (`POST /admin/tournaments`) with from/to
-  or start + `duration_days`. One live event; others are scheduled or
-  ended. Ended events freeze to S3 `archives/{id}/` (meta + standings +
-  farm snapshots). Public `GET /tournaments` lists upcoming, live, and past.
+  or start + `duration_days`. Empty catalog is valid — do not invent a
+  default Active window. Admin can delete scheduled and live events.
+  One live event; others are scheduled or ended. Ended events freeze to
+  S3 `archives/{id}/` (meta + standings + farm snapshots). Public
+  `GET /tournaments` lists upcoming, live, and past.
 - `PUT /admin/config` re-scores farms from S3 snapshots against the new
   window, then kicks FarmSync for farms that have no snapshot. Do not only
   refresh the cached board.

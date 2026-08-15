@@ -1,35 +1,52 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { fetchLeaderboard, submitFarm } from "../api/public";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import {
+  fetchTournament,
+  listTournaments,
+  submitFarm,
+  type LeaderboardEntry,
+  type TournamentSummary,
+} from "../api/public";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { SyncCountdown } from "../components/SyncCountdown";
+import { liveTournamentsSoonestFirst, upcomingTournaments, visibleBoardEntries, type ScoreSortDir } from "../lib/board";
 import { readFollowedFarm, writeFollowedFarm } from "../lib/followFarm";
-import { formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
+import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
 
 export function LeaderboardPage() {
-  const [query, setQuery] = useState("");
   const [farmId, setFarmId] = useState("");
   const [name, setName] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [mine, setMine] = useState(() => readFollowedFarm());
+  const [sortById, setSortById] = useState<Record<string, ScoreSortDir>>({});
 
-  const board = useQuery({
-    queryKey: ["leaderboard"],
-    queryFn: fetchLeaderboard,
+  const catalog = useQuery({
+    queryKey: ["tournaments"],
+    queryFn: listTournaments,
     refetchOnWindowFocus: true,
-    refetchInterval: false,
   });
 
   useEffect(() => {
     const wait = Math.min(msUntilNextSync() + 45_000, 6 * 60 * 60_000);
     const id = window.setTimeout(() => {
-      void board.refetch();
+      void catalog.refetch();
     }, Math.max(wait, 15_000));
     return () => window.clearTimeout(id);
-  }, [board.dataUpdatedAt, board.refetch]);
+  }, [catalog.dataUpdatedAt, catalog.refetch]);
+
+  const items = catalog.data?.tournaments ?? [];
+  const live = useMemo(() => liveTournamentsSoonestFirst(items), [items]);
+  const upcoming = useMemo(() => upcomingTournaments(items), [items]);
+
+  const boards = useQueries({
+    queries: live.map((row) => ({
+      queryKey: ["tournament", row.tournament_id],
+      queryFn: () => fetchTournament(row.tournament_id),
+    })),
+  });
 
   const submit = useMutation({
     mutationFn: () => submitFarm(farmId.trim(), name.trim()),
@@ -43,20 +60,11 @@ export function LeaderboardPage() {
     onError: (error: Error) => setNotice(error.message),
   });
 
-  const all = board.data?.entries ?? [];
-  const entries = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return all;
-    return all.filter(
-      (entry) =>
-        entry.farm_id.toLowerCase().includes(needle) ||
-        (entry.name || "").toLowerCase().includes(needle),
-    );
-  }, [all, query]);
-
-  const config = board.data?.config;
-  const completed = all.filter((row) => row.status === "completed").length;
-  const followed = all.find((row) => row.farm_id === mine);
+  const featured = live[0];
+  const featuredEntries = boards[0]?.data?.entries ?? [];
+  const followed = boards
+    .flatMap((query) => query.data?.entries ?? [])
+    .find((row) => row.farm_id === mine);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -64,12 +72,16 @@ export function LeaderboardPage() {
     submit.mutate();
   }
 
+  function sortFor(id: string): ScoreSortDir {
+    return sortById[id] ?? "asc";
+  }
+
   return (
     <>
       <section className="hero">
         <div className="card prize-card" id="rules">
-          <div className="kicker">{config?.name || "Prize pool"}</div>
-          <div className="prize">{config?.prize_amount ?? "30"} Flower</div>
+          <div className="kicker">{featured?.name || "Prize pool"}</div>
+          <div className="prize">{featured?.prize_amount ?? "30"} Flower</div>
           <p className="meta">
             Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
             affect your score.
@@ -113,32 +125,27 @@ export function LeaderboardPage() {
             </li>
           </ul>
         </div>
-        <div className="card stats">
-          <div className="stat">
-            <span className="muted">Tournament</span>
-            <b>
-              <span className={`badge ${config?.status ?? "scheduled"}`}>
-                {statusLabel(config?.status ?? "scheduled")}
-              </span>
-            </b>
-          </div>
-          <div className="stat">
-            <span className="muted">Window</span>
-            <b className="stat-window">
-              {config ? `${formatWhenUtc(config.start_at)} → ${formatWhenUtc(config.end_at)}` : "—"}
-            </b>
-          </div>
-          <div className="stat">
-            <span className="muted">Finished / tracked</span>
-            <b>
-              {completed} / {board.data?.count ?? 0}
-            </b>
-          </div>
-          <SyncCountdown />
+        <div className="card tourney-home">
+          {catalog.isError && (
+            <p className="flash err">{(catalog.error as Error).message}</p>
+          )}
+          <TourneyGroup
+            title="Ongoing"
+            empty="No ongoing tournament."
+            items={live}
+            testId="ongoing-group"
+            live
+          />
+          <TourneyGroup
+            title="Upcoming"
+            empty="No upcoming tournaments."
+            items={upcoming}
+            testId="upcoming-group"
+          />
         </div>
       </section>
 
-      <Podium entries={all} />
+      {featuredEntries.length > 0 && <Podium entries={featuredEntries} />}
 
       {followed && (
         <Link to={`/farm/${followed.farm_id}`} className="you-banner">
@@ -151,116 +158,23 @@ export function LeaderboardPage() {
         </Link>
       )}
 
-      <div className="toolbar">
-        <input
-          className="search"
-          placeholder="Search farm ID or name"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
+      {live.map((row, index) => (
+        <LiveBoard
+          key={row.tournament_id}
+          tournament={row}
+          entries={boards[index]?.data?.entries ?? []}
+          loading={Boolean(boards[index]?.isLoading)}
+          error={boards[index]?.error as Error | undefined}
+          sort={sortFor(row.tournament_id)}
+          mine={mine}
+          onToggleSort={() =>
+            setSortById((current) => ({
+              ...current,
+              [row.tournament_id]: sortFor(row.tournament_id) === "asc" ? "desc" : "asc",
+            }))
+          }
         />
-        {board.dataUpdatedAt ? (
-          <span className="muted toolbar-meta">
-            Updated {formatRelative(new Date(board.dataUpdatedAt).toISOString())}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="card table-wrap">
-        {board.isLoading && (
-          <div className="skeleton-stack" aria-hidden>
-            <div className="skeleton" />
-            <div className="skeleton" />
-            <div className="skeleton" />
-          </div>
-        )}
-        {board.isError && <p className="flash err">{(board.error as Error).message}</p>}
-        {!board.isLoading && entries.length === 0 && (
-          <p className="muted">No farms match yet. Submit a Farm ID below.</p>
-        )}
-        {(entries.length > 0 || !board.isLoading) && (
-          <>
-            <table className="board-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Farm</th>
-                  <th>Score</th>
-                  <th>3rd pebble</th>
-                  <th>Pebbles</th>
-                  <th>Today</th>
-                  <th>Updated</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map((row) => (
-                  <tr
-                    key={row.farm_id}
-                    className={[
-                      row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
-                      row.farm_id === mine ? "is-you" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                  >
-                    <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</td>
-                    <td>
-                      <Link to={`/farm/${row.farm_id}`}>
-                        {row.name || "Unnamed farm"}
-                        {row.farm_id === mine ? <span className="you-tag">You</span> : null}
-                        <div className="farm-id">{row.farm_id}</div>
-                      </Link>
-                    </td>
-                    <td>{formatScore(row.score)}</td>
-                    <td>{row.digs_to_third_op ?? "—"}</td>
-                    <td>
-                      <Pebbles count={row.otter_count} />
-                    </td>
-                    <td>{row.digs_today}</td>
-                    <td>{formatRelative(row.last_updated_at)}</td>
-                    <td>
-                      <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="board-cards">
-              {entries.map((row) => (
-                <Link
-                  key={row.farm_id}
-                  to={`/farm/${row.farm_id}`}
-                  className={[
-                    "farm-card",
-                    row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
-                    row.farm_id === mine ? "is-you" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <div className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</div>
-                  <div className="farm-card-main">
-                    <div className="farm-card-name">
-                      {row.name || "Unnamed farm"}
-                      {row.farm_id === mine ? <span className="you-tag">You</span> : null}
-                    </div>
-                    <div className="farm-id">{row.farm_id}</div>
-                    <div className="farm-card-meta">
-                      <Pebbles count={row.otter_count} />
-                      <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                    </div>
-                  </div>
-                  <div className="farm-card-score">
-                    <b>{formatScore(row.score)}</b>
-                    <span>score</span>
-                    <span className="muted">{row.digs_to_third_op ?? "—"} to 3rd</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+      ))}
 
       <section className="card" id="join">
         <div className="kicker">Join the tournament</div>
@@ -285,5 +199,155 @@ export function LeaderboardPage() {
         </form>
       </section>
     </>
+  );
+}
+
+function TourneyGroup({
+  title,
+  empty,
+  items,
+  live,
+  testId,
+}: {
+  title: string;
+  empty: string;
+  items: TournamentSummary[];
+  live?: boolean;
+  testId: string;
+}) {
+  return (
+    <div className="tourney-group" data-testid={testId}>
+      <div className="kicker">{title}</div>
+      {items.length === 0 && <p className="muted tourney-empty">{empty}</p>}
+      {items.map((row) => (
+        <article
+          key={row.tournament_id}
+          className="tourney-card"
+          data-testid={`tourney-card-${row.tournament_id}`}
+        >
+          <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
+          <div className="tourney-card-meta" data-testid={`tourney-duration-${row.tournament_id}`}>
+            {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+          </div>
+          {live ? <SyncCountdown /> : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function LiveBoard({
+  tournament,
+  entries,
+  loading,
+  error,
+  sort,
+  mine,
+  onToggleSort,
+}: {
+  tournament: TournamentSummary;
+  entries: LeaderboardEntry[];
+  loading: boolean;
+  error?: Error;
+  sort: ScoreSortDir;
+  mine: string;
+  onToggleSort: () => void;
+}) {
+  const rows = visibleBoardEntries(entries, sort, 10);
+  const sortLabel = sort === "asc" ? "↑" : "↓";
+  return (
+    <section className="card table-wrap live-board" data-testid={`live-board-${tournament.tournament_id}`}>
+      <div className="kicker">{tournament.name || "Live board"}</div>
+      <p className="meta">{formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}</p>
+      {loading && (
+        <div className="skeleton-stack" aria-hidden>
+          <div className="skeleton" />
+          <div className="skeleton" />
+        </div>
+      )}
+      {error && <p className="flash err">{error.message}</p>}
+      {!loading && rows.length === 0 && <p className="muted">No farms on this board yet.</p>}
+      {rows.length > 0 && (
+        <div className="board-scroll">
+          <table className="board-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Farm</th>
+                <th>
+                  <button
+                    type="button"
+                    className="sort-btn"
+                    data-testid={`sort-score-${tournament.tournament_id}`}
+                    onClick={onToggleSort}
+                  >
+                    Avg / day {sortLabel}
+                  </button>
+                </th>
+                <th>Pebbles</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={row.farm_id}
+                  className={[
+                    row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
+                    row.farm_id === mine ? "is-you" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</td>
+                  <td>
+                    <Link to={`/farm/${row.farm_id}`}>
+                      {row.name || "Unnamed farm"}
+                      {row.farm_id === mine ? <span className="you-tag">You</span> : null}
+                      <div className="farm-id">{row.farm_id}</div>
+                    </Link>
+                  </td>
+                  <td>{formatScore(row.score)}</td>
+                  <td>
+                    <Pebbles count={row.otter_count} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="board-cards">
+            {rows.map((row) => (
+              <Link
+                key={row.farm_id}
+                to={`/farm/${row.farm_id}`}
+                className={[
+                  "farm-card",
+                  row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
+                  row.farm_id === mine ? "is-you" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                <div className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</div>
+                <div className="farm-card-main">
+                  <div className="farm-card-name">
+                    {row.name || "Unnamed farm"}
+                    {row.farm_id === mine ? <span className="you-tag">You</span> : null}
+                  </div>
+                  <div className="farm-id">{row.farm_id}</div>
+                  <div className="farm-card-meta">
+                    <Pebbles count={row.otter_count} />
+                    <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                  </div>
+                </div>
+                <div className="farm-card-score">
+                  <b>{formatScore(row.score)}</b>
+                  <span>avg / day</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

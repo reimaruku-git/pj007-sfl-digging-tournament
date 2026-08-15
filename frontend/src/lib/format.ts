@@ -26,6 +26,25 @@ export function formatWhen(value: string | null | undefined): string {
   return date.toLocaleString();
 }
 
+export function formatDateUtc(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const month = date.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  const day = date.getUTCDate();
+  return `${day} ${month}`;
+}
+
+export function formatDateRangeUtc(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  days?: number | null,
+): string {
+  const range = `${formatDateUtc(start)} → ${formatDateUtc(end)}`;
+  if (days && days > 0) return `${range} · ${days}d`;
+  return range;
+}
+
 export function formatWhenUtc(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);

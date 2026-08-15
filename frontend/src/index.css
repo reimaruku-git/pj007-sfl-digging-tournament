@@ -338,6 +338,83 @@ textarea {
   gap: 10px;
 }
 
+.tourney-home {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  align-content: start;
+}
+
+.tourney-group {
+  background: var(--panel-2);
+  border-radius: 12px;
+  padding: 10px 12px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.tourney-group .kicker {
+  margin-bottom: 6px;
+}
+
+.tourney-empty {
+  font-size: 13px;
+  margin: 4px 0 2px;
+}
+
+.tourney-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.tourney-card-name {
+  font-weight: 700;
+  color: var(--cream);
+}
+
+.tourney-card-meta {
+  color: var(--mute);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.tourney-card .stat {
+  margin-top: 8px;
+  padding: 8px 10px;
+}
+
+.tourney-card .stat b {
+  font-size: 16px;
+}
+
+.live-board + .live-board {
+  margin-top: 16px;
+}
+
+.board-scroll {
+  max-height: 380px;
+  overflow: auto;
+}
+
+.sort-btn {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sort-btn:hover {
+  color: var(--gold);
+}
+
 .stat {
   background: var(--panel-2);
   border-radius: 10px;

@@ -62,6 +62,11 @@ def test_health_and_public_leaderboard(aws_env, monkeypatch):
     assert payload["entries"] == []
     assert payload["count"] == 0
     assert payload["config"]["prize_amount"] == "30"
+    assert payload["config"]["status"] == "scheduled"
+    assert not payload["config"].get("start_at")
+    listed = _json(app.lambda_handler(_event("GET", "/tournaments"), None))
+    assert listed["tournaments"] == []
+    assert listed["count"] == 0
 
 
 def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
@@ -74,11 +79,12 @@ def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
     store = app._get_store()
     store.put_config(
         {
-            "start_at": "2026-07-01T00:00:00+00:00",
-            "end_at": "2026-07-31T00:00:00+00:00",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-31T00:00:00+00:00",
             "duration_days": 30,
             "prize_amount": "30",
-            "status": "ended",
+            "status": "active",
+            "current_tournament_id": "20260801T000000Z_30d",
         }
     )
     store.put_score(
@@ -134,6 +140,21 @@ def test_submit_then_admin_approve(aws_env, monkeypatch):
     farms = app.lambda_handler(_event("GET", "/admin/farms"), None)
     assert _json(farms)["farms"][0]["farm_id"] == "3666918801844311"
 
+    created = app.lambda_handler(
+        _event(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "Live cup",
+                "start_at": "2026-08-10T00:00:00+00:00",
+                "end_at": "2026-08-20T00:00:00+00:00",
+                "prize_amount": "30",
+            },
+        ),
+        None,
+    )
+    assert created["statusCode"] == 201
+
     board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
     assert board["count"] == 1
     assert board["entries"][0]["status"] == "not_started"
@@ -157,6 +178,20 @@ def test_admin_override_score(aws_env, monkeypatch):
     )
     assert updated["statusCode"] == 200
     assert _json(updated)["score"]["override_digs_to_third_op"] == 11
+    opened = app.lambda_handler(
+        _event(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "Override cup",
+                "start_at": "2026-08-10T00:00:00+00:00",
+                "end_at": "2026-08-20T00:00:00+00:00",
+                "prize_amount": "30",
+            },
+        ),
+        None,
+    )
+    assert opened["statusCode"] == 201
     board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
     assert board["entries"][0]["digs_to_third_op"] == 11
     assert board["entries"][0]["status"] == "completed"
@@ -169,7 +204,10 @@ def test_admin_get_config_is_public_shape(aws_env, monkeypatch):
     config = _json(response)["config"]
     assert "pk" not in config
     assert "leader_farm_id" not in config
-    assert {"start_at", "end_at", "prize_amount", "status"} <= set(config)
+    assert {"prize_amount", "status"} <= set(config)
+    assert config["status"] == "scheduled"
+    assert not config.get("start_at")
+    assert not config.get("end_at")
 
 
 def test_admin_put_config_rescores_from_snapshot(aws_env, monkeypatch):

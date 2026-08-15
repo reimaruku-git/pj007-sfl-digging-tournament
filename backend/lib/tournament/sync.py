@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 from urllib import error, request
 
@@ -18,7 +18,7 @@ from tournament.scoring import (
     scoring_window_end,
 )
 from tournament.sfl_client import RateLimitedSFLClient, SFLApiError
-from tournament.store import MIN_TOURNAMENT_DAYS, Store
+from tournament.store import Store
 from tournament.window import (
     configured_duration_days,
     default_tournament_name,
@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def ensure_default_config(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
+    """Return the stored window. Do not invent a live tournament from empty config."""
     clock = now or datetime.now(timezone.utc)
     existing = store.get_config()
     start = parse_iso(existing.get("start_at"))
@@ -41,20 +42,8 @@ def ensure_default_config(store: Store, *, now: datetime | None = None) -> dict[
             start, end
         )
         return existing
-    start = clock
-    end = clock + timedelta(days=MIN_TOURNAMENT_DAYS)
-    config = {
-        "start_at": start.isoformat(),
-        "end_at": end.isoformat(),
-        "duration_days": MIN_TOURNAMENT_DAYS,
-        "prize_amount": str(existing.get("prize_amount") or "30"),
-        "name": existing.get("name") or "",
-        "status": tournament_status(start, end, clock),
-        "last_full_sync_at": existing.get("last_full_sync_at"),
-        "leader_farm_id": existing.get("leader_farm_id"),
-        "current_tournament_id": existing.get("current_tournament_id"),
-    }
-    return store.put_config(config)
+    existing["status"] = existing.get("status") or "scheduled"
+    return existing
 
 
 def tournament_status(start: datetime, end: datetime, now: datetime) -> str:
@@ -68,6 +57,18 @@ def tournament_status(start: datetime, end: datetime, now: datetime) -> str:
 def public_config(config: dict[str, Any]) -> dict[str, Any]:
     start = parse_iso(config.get("start_at"))
     end = parse_iso(config.get("end_at"))
+    if start is None or end is None or end <= start:
+        return {
+            "tournament_id": str(config.get("current_tournament_id") or "").strip(),
+            "name": str(config.get("name") or "").strip(),
+            "start_at": None,
+            "end_at": None,
+            "duration_days": 0,
+            "prize_amount": str(config.get("prize_amount") or "30"),
+            "status": "scheduled",
+            "last_full_sync_at": config.get("last_full_sync_at"),
+            "updated_at": config.get("updated_at"),
+        }
     days = int(config.get("duration_days") or 0) or duration_days(start, end)
     tid = str(config.get("current_tournament_id") or config.get("tournament_id") or "").strip()
     if not tid:

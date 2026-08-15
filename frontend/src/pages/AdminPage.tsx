@@ -21,7 +21,7 @@ import {
   updateTournament,
 } from "../api/admin";
 import { getAuthToken } from "../auth/session";
-import { formatWhenUtc, statusLabel } from "../lib/format";
+import { formatDateRangeUtc, statusLabel } from "../lib/format";
 
 export function AdminPage() {
   const [authed, setAuthed] = useState(false);
@@ -231,23 +231,28 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>{" "}
               <b>{row.name || row.tournament_id}</b>
               <div className="meta">
-                {formatWhenUtc(row.start_at)} → {formatWhenUtc(row.end_at)} · {row.prize_amount} Flower
+                {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
+                Flower
               </div>
             </span>
-            {row.status === "scheduled" && (
+            {(row.status === "scheduled" || row.status === "active") && (
               <button
                 className="btn"
                 type="button"
                 onClick={() =>
                   deleteTournament(row.tournament_id)
                     .then(() => {
-                      note("Scheduled tournament cancelled.");
+                      note(
+                        row.status === "active"
+                          ? "Live tournament deleted."
+                          : "Scheduled tournament cancelled.",
+                      );
                       invalidate();
                     })
                     .catch((error: Error) => note(error.message, "err"))
                 }
               >
-                Cancel
+                Delete
               </button>
             )}
             {row.status === "active" && (
@@ -280,8 +285,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           style={{ marginTop: 16 }}
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
-            const start = new Date(startAt);
-            if (!startAt || Number.isNaN(start.getTime())) {
+            if (!startAt) {
               note("Start must be a valid date.", "err");
               return;
             }
@@ -293,16 +297,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               prize_amount: string;
             } = {
               name: eventName.trim(),
-              start_at: start.toISOString(),
+              start_at: `${startAt}T00:00:00.000Z`,
               prize_amount: prize.trim() || "30",
             };
             if (endAt) {
-              const end = new Date(endAt);
-              if (Number.isNaN(end.getTime())) {
-                note("End must be a valid date.", "err");
-                return;
-              }
-              payload.end_at = end.toISOString();
+              payload.end_at = `${endAt}T00:00:00.000Z`;
             } else {
               if (durationDays < 7) {
                 note("Tournament must run at least 7 days.", "err");
@@ -331,7 +330,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <label>
             From
             <input
-              type="datetime-local"
+              type="date"
               value={startAt}
               onChange={(event) => setStartAt(event.target.value)}
               required
@@ -339,11 +338,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </label>
           <label>
             To (optional)
-            <input
-              type="datetime-local"
-              value={endAt}
-              onChange={(event) => setEndAt(event.target.value)}
-            />
+            <input type="date" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
           </label>
           <label>
             Length (days)

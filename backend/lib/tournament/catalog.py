@@ -140,14 +140,15 @@ def apply_live_config(store: Store, row: dict[str, Any], *, existing: dict[str, 
 
 
 def seed_catalog(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
-    """Ensure the live CONFIG window exists as a catalog row."""
+    """Mirror a real CONFIG window into the catalog. Empty config stays empty."""
     from tournament.sync import ensure_default_config
 
     clock = _clock(now)
     config = ensure_default_config(store, now=clock)
     start = parse_iso(config.get("start_at"))
     end = parse_iso(config.get("end_at"))
-    if start is None or end is None:
+    if start is None or end is None or end <= start:
+        _import_legacy_archives(store)
         return config
     days = configured_duration_days(config)
     tid = str(config.get("current_tournament_id") or "").strip() or tournament_id(
@@ -340,14 +341,44 @@ def update_tournament(
     return updated
 
 
+def clear_live_config(store: Store) -> dict[str, Any]:
+    current = store.get_config()
+    return store.put_config(
+        {
+            "start_at": "",
+            "end_at": "",
+            "duration_days": 0,
+            "prize_amount": str(current.get("prize_amount") or "30"),
+            "name": "",
+            "status": STATUS_SCHEDULED,
+            "current_tournament_id": None,
+            "last_full_sync_at": current.get("last_full_sync_at"),
+            "leader_farm_id": None,
+        }
+    )
+
+
+def active_tournament(store: Store) -> dict[str, Any] | None:
+    return next(
+        (item for item in store.list_tournament_items() if item.get("status") == STATUS_ACTIVE),
+        None,
+    )
+
+
 def delete_tournament(store: Store, tournament_id_value: str, *, now: datetime | None = None) -> None:
     seed_catalog(store, now=now)
     existing = store.get_tournament(tournament_id_value)
     if not existing:
         raise CatalogError("tournament not found", code="NOT_FOUND", status=404)
-    if existing.get("status") != STATUS_SCHEDULED:
-        raise CatalogError("only scheduled tournaments can be cancelled", code="CONFLICT", status=409)
+    status = existing.get("status")
+    if status == STATUS_ENDED:
+        raise CatalogError("ended tournaments cannot be cancelled", code="CONFLICT", status=409)
+    if status not in {STATUS_SCHEDULED, STATUS_ACTIVE}:
+        raise CatalogError("only scheduled or live tournaments can be cancelled", code="CONFLICT", status=409)
     store.delete_tournament(tournament_id_value)
+    if status == STATUS_ACTIVE:
+        clear_live_config(store)
+        store.put_leaderboard_cache({"entries": [], "count": 0, "leader_farm_id": None})
 
 
 def rollover(store: Store, *, now: datetime | None = None) -> dict[str, Any]:

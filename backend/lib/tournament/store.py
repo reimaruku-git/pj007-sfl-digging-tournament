@@ -49,11 +49,11 @@ class Store:
 
     def default_config(self) -> dict[str, Any]:
         now = utc_now_iso()
-        # start = now, end = now + 7 days is applied by the caller with real datetimes
         return {
             "pk": CONFIG_PK,
-            "start_at": now,
-            "end_at": now,
+            "start_at": "",
+            "end_at": "",
+            "duration_days": 0,
             "prize_amount": DEFAULT_PRIZE,
             "name": "",
             "status": "scheduled",

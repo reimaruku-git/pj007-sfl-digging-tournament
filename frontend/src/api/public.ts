@@ -6,8 +6,8 @@ export type FarmStatus = "not_started" | "in_progress" | "completed" | "invalida
 export type TournamentConfig = {
   tournament_id?: string;
   name?: string;
-  start_at: string;
-  end_at: string;
+  start_at: string | null;
+  end_at: string | null;
   duration_days?: number;
   prize_amount: string;
   status: TournamentStatus;

@@ -51,20 +51,50 @@ def test_create_scheduled_and_reject_overlap(aws_env):
         raise AssertionError("expected overlap conflict")
 
 
-def test_cannot_delete_active(aws_env):
-    from tournament.catalog import seed_catalog
+def test_empty_store_has_no_default_live(aws_env):
+    from tournament.catalog import list_public_tournaments, seed_catalog
 
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
     seed_catalog(store, now=clock)
-    live_id = store.get_config()["current_tournament_id"]
-    assert live_id
-    try:
-        delete_tournament(store, live_id, now=clock)
-    except CatalogError as exc:
-        assert exc.status == 409
-    else:
-        raise AssertionError("expected delete of active to fail")
+    assert store.list_tournament_ids() == []
+    assert list_public_tournaments(store, now=clock) == []
+    assert not store.get_config().get("current_tournament_id")
+    assert not store.get_config().get("start_at")
+
+
+def test_can_delete_active_and_scheduled(aws_env):
+    store = _store(aws_env)
+    clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
+    live = create_tournament(
+        store,
+        {
+            "name": "Now cup",
+            "start_at": "2026-08-10T00:00:00+00:00",
+            "end_at": "2026-08-20T00:00:00+00:00",
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    assert live["status"] == "active"
+    delete_tournament(store, live["tournament_id"], now=clock)
+    assert store.get_tournament(live["tournament_id"]) is None
+    assert not store.get_config().get("current_tournament_id")
+    assert not store.get_config().get("start_at")
+
+    upcoming = create_tournament(
+        store,
+        {
+            "name": "Later",
+            "start_at": "2026-09-01T00:00:00+00:00",
+            "end_at": "2026-09-08T00:00:00+00:00",
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    assert upcoming["status"] == "scheduled"
+    delete_tournament(store, upcoming["tournament_id"], now=clock)
+    assert store.get_tournament(upcoming["tournament_id"]) is None
 
 
 def test_rollover_archives_then_promotes_next(aws_env):
@@ -193,3 +223,59 @@ def test_admin_http_create_and_cancel(aws_env, monkeypatch):
         None,
     )
     assert deleted["statusCode"] == 200
+
+    live = app.lambda_handler(
+        {
+            "rawPath": "/admin/tournaments",
+            "requestContext": {"http": {"method": "POST"}, "stage": "dev"},
+            "headers": {},
+            "body": json.dumps(
+                {
+                    "name": "Live now",
+                    "start_at": "2026-08-10T00:00:00+00:00",
+                    "end_at": "2026-08-20T00:00:00+00:00",
+                    "prize_amount": "30",
+                }
+            ),
+            "pathParameters": {},
+        },
+        None,
+    )
+    assert live["statusCode"] == 201
+    live_id = json.loads(live["body"])["tournament"]["tournament_id"]
+    assert json.loads(live["body"])["tournament"]["status"] == "active"
+    cancelled = app.lambda_handler(
+        {
+            "rawPath": f"/admin/tournaments/{live_id}",
+            "requestContext": {"http": {"method": "DELETE"}, "stage": "dev"},
+            "headers": {},
+            "body": None,
+            "pathParameters": {"tournament_id": live_id},
+        },
+        None,
+    )
+    assert cancelled["statusCode"] == 200
+    public = app.lambda_handler(
+        {
+            "rawPath": "/tournaments",
+            "requestContext": {"http": {"method": "GET"}, "stage": "dev"},
+            "headers": {},
+            "body": None,
+            "pathParameters": {},
+        },
+        None,
+    )
+    assert json.loads(public["body"])["tournaments"] == []
+    assert json.loads(public["body"])["count"] == 0
+
+    public_create = app.lambda_handler(
+        {
+            "rawPath": "/tournaments",
+            "requestContext": {"http": {"method": "POST"}, "stage": "dev"},
+            "headers": {},
+            "body": json.dumps({"name": "nope", "start_at": "2026-10-01T00:00:00+00:00", "duration_days": 7}),
+            "pathParameters": {},
+        },
+        None,
+    )
+    assert public_create["statusCode"] == 404

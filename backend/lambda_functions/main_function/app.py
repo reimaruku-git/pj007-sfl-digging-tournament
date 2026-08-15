@@ -16,6 +16,7 @@ from common.response import create_error_response, create_response, set_request_
 from tournament.archive import archive_current
 from tournament.catalog import (
     CatalogError,
+    active_tournament,
     apply_live_config,
     create_tournament,
     delete_tournament,
@@ -148,6 +149,17 @@ def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
     seed_catalog(store)
     archive_current(store)
+    if not active_tournament(store):
+        return create_response(
+            200,
+            {
+                "entries": [],
+                "count": 0,
+                "generated_at": None,
+                "config": public_config(store.get_config()),
+            },
+            extra_headers={"Cache-Control": "public, max-age=30"},
+        )
     cache = store.get_leaderboard_cache()
     if not cache or not cache.get("entries"):
         cache = refresh_leaderboard(store)

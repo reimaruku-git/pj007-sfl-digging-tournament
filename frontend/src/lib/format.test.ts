@@ -1,11 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { formatRelative, formatScore, formatWhenUtc } from "./format";
+import { formatDateRangeUtc, formatDateUtc, formatRelative, formatScore, formatWhenUtc } from "./format";
 
 describe("formatScore", () => {
   it("prints two decimal places", () => {
     expect(formatScore(3)).toBe("3.00");
     expect(formatScore(0.7)).toBe("0.70");
     expect(formatScore(null)).toBe("—");
+  });
+});
+
+describe("formatDateUtc", () => {
+  it("prints day and month only from a datetime that includes a clock", () => {
+    const stamped = formatDateUtc("2026-08-13T14:44:00.000Z");
+    expect(stamped).toBe("13 Aug");
+    expect(stamped).not.toMatch(/\d{2}:\d{2}/);
+    expect(stamped).not.toMatch(/UTC/);
+    expect(formatDateUtc("2026-08-21T13:47:11+00:00")).toBe("21 Aug");
+    expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z", 8)).toBe(
+      "13 Aug → 21 Aug · 8d",
+    );
+    expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z")).not.toMatch(
+      /\d{2}:\d{2}/,
+    );
+    expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z")).not.toMatch(
+      /UTC/,
+    );
   });
 });
 

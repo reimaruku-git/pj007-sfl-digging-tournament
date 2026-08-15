@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTournament, listTournaments, type TournamentSummary } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
-import { formatScore, formatWhenUtc, statusLabel } from "../lib/format";
+import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 
 export function TournamentsPage() {
   const { tournamentId } = useParams();
@@ -60,8 +60,8 @@ function Group({
                   {row.name || `${row.duration_days}d event`}
                 </Link>
                 <div className="meta">
-                  {formatWhenUtc(row.start_at)} → {formatWhenUtc(row.end_at)} · {row.prize_amount}{" "}
-                  Flower
+                  {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} ·{" "}
+                  {row.prize_amount} Flower
                   {row.status === "ended" ? ` · ${row.count} farm${row.count === 1 ? "" : "s"}` : ""}
                 </div>
               </span>
@@ -90,8 +90,8 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
         <>
           <div className="kicker">{data.config.name || "Tournament"}</div>
           <p className="meta">
-            {formatWhenUtc(data.config.start_at)} → {formatWhenUtc(data.config.end_at)} ·{" "}
-            {data.config.duration_days ?? "—"} days · {data.config.prize_amount} Flower
+            {formatDateRangeUtc(data.config.start_at, data.config.end_at, data.config.duration_days)} ·{" "}
+            {data.config.prize_amount} Flower
           </p>
           {data.entries.length === 0 && (
             <p className="muted">
