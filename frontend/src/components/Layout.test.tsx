@@ -44,6 +44,7 @@ describe("public chrome", () => {
     });
     expect(el.textContent).toMatch(/Rules/);
     expect(el.textContent).toMatch(/Join the tournament/);
+    expect(el.textContent).toMatch(/Past records/);
     const hrefs = [...el.querySelectorAll("a")].map((node) => node.getAttribute("href"));
     expect(hrefs).not.toContain("/admin");
   });

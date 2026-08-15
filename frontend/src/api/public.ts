@@ -6,6 +6,7 @@ export type FarmStatus = "not_started" | "in_progress" | "completed" | "invalida
 export type TournamentConfig = {
   start_at: string;
   end_at: string;
+  duration_days?: number;
   prize_amount: string;
   status: TournamentStatus;
   last_full_sync_at: string | null;
@@ -22,6 +23,8 @@ export type LeaderboardEntry = {
   otter_count: number;
   digs_today: number;
   total_digs: number;
+  avg_digs_per_day?: number;
+  tournament_days?: number;
   first_op_at?: string | null;
   second_op_at?: string | null;
   third_op_at?: string | null;
@@ -70,6 +73,42 @@ export async function fetchFarm(farmId: string): Promise<LeaderboardEntry> {
   const { response, data } = await requestJson<FarmResponse>(`farms/${encodeURIComponent(farmId)}`);
   if (!response.ok || !data) throw new Error(errorMessage(data, "farm not found"));
   return data.farm;
+}
+
+export type TournamentSummary = {
+  tournament_id: string;
+  start_at: string;
+  end_at: string;
+  duration_days: number;
+  prize_amount: string;
+  archived_at: string | null;
+  count: number;
+  leader_farm_id: string | null;
+};
+
+export type TournamentArchive = {
+  tournament_id: string;
+  archived_at: string;
+  config: TournamentConfig;
+  entries: LeaderboardEntry[];
+  count: number;
+  leader_farm_id: string | null;
+};
+
+export async function listTournaments(): Promise<{ tournaments: TournamentSummary[]; count: number }> {
+  const { response, data } = await requestJson<{ tournaments: TournamentSummary[]; count: number }>(
+    "tournaments",
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load past tournaments"));
+  return data;
+}
+
+export async function fetchTournament(tournamentId: string): Promise<TournamentArchive> {
+  const { response, data } = await requestJson<{ tournament: TournamentArchive }>(
+    `tournaments/${encodeURIComponent(tournamentId)}`,
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "tournament not found"));
+  return data.tournament;
 }
 
 export async function submitFarm(farmId: string, name: string): Promise<Submission> {

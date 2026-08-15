@@ -26,6 +26,7 @@ Errors:
 {
   "start_at": "2026-08-14T12:00:00+00:00",
   "end_at": "2026-08-21T12:00:00+00:00",
+  "duration_days": 7,
   "prize_amount": "30",
   "status": "active",
   "last_full_sync_at": "2026-08-14T13:00:00+00:00",
@@ -50,6 +51,8 @@ Cached snapshot. Frontend never calls the SFL API.
       "otter_count": 3,
       "digs_today": 8,
       "total_digs": 42,
+      "avg_digs_per_day": 6.0,
+      "tournament_days": 7,
       "first_op_at": "2026-08-14T12:10:00+00:00",
       "second_op_at": "2026-08-14T12:24:00+00:00",
       "third_op_at": "2026-08-14T12:42:00+00:00",
@@ -63,6 +66,7 @@ Cached snapshot. Frontend never calls the SFL API.
   "config": {
     "start_at": "2026-08-14T12:00:00+00:00",
     "end_at": "2026-08-21T12:00:00+00:00",
+    "duration_days": 7,
     "prize_amount": "30",
     "status": "active",
     "last_full_sync_at": "2026-08-14T13:00:00+00:00",
@@ -72,6 +76,11 @@ Cached snapshot. Frontend never calls the SFL API.
 ```
 
 `status` is `not_started` | `in_progress` | `completed` | `invalidated`.
+
+`avg_digs_per_day` is `total_digs / tournament_days`. `tournament_days` is elapsed
+UTC calendar days in the window (inclusive, at least 1), capped at the
+configured length. After the event ends it is the full configured length
+(7 or 30, etc.).
 
 `digs_to_third_op` is the official score. For farms that found all 3 Otter
 Pebbles it is the flattened dig number of the 3rd pebble. After the
@@ -105,12 +114,60 @@ Shareable personal result.
     "otter_count": 3,
     "digs_today": 8,
     "total_digs": 42,
+    "avg_digs_per_day": 6.0,
+    "tournament_days": 7,
     "first_op_at": "2026-08-14T12:10:00+00:00",
     "second_op_at": "2026-08-14T12:24:00+00:00",
     "third_op_at": "2026-08-14T12:42:00+00:00",
     "last_updated_at": "2026-08-14T13:00:00+00:00",
     "status": "completed",
     "invalidated": false
+  }
+}
+```
+
+### `GET /tournaments`
+
+Named list of archived events. Written to S3 when a window ends (or is
+replaced by a new start/length).
+
+```json
+{
+  "tournaments": [
+    {
+      "tournament_id": "20260814T000000Z_7d",
+      "start_at": "2026-08-14T00:00:00+00:00",
+      "end_at": "2026-08-21T00:00:00+00:00",
+      "duration_days": 7,
+      "prize_amount": "30",
+      "archived_at": "2026-08-21T00:05:00+00:00",
+      "count": 2,
+      "leader_farm_id": "3666918801844311"
+    }
+  ],
+  "count": 1
+}
+```
+
+### `GET /tournaments/{tournament_id}`
+
+Frozen standings. Not the live scores table.
+
+```json
+{
+  "tournament": {
+    "tournament_id": "20260814T000000Z_7d",
+    "archived_at": "2026-08-21T00:05:00+00:00",
+    "config": {
+      "start_at": "2026-08-14T00:00:00+00:00",
+      "end_at": "2026-08-21T00:00:00+00:00",
+      "duration_days": 7,
+      "prize_amount": "30",
+      "status": "ended"
+    },
+    "entries": [],
+    "count": 0,
+    "leader_farm_id": null
   }
 }
 ```
@@ -206,16 +263,17 @@ Same public shape as `GET /config` — never the raw DynamoDB item.
 
 ### `PUT /admin/config`
 
-Minimum duration is 7 days. `prize_amount` is a JSON string.
+Minimum duration is 7 days. Prefer `duration_days` (7 or 30 are the usual
+lengths); `end_at` is derived as `start_at + duration_days`. `end_at` is
+still accepted. `prize_amount` is a JSON string.
 
-After a successful write the handler re-scores every farm that has an S3
-snapshot against the new window, then kicks the farm-sync Lambda so farms
-without a snapshot catch up.
+Changing start/length archives the previous event to S3 first. After a
+successful write the handler re-scores farms that have snapshots.
 
 ```json
 {
   "start_at": "2026-08-14T00:00:00+00:00",
-  "end_at": "2026-08-21T00:00:00+00:00",
+  "duration_days": 7,
   "prize_amount": "30"
 }
 ```

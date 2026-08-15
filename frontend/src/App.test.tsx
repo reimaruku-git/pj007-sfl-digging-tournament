@@ -14,9 +14,25 @@ vi.mock("aws-amplify/auth", () => ({
 vi.mock("./auth/amplify", () => ({}));
 
 vi.mock("./api/public", () => ({
+  listTournaments: vi.fn().mockResolvedValue({ tournaments: [], count: 0 }),
+  fetchTournament: vi.fn(),
   fetchLeaderboard: vi.fn().mockResolvedValue({
-    entries: [],
-    count: 0,
+    entries: [
+      {
+        rank: 1,
+        farm_id: "1",
+        name: "rmr",
+        digs_to_third_op: 12,
+        otter_count: 3,
+        digs_today: 2,
+        total_digs: 21,
+        avg_digs_per_day: 3,
+        last_updated_at: null,
+        status: "completed",
+        invalidated: false,
+      },
+    ],
+    count: 1,
     generated_at: null,
     config: {
       start_at: "2026-08-14T00:00:00+00:00",
@@ -72,10 +88,12 @@ describe("routes", () => {
   it("renders the leaderboard at / and keeps /admin reachable", async () => {
     const home = renderApp("/");
     await act(async () => {
-      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 30));
     });
     expect(home.textContent).toMatch(/Prize pool/);
     expect(home.textContent).toMatch(/Join the tournament/);
+    expect(home.textContent).toMatch(/Total/);
+    expect(home.textContent).toMatch(/Avg\/day/);
     const rules = home.querySelector("#rules");
     expect(rules).not.toBeNull();
     expect(rules?.className).toMatch(/prize-card/);
@@ -115,6 +133,14 @@ describe("routes", () => {
     });
     expect(admin.textContent).toMatch(/Master admin|Checking session|Sign in|Loading admin/);
     expect(admin.querySelector('button[aria-label="Menu"]')).not.toBeNull();
+  });
+
+  it("has a past-records route", async () => {
+    const records = renderApp("/records");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(records.textContent).toMatch(/Past tournaments/);
   });
 
   it("sends unknown paths to the leaderboard", async () => {

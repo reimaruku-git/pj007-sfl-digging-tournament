@@ -376,7 +376,8 @@ textarea {
 }
 
 input,
-textarea {
+textarea,
+select {
   background: #161411;
   border: 1px solid var(--line);
   color: var(--cream);

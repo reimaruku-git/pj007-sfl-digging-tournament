@@ -43,14 +43,14 @@ describe("admin api", () => {
     );
     const saved = await saveConfig({
       start_at: config.start_at,
-      end_at: config.end_at,
+      duration_days: 7,
       prize_amount: "30",
     });
     expect(mockRequest).toHaveBeenCalledWith("admin/config", {
       method: "PUT",
       body: JSON.stringify({
         start_at: config.start_at,
-        end_at: config.end_at,
+        duration_days: 7,
         prize_amount: "30",
       }),
     });

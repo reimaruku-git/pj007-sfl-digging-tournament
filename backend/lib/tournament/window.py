@@ -1,0 +1,65 @@
+"""Tournament window length and average-day helpers."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+
+from tournament.store import MIN_TOURNAMENT_DAYS
+
+
+def parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    text = str(value).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def duration_days(start: datetime | None, end: datetime | None) -> int:
+    if start is None or end is None or end <= start:
+        return MIN_TOURNAMENT_DAYS
+    return max(1, int((end - start).total_seconds() // 86_400))
+
+
+def tournament_days_for_average(
+    start: datetime | None,
+    end: datetime | None,
+    now: datetime,
+) -> int:
+    """Days used for average digs.
+
+    Uses elapsed UTC calendar days in the window (inclusive, at least 1),
+    capped at the configured length. After the event ends, uses the full
+    configured length. A 7-day and a 30-day window therefore divide the
+    same total by 7 vs 30 once the event is over.
+    """
+    configured = duration_days(start, end)
+    if start is None or end is None:
+        return configured
+    clock = now if now.tzinfo else now.replace(tzinfo=timezone.utc)
+    if clock >= end:
+        return configured
+    if clock <= start:
+        return 1
+    elapsed = (clock.date() - start.date()).days + 1
+    return max(1, min(configured, elapsed))
+
+
+def avg_digs_per_day(total_digs: int, days: int) -> float:
+    return round(int(total_digs or 0) / max(int(days), 1), 2)
+
+
+def tournament_id(config: dict[str, Any]) -> str:
+    start = parse_iso(config.get("start_at"))
+    end = parse_iso(config.get("end_at"))
+    days = int(config.get("duration_days") or 0) or duration_days(start, end)
+    stamp = start.strftime("%Y%m%dT%H%M%SZ") if start else "unknown"
+    return f"{stamp}_{days}d"

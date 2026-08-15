@@ -184,6 +184,9 @@ Canonical: `backend/lib/tournament/scoring.py` +
   No completers → floor 30. Mid-day syncs do **not** assign that penalty.
 - Lower score ranks higher.
 - Default prize is `"30"` Flower (JSON **string**). Min period **7 days**.
+  Admin sets start + `duration_days` (7 or 30 typical). Ended events go to
+  S3 `archives/` and `GET /tournaments`. Average = total_digs / elapsed
+  UTC days, capped at configured length.
 - `PUT /admin/config` re-scores farms from S3 snapshots against the new
   window, then kicks FarmSync for farms that have no snapshot. Do not only
   refresh the cached board.

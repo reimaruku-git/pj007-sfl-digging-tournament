@@ -19,23 +19,9 @@ from tournament.scoring import (
 )
 from tournament.sfl_client import RateLimitedSFLClient, SFLApiError
 from tournament.store import MIN_TOURNAMENT_DAYS, Store
+from tournament.window import duration_days, parse_iso, tournament_days_for_average
 
 logger = logging.getLogger(__name__)
-
-
-def parse_iso(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    text = str(value).strip()
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
 def ensure_default_config(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
@@ -45,12 +31,16 @@ def ensure_default_config(store: Store, *, now: datetime | None = None) -> dict[
     end = parse_iso(existing.get("end_at"))
     if start and end and end > start:
         existing["status"] = tournament_status(start, end, clock)
+        existing["duration_days"] = int(existing.get("duration_days") or 0) or duration_days(
+            start, end
+        )
         return existing
     start = clock
     end = clock + timedelta(days=MIN_TOURNAMENT_DAYS)
     config = {
         "start_at": start.isoformat(),
         "end_at": end.isoformat(),
+        "duration_days": MIN_TOURNAMENT_DAYS,
         "prize_amount": str(existing.get("prize_amount") or "30"),
         "status": tournament_status(start, end, clock),
         "last_full_sync_at": existing.get("last_full_sync_at"),
@@ -68,9 +58,13 @@ def tournament_status(start: datetime, end: datetime, now: datetime) -> str:
 
 
 def public_config(config: dict[str, Any]) -> dict[str, Any]:
+    start = parse_iso(config.get("start_at"))
+    end = parse_iso(config.get("end_at"))
+    days = int(config.get("duration_days") or 0) or duration_days(start, end)
     return {
         "start_at": config.get("start_at"),
         "end_at": config.get("end_at"),
+        "duration_days": days,
         "prize_amount": str(config.get("prize_amount") or "30"),
         "status": config.get("status") or "scheduled",
         "last_full_sync_at": config.get("last_full_sync_at"),
@@ -78,9 +72,16 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def refresh_leaderboard(store: Store) -> dict[str, Any]:
+def refresh_leaderboard(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
+    clock = now or datetime.now(timezone.utc)
+    config = store.get_config()
+    days = tournament_days_for_average(
+        parse_iso(config.get("start_at")),
+        parse_iso(config.get("end_at")),
+        clock,
+    )
     rows = store.list_scores()
-    board = build_leaderboard(rows)
+    board = build_leaderboard(rows, tournament_days=days)
     cached = store.put_leaderboard_cache(board)
     return cached
 

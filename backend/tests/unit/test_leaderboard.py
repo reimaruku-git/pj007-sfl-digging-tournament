@@ -1,4 +1,5 @@
 from tournament.leaderboard import build_leaderboard, official_score, rank_scores
+from tournament.window import avg_digs_per_day, tournament_days_for_average
 
 
 def test_completed_ranks_by_lowest_score():
@@ -149,3 +150,46 @@ def test_same_third_breaks_on_second_then_first_then_times():
     }
     by_time = rank_scores([same_digs_late, same_digs_early])
     assert [row["farm_id"] for row in by_time] == ["early-clock", "late-clock"]
+
+
+def test_average_uses_configured_length_when_ended():
+    from datetime import datetime, timezone
+
+    start = datetime(2026, 8, 1, tzinfo=timezone.utc)
+    end_7 = datetime(2026, 8, 8, tzinfo=timezone.utc)
+    end_30 = datetime(2026, 8, 31, tzinfo=timezone.utc)
+    after = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    assert tournament_days_for_average(start, end_7, after) == 7
+    assert tournament_days_for_average(start, end_30, after) == 30
+    assert avg_digs_per_day(70, 7) == 10.0
+    assert avg_digs_per_day(70, 30) == 2.33
+    board_7 = build_leaderboard(
+        [{"farm_id": "a", "status": "completed", "digs_to_third_op": 12, "total_digs": 70}],
+        tournament_days=7,
+    )
+    board_30 = build_leaderboard(
+        [{"farm_id": "a", "status": "completed", "digs_to_third_op": 12, "total_digs": 70}],
+        tournament_days=30,
+    )
+    assert board_7["entries"][0]["avg_digs_per_day"] == 10.0
+    assert board_7["entries"][0]["total_digs"] == 70
+    assert board_30["entries"][0]["avg_digs_per_day"] == 2.33
+
+
+def test_same_pebbles_lower_average_then_total_wins():
+    base = {
+        "status": "completed",
+        "digs_to_third_op": 12,
+        "digs_to_second_op": 8,
+        "digs_to_first_op": 3,
+        "third_op_at": "2026-08-14T12:00:00+00:00",
+        "second_op_at": "2026-08-14T11:00:00+00:00",
+        "first_op_at": "2026-08-14T10:00:00+00:00",
+        "otter_count": 3,
+    }
+    busy = {**base, "farm_id": "busy", "total_digs": 70}
+    lean = {**base, "farm_id": "lean", "total_digs": 21}
+    ranked = rank_scores([busy, lean], tournament_days=7)
+    assert [row["farm_id"] for row in ranked] == ["lean", "busy"]
+    assert ranked[0]["avg_digs_per_day"] == 3.0
+    assert ranked[1]["avg_digs_per_day"] == 10.0

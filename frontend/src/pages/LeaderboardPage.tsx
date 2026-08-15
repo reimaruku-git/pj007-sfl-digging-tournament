@@ -174,7 +174,7 @@ export function LeaderboardPage() {
         {!board.isLoading && entries.length === 0 && (
           <p className="muted">No farms match yet. Submit a Farm ID below.</p>
         )}
-        {entries.length > 0 && (
+        {(entries.length > 0 || !board.isLoading) && (
           <>
             <table className="board-table">
               <thead>
@@ -182,6 +182,8 @@ export function LeaderboardPage() {
                   <th>Rank</th>
                   <th>Farm</th>
                   <th>Score</th>
+                  <th>Total</th>
+                  <th>Avg/day</th>
                   <th>Pebbles</th>
                   <th>Today</th>
                   <th>Updated</th>
@@ -208,6 +210,8 @@ export function LeaderboardPage() {
                       </Link>
                     </td>
                     <td>{row.digs_to_third_op ?? "—"}</td>
+                    <td>{row.total_digs}</td>
+                    <td>{row.avg_digs_per_day ?? "—"}</td>
                     <td>
                       <Pebbles count={row.otter_count} />
                     </td>
@@ -247,7 +251,10 @@ export function LeaderboardPage() {
                   </div>
                   <div className="farm-card-score">
                     <b>{row.digs_to_third_op ?? "—"}</b>
-                    <span>digs</span>
+                    <span>score</span>
+                    <span className="muted">
+                      {row.total_digs} tot · {row.avg_digs_per_day ?? "—"}/d
+                    </span>
                   </div>
                 </Link>
               ))}

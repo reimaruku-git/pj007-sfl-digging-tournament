@@ -203,6 +203,51 @@ class Store:
                 return None
             raise
 
+    def write_archive(self, tournament_id: str, payload: dict[str, Any]) -> str:
+        key = f"archives/{tournament_id}.json"
+        body = json.dumps(payload, default=str, separators=(",", ":"))
+        self._s3.put_object(
+            Bucket=self._bucket,
+            Key=key,
+            Body=body,
+            ContentType="application/json",
+        )
+        return key
+
+    def read_archive(self, tournament_id: str) -> dict[str, Any] | None:
+        key = f"archives/{tournament_id}.json"
+        try:
+            response = self._s3.get_object(Bucket=self._bucket, Key=key)
+            return json.loads(response["Body"].read())
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in {"NoSuchKey", "NoSuchBucket", "404"}:
+                return None
+            raise
+
+    def list_archives(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        token: str | dict[str, Any] | None = None
+        while True:
+            kwargs: dict[str, Any] = {"Bucket": self._bucket, "Prefix": "archives/"}
+            if token:
+                kwargs["ContinuationToken"] = token
+            response = self._s3.list_objects_v2(**kwargs)
+            for obj in response.get("Contents") or []:
+                key = str(obj.get("Key") or "")
+                if not key.endswith(".json"):
+                    continue
+                tournament_id = key.rsplit("/", 1)[-1].removesuffix(".json")
+                payload = self.read_archive(tournament_id)
+                if not payload:
+                    continue
+                items.append(archive_summary(payload))
+            if not response.get("IsTruncated"):
+                break
+            token = response.get("NextContinuationToken")
+        items.sort(key=lambda item: str(item.get("start_at") or ""), reverse=True)
+        return items
+
     def write_daily_snapshot(self, day: str, payload: dict[str, Any]) -> str:
         key = f"snapshots/daily/{day}.json"
         body = json.dumps(payload, default=str, separators=(",", ":"))
@@ -213,6 +258,20 @@ class Store:
             ContentType="application/json",
         )
         return key
+
+
+def archive_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    config = payload.get("config") if isinstance(payload.get("config"), dict) else {}
+    return {
+        "tournament_id": payload.get("tournament_id"),
+        "start_at": config.get("start_at") or payload.get("start_at"),
+        "end_at": config.get("end_at") or payload.get("end_at"),
+        "duration_days": config.get("duration_days") or payload.get("duration_days"),
+        "prize_amount": str(config.get("prize_amount") or payload.get("prize_amount") or "30"),
+        "archived_at": payload.get("archived_at"),
+        "count": int(payload.get("count") or 0),
+        "leader_farm_id": payload.get("leader_farm_id"),
+    }
 
 
 _SERIALIZER = TypeSerializer()

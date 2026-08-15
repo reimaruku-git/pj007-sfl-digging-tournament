@@ -80,6 +80,9 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         webhook_url=DISCORD_WEBHOOK_URL,
         now=clock,
     )
+    from tournament.archive import archive_current
+
+    archive_current(store, now=clock)
     logger.info(
         "farm_sync done: synced=%s failures=%s finalized=%s",
         result.get("synced"),

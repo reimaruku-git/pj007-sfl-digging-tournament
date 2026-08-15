@@ -14,6 +14,7 @@ import boto3
 
 from common.response import create_error_response, create_response, set_request_origin
 from tournament.farms import FarmRegistry
+from tournament.archive import archive_current, get_public_archive, list_public_archives
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.scoring import STATUS_COMPLETED
 from tournament.store import MIN_TOURNAMENT_DAYS, Store
@@ -25,6 +26,7 @@ from tournament.sync import (
     rescore_from_snapshots,
     tournament_status,
 )
+from tournament.window import duration_days, tournament_days_for_average, tournament_id
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -133,6 +135,7 @@ def handle_get_config(_event: dict[str, Any]) -> dict[str, Any]:
 def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
     ensure_default_config(store)
+    archive_current(store)
     cache = store.get_leaderboard_cache()
     if not cache or not cache.get("entries"):
         cache = refresh_leaderboard(store)
@@ -161,7 +164,13 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     row = score or store.empty_score(farm_id, (tracked or {}).get("name") or "")
     if tracked:
         row["name"] = tracked.get("name") or row.get("name") or ""
-    ranked = rank_scores(store.list_scores())
+    config = store.get_config()
+    days = tournament_days_for_average(
+        parse_iso(config.get("start_at")),
+        parse_iso(config.get("end_at")),
+        datetime.now(timezone.utc),
+    )
+    ranked = rank_scores(store.list_scores(), tournament_days=days)
     match = next((item for item in ranked if item.get("farm_id") == farm_id), row)
     return create_response(200, {"farm": public_entry(match)})
 
@@ -218,13 +227,49 @@ def handle_admin_get_config(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"config": public_config(config)})
 
 
+def handle_list_tournaments(_event: dict[str, Any]) -> dict[str, Any]:
+    store = _get_store()
+    archive_current(store)
+    tournaments = list_public_archives(store)
+    return create_response(200, {"tournaments": tournaments, "count": len(tournaments)})
+
+
+def handle_get_tournament(event: dict[str, Any]) -> dict[str, Any]:
+    tournament = _path_params(event).get("tournament_id", "").strip()
+    if not tournament:
+        return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
+    payload = get_public_archive(_get_store(), tournament)
+    if payload is None:
+        return create_error_response(404, "tournament archive not found", "NOT_FOUND")
+    return create_response(200, {"tournament": payload})
+
+
 def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
     body = _body(event)
     start = parse_iso(body.get("start_at") or body.get("startAt"))
+    raw_days = body.get("duration_days")
+    if raw_days is None:
+        raw_days = body.get("durationDays")
+    days: int | None = None
+    if raw_days is not None and str(raw_days).strip() != "":
+        try:
+            days = int(raw_days)
+        except (TypeError, ValueError):
+            return create_error_response(400, "duration_days must be an integer", "VALIDATION_ERROR")
     end = parse_iso(body.get("end_at") or body.get("endAt"))
-    if start is None or end is None:
+    if start is None:
+        return create_error_response(400, "start_at is required", "VALIDATION_ERROR")
+    if days is not None:
+        if days < MIN_TOURNAMENT_DAYS:
+            return create_error_response(
+                400,
+                f"tournament must run at least {MIN_TOURNAMENT_DAYS} days",
+                "VALIDATION_ERROR",
+            )
+        end = start + timedelta(days=days)
+    if end is None:
         return create_error_response(
-            400, "start_at and end_at are required ISO-8601 timestamps", "VALIDATION_ERROR"
+            400, "duration_days or end_at is required", "VALIDATION_ERROR"
         )
     if end <= start:
         return create_error_response(400, "end_at must be after start_at", "VALIDATION_ERROR")
@@ -234,15 +279,22 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
             f"tournament must run at least {MIN_TOURNAMENT_DAYS} days",
             "VALIDATION_ERROR",
         )
+    days = days or duration_days(start, end)
     prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip()
     if not prize:
         prize = "30"
     store = _get_store()
     existing = store.get_config()
+    new_id = tournament_id(
+        {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
+    )
+    if existing.get("start_at") and tournament_id(existing) != new_id:
+        archive_current(store, force=True)
     config = store.put_config(
         {
             "start_at": start.isoformat(),
             "end_at": end.isoformat(),
+            "duration_days": days,
             "prize_amount": prize,
             "status": tournament_status(start, end, datetime.now(timezone.utc)),
             "last_full_sync_at": existing.get("last_full_sync_at"),
@@ -425,6 +477,8 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("GET", re.compile(r"^/health$"), handle_health),
     ("GET", re.compile(r"^/config$"), handle_get_config),
     ("GET", re.compile(r"^/leaderboard$"), handle_get_leaderboard),
+    ("GET", re.compile(r"^/tournaments$"), handle_list_tournaments),
+    ("GET", re.compile(r"^/tournaments/(?P<tournament_id>[^/]+)$"), handle_get_tournament),
     ("GET", re.compile(r"^/farms/(?P<farm_id>[^/]+)$"), handle_get_farm),
     ("POST", re.compile(r"^/submissions$"), handle_submit_farm),
     ("GET", re.compile(r"^/admin/session$"), handle_admin_session),

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from tournament.scoring import STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_NOT_STARTED
+from tournament.window import avg_digs_per_day
 
 STATUS_INVALIDATED = "invalidated"
 
@@ -50,15 +51,29 @@ def _as_rank_time(value: Any) -> str:
 
 
 def _tie_break(row: dict[str, Any]) -> tuple:
-    """Lower digs to 2nd, then 1st; then earlier 3rd / 2nd / 1st pebble time."""
+    """Pebble digs/times, then lower average per day, then lower total digs."""
+    avg = row.get("avg_digs_per_day")
+    avg_key = _MISSING_DIGS if avg is None else int(round(float(avg) * 100))
     return (
         _as_rank_int(row.get("digs_to_second_op")),
         _as_rank_int(row.get("digs_to_first_op")),
         _as_rank_time(row.get("third_op_at")),
         _as_rank_time(row.get("second_op_at")),
         _as_rank_time(row.get("first_op_at")),
+        avg_key,
+        _as_rank_int(row.get("total_digs")),
         str(row.get("farm_id") or ""),
     )
+
+
+def annotate_pace(row: dict[str, Any], tournament_days: int) -> dict[str, Any]:
+    out = dict(row)
+    days = max(int(tournament_days), 1)
+    total = int(out.get("total_digs") or 0)
+    out["total_digs"] = total
+    out["tournament_days"] = days
+    out["avg_digs_per_day"] = avg_digs_per_day(total, days)
+    return out
 
 
 def _sort_key(row: dict[str, Any]) -> tuple:
@@ -75,9 +90,10 @@ def _sort_key(row: dict[str, Any]) -> tuple:
     return (3, _MISSING_DIGS) + _tie_break(row)
 
 
-def rank_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def rank_scores(rows: list[dict[str, Any]], *, tournament_days: int = 1) -> list[dict[str, Any]]:
     ranked: list[dict[str, Any]] = []
-    ordered = sorted(rows, key=_sort_key)
+    paced = [annotate_pace(row, tournament_days) for row in rows]
+    ordered = sorted(paced, key=_sort_key)
     place = 0
     for row in ordered:
         entry = dict(row)
@@ -104,6 +120,8 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
         "otter_count": int(row.get("otter_count") or 0),
         "digs_today": int(row.get("digs_today") or 0),
         "total_digs": int(row.get("total_digs") or 0),
+        "avg_digs_per_day": float(row.get("avg_digs_per_day") or 0),
+        "tournament_days": int(row.get("tournament_days") or 1),
         "first_op_at": row.get("first_op_at"),
         "second_op_at": row.get("second_op_at"),
         "third_op_at": row.get("third_op_at"),
@@ -113,8 +131,9 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_leaderboard(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    entries = [public_entry(row) for row in rank_scores(rows)]
+def build_leaderboard(rows: list[dict[str, Any]], *, tournament_days: int = 1) -> dict[str, Any]:
+    days = max(int(tournament_days), 1)
+    entries = [public_entry(row) for row in rank_scores(rows, tournament_days=days)]
     leader = next((entry for entry in entries if entry["rank"] == 1), None)
     return {
         "entries": entries,

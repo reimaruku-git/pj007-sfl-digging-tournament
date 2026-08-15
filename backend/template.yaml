@@ -348,6 +348,7 @@ Resources:
                 Resource:
                   - !Sub ${AppBucket.Arn}/config/*
                   - !Sub ${AppBucket.Arn}/snapshots/*
+                  - !Sub ${AppBucket.Arn}/archives/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -357,6 +358,7 @@ Resources:
                     s3:prefix:
                       - config/*
                       - snapshots/*
+                      - archives/*
         - PolicyName: MainInvokeSync
           PolicyDocument:
             Version: "2012-10-17"
@@ -420,6 +422,7 @@ Resources:
                 Resource:
                   - !Sub ${AppBucket.Arn}/config/*
                   - !Sub ${AppBucket.Arn}/snapshots/*
+                  - !Sub ${AppBucket.Arn}/archives/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -429,6 +432,7 @@ Resources:
                     s3:prefix:
                       - config/*
                       - snapshots/*
+                      - archives/*
       Tags:
         - Key: BillingTag
           Value: !Ref BillingTag
@@ -471,6 +475,18 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /leaderboard
+            Method: GET
+        ListTournaments:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments
+            Method: GET
+        GetTournament:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments/{tournament_id}
             Method: GET
         GetFarm:
           Type: HttpApi

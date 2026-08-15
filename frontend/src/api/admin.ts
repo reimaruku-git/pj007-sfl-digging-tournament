@@ -92,7 +92,8 @@ export type ConfigSaveResult = {
 
 export async function saveConfig(input: {
   start_at: string;
-  end_at: string;
+  end_at?: string;
+  duration_days?: number;
   prize_amount: string;
 }): Promise<ConfigSaveResult> {
   const { response, data } = await requestJson<ConfigSaveResult>("admin/config", {

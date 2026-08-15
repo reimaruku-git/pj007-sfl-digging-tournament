@@ -166,7 +166,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [farmId, setFarmId] = useState("");
   const [farmName, setFarmName] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
+  const [durationDays, setDurationDays] = useState(7);
   const [prize, setPrize] = useState("30");
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string>("");
@@ -174,7 +174,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   useEffect(() => {
     if (!config.data || startAt) return;
     setStartAt(toLocalInput(config.data.start_at));
-    setEndAt(toLocalInput(config.data.end_at));
+    setDurationDays(config.data.duration_days || daysBetween(config.data.start_at, config.data.end_at));
     setPrize(config.data.prize_amount);
   }, [config.data, startAt]);
 
@@ -228,14 +228,17 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             const start = new Date(startAt);
-            const end = new Date(endAt);
-            if (!startAt || !endAt || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-              note("Start and end must be valid dates.", "err");
+            if (!startAt || Number.isNaN(start.getTime())) {
+              note("Start must be a valid date.", "err");
+              return;
+            }
+            if (durationDays < 7) {
+              note("Tournament must run at least 7 days.", "err");
               return;
             }
             saveConfig({
               start_at: start.toISOString(),
-              end_at: end.toISOString(),
+              duration_days: durationDays,
               prize_amount: prize,
             })
               .then((result) => {
@@ -262,12 +265,28 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             />
           </label>
           <label>
-            End
+            Length (days)
+            <select
+              value={[7, 14, 30].includes(durationDays) ? String(durationDays) : "custom"}
+              onChange={(event) => {
+                if (event.target.value === "custom") return;
+                setDurationDays(Number(event.target.value));
+              }}
+              disabled={!config.data}
+            >
+              <option value="7">7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label>
+            Custom days
             <input
-              type="datetime-local"
-              value={endAt}
-              onChange={(e) => setEndAt(e.target.value)}
-              required
+              type="number"
+              min={7}
+              value={durationDays}
+              onChange={(event) => setDurationDays(Number(event.target.value))}
               disabled={!config.data}
             />
           </label>
@@ -275,7 +294,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             Prize (Flower)
             <input value={prize} onChange={(e) => setPrize(e.target.value)} />
           </label>
-          <button className="btn primary" type="submit" disabled={!config.data || !startAt || !endAt}>
+          <button className="btn primary" type="submit" disabled={!config.data || !startAt}>
             Save dates & prize
           </button>
         </form>
@@ -457,6 +476,13 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       <p className="muted">Last public sync: {formatWhen(config.data?.last_full_sync_at)}</p>
     </>
   );
+}
+
+function daysBetween(startIso: string, endIso: string): number {
+  const start = new Date(startIso).getTime();
+  const end = new Date(endIso).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 7;
+  return Math.max(7, Math.round((end - start) / 86_400_000));
 }
 
 function toLocalInput(iso: string): string {

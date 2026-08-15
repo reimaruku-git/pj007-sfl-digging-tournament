@@ -183,6 +183,47 @@ def test_admin_put_config_rescores_from_snapshot(aws_env, monkeypatch):
     assert row["digs_to_third_op"] is None
 
 
+def test_admin_put_config_duration_days_sets_end_and_public_config(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    saved = app.lambda_handler(
+        _event(
+            "PUT",
+            "/admin/config",
+            {
+                "start_at": "2026-08-01T00:00:00+00:00",
+                "duration_days": 30,
+                "prize_amount": "30",
+            },
+        ),
+        None,
+    )
+    assert saved["statusCode"] == 200
+    config = _json(saved)["config"]
+    assert config["duration_days"] == 30
+    assert config["start_at"].startswith("2026-08-01")
+    assert config["end_at"].startswith("2026-08-31")
+    public = _json(app.lambda_handler(_event("GET", "/config"), None))
+    assert public["start_at"] == config["start_at"]
+    assert public["end_at"] == config["end_at"]
+    assert public["duration_days"] == 30
+    board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
+    assert board["config"]["start_at"] == config["start_at"]
+    assert board["config"]["end_at"] == config["end_at"]
+
+
+def test_admin_put_config_rejects_short_duration(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    response = app.lambda_handler(
+        _event(
+            "PUT",
+            "/admin/config",
+            {"start_at": "2026-08-01T00:00:00+00:00", "duration_days": 6},
+        ),
+        None,
+    )
+    assert response["statusCode"] == 400
+
+
 def test_admin_update_farm_route_is_wired(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "7", "name": "a"}), None)

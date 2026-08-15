@@ -93,6 +93,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <button type="button" role="menuitem" onClick={goJoin}>
                   Join the tournament
                 </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate("/records");
+                  }}
+                >
+                  Past records
+                </button>
                 <form className="menu-find" onSubmit={findFarm}>
                   <label>
                     Find a farm
