@@ -54,9 +54,7 @@ jobs:
               "AllowedOrigin=${{ vars.DEV_ALLOWED_ORIGIN }}" \
               "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
               "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*" \
-              "SFLApiKey=${{ secrets.SFL_API_KEY }}" \
-              "AdminPasswordHash=${{ secrets.ADMIN_PASSWORD_HASH }}" \
-              "AdminSessionSecret=${{ secrets.ADMIN_SESSION_SECRET }}"
+              "SFLApiKey=${{ secrets.SFL_API_KEY }}"
 
   deploy-frontend:
     name: Deploy frontend (S3 + CloudFront)
@@ -81,6 +79,8 @@ jobs:
         run: npm run build
         env:
           VITE_API_BASE: ${{ vars.DEV_VITE_API_BASE }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.DEV_VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_USER_POOL_CLIENT_ID: ${{ vars.DEV_VITE_COGNITO_USER_POOL_CLIENT_ID }}
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4

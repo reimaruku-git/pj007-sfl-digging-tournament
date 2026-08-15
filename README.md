@@ -8,6 +8,7 @@ Players compete to collect **all 3 Otter Pebbles** in the fewest digs.
 - Lower score ranks higher
 - Farm IDs live in `s3://pj007-dev-digging-tournament/config/tracked-farms.json`
 - The browser talks **only** to our API. The SFL Community API key stays on Lambda.
+- Admin is **Cognito** (admin-created users, no self-signup). Public leaderboard has no login.
 
 ## Layout
 
@@ -24,8 +25,8 @@ frontend/    Vite + React — public leaderboard + master admin
 cd backend
 poetry install
 poetry run pytest tests/unit -v
-# secrets in backend/.env (gitignored)
-make local-api   # http://localhost:3001
+# SFL_API_KEY in backend/.env (gitignored)
+make local-api   # http://localhost:3001 (Cognito not enforced locally)
 
 # frontend
 cd frontend

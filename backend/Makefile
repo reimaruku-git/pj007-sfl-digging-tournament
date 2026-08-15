@@ -1,4 +1,4 @@
-.PHONY: install test test-cov build validate local-api deploy-dev clean hash-password
+.PHONY: install test test-cov build validate local-api deploy-dev clean
 
 ifneq (,$(wildcard .env))
     include .env
@@ -25,13 +25,8 @@ local-api: build
 	  --env-vars env.local.json \
 	  --port 3001
 
-hash-password:
-	poetry run python scripts/hash_password.py
-
 deploy-dev: build
 	@test -n "$$SFL_API_KEY" || (echo "SFL_API_KEY is required" && exit 1)
-	@test -n "$$ADMIN_PASSWORD_HASH" || (echo "ADMIN_PASSWORD_HASH is required" && exit 1)
-	@test -n "$$ADMIN_SESSION_SECRET" || (echo "ADMIN_SESSION_SECRET is required" && exit 1)
 	sam deploy --config-env dev --parameter-overrides \
 	  "ProjectNo=pj007" \
 	  "ProjectName=digging-tournament" \
@@ -39,10 +34,7 @@ deploy-dev: build
 	  "BillingTag=pj007" \
 	  "AllowedOrigin=$${ALLOWED_ORIGIN:-*}" \
 	  "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
-	  "SFLApiKey=$$SFL_API_KEY" \
-	  "AdminPasswordHash=$$ADMIN_PASSWORD_HASH" \
-	  "AdminSessionSecret=$$ADMIN_SESSION_SECRET" \
-	  "DiscordWebhookUrl=$${DISCORD_WEBHOOK_URL:-}"
+	  "SFLApiKey=$$SFL_API_KEY"
 
 clean:
 	rm -rf .aws-sam/

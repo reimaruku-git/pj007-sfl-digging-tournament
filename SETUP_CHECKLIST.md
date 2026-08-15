@@ -12,7 +12,8 @@ Live (dev):
 | Admin | https://d1balcacprl09z.cloudfront.net/admin |
 | OIDC role | `arn:aws:iam::917147260700:role/pj007-dev-digging-tournament-github-deploy-role` |
 
-The plaintext master-admin password is in the local gitignored file `backend/.admin-password`.
+Admin login is **Amazon Cognito** (this stack’s user pool). Create the `Admin`
+user in the console after the pool exists — there is no shared website password.
 
 Do **not** recreate the GitHub OIDC provider. It already exists:
 
@@ -20,30 +21,12 @@ Do **not** recreate the GitHub OIDC provider. It already exists:
 
 ## 1. Secrets (local, gitignored)
 
-```bash
-cd backend
-python3 - <<'PY'
-import secrets, sys
-from pathlib import Path
-sys.path.insert(0, "lib")
-from tournament.admin_auth import hash_password
-password = secrets.token_urlsafe(18)
-print("ADMIN_PASSWORD=" + password)
-print("ADMIN_PASSWORD_HASH=" + hash_password(password))
-print("ADMIN_SESSION_SECRET=" + secrets.token_hex(32))
-PY
-```
-
 Write `backend/.env` (never commit):
 
 ```
 SFL_API_KEY=<community API key from in-game Developer Options>
-ADMIN_PASSWORD_HASH=<from the script>
-ADMIN_SESSION_SECRET=<from the script>
 ALLOWED_ORIGIN=*
 ```
-
-Save the plaintext admin password somewhere private.
 
 ## 2. First deploy (SSO, this stack only)
 
@@ -64,6 +47,20 @@ Outputs you need:
 | `CloudFrontDomainName` | GitHub var `DEV_ALLOWED_ORIGIN` + `AllowedOrigin` redeploy |
 | `CloudFrontDistributionId` | GitHub var `DEV_CF_DISTRIBUTION_ID` |
 | `GitHubActionsDeployRoleArn` | GitHub var `DEV_AWS_DEPLOY_ROLE_ARN` |
+| `CognitoUserPoolId` | GitHub var `DEV_VITE_COGNITO_USER_POOL_ID` |
+| `CognitoUserPoolClientId` | GitHub var `DEV_VITE_COGNITO_USER_POOL_CLIENT_ID` |
+
+### Create the Admin user (console)
+
+1. Cognito → User pools → `pj007-dev-digging-tournament-users`
+2. Create user
+3. Username: `Admin` (case-insensitive)
+4. Set email + password yourself
+5. Mark email verified
+6. Uncheck “User must change password” if you want to use that password immediately
+7. Do **not** enable self-registration
+
+Sign in at `/admin` with username `Admin` and that password.
 
 Seed the Farm ID file:
 
@@ -87,14 +84,14 @@ Repo variables:
 | `DEV_S3_BUCKET` | `pj007-dev-digging-tournament` |
 | `DEV_CF_DISTRIBUTION_ID` | stack `CloudFrontDistributionId` |
 | `DEV_ALLOWED_ORIGIN` | `https://<dist>.cloudfront.net` |
+| `DEV_VITE_COGNITO_USER_POOL_ID` | stack `CognitoUserPoolId` |
+| `DEV_VITE_COGNITO_USER_POOL_CLIENT_ID` | stack `CognitoUserPoolClientId` |
 
 Repo secrets:
 
 | Secret | Value |
 |---|---|
 | `SFL_API_KEY` | Community API key |
-| `ADMIN_PASSWORD_HASH` | pbkdf2 hash |
-| `ADMIN_SESSION_SECRET` | HMAC secret |
 | `DISCORD_WEBHOOK_URL` | optional |
 
 The OIDC role trusts this repo only. New GitHub repos emit an immutable
@@ -106,8 +103,6 @@ classic `repo:reimaruku-git/pj007-sfl-digging-tournament:*` form.
 | Name | Purpose |
 |---|---|
 | `SFL_API_KEY` | Community API `X-Api-Key` |
-| `ADMIN_PASSWORD_HASH` | Master-admin password hash |
-| `ADMIN_SESSION_SECRET` | Session HMAC secret |
 | `DATA_BUCKET` | App bucket |
 | `CONFIG_TABLE` / `SCORES_TABLE` / `SUBMISSIONS_TABLE` | DynamoDB |
 | `ALLOWED_ORIGIN` / `ALLOWED_ORIGINS` | CORS |
@@ -120,6 +115,8 @@ Frontend:
 | Name | Purpose |
 |---|---|
 | `VITE_API_BASE` | Our API Gateway URL. Required. No hardcoded fallback. |
+| `VITE_COGNITO_USER_POOL_ID` | Stack output `CognitoUserPoolId` |
+| `VITE_COGNITO_USER_POOL_CLIENT_ID` | Stack output `CognitoUserPoolClientId` |
 
 ## 5. S3 layout
 

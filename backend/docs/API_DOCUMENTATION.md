@@ -2,7 +2,9 @@
 
 Wire JSON is **snake_case**. The browser talks only to this API.
 
-Auth for admin routes: `Authorization: <session token>` — raw token, no `Bearer ` prefix.
+Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no `Bearer ` prefix.
+API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
+Public routes (`/health`, `/config`, `/leaderboard`, `/farms/{farm_id}`, `POST /submissions`) have no authorizer.
 
 Errors:
 
@@ -108,23 +110,12 @@ Shareable personal result.
 
 ## Admin
 
-### `POST /admin/login`
-
-```json
-{ "password": "..." }
-```
-
-```json
-{
-  "token": "1700000000.ab12.signature",
-  "expires_at": "2026-08-15T01:00:00+00:00"
-}
-```
+All `/admin/*` routes require a Cognito ID token. `401` if the token is missing or invalid.
 
 ### `GET /admin/session`
 
 ```json
-{ "ok": true, "expires_at": "2026-08-15T01:00:00+00:00" }
+{ "ok": true }
 ```
 
 ### `GET /admin/farms`

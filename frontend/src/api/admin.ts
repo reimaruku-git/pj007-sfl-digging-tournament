@@ -1,4 +1,4 @@
-import { errorMessage, requestJson, setAdminToken } from "./client";
+import { errorMessage, requestJson } from "./client";
 import type { LeaderboardEntry, Submission, TournamentConfig } from "./public";
 
 export type TrackedFarm = {
@@ -6,19 +6,6 @@ export type TrackedFarm = {
   name: string;
   active: boolean;
 };
-
-export async function adminLogin(password: string): Promise<{ token: string; expires_at: string }> {
-  const { response, data } = await requestJson<{ token: string; expires_at: string }>(
-    "admin/login",
-    {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    },
-  );
-  if (!response.ok || !data) throw new Error(errorMessage(data, "login failed"));
-  setAdminToken(data.token);
-  return data;
-}
 
 export async function adminSession(): Promise<boolean> {
   const { response } = await requestJson<{ ok: boolean }>("admin/session");

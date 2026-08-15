@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
+import { confirmSignIn, signIn, signOut } from "aws-amplify/auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addFarm,
-  adminLogin,
   adminSession,
   approveSubmission,
   fetchSnapshot,
@@ -17,13 +17,32 @@ import {
   updateFarm,
 } from "../api/admin";
 import { fetchConfig } from "../api/public";
-import { getAdminToken, setAdminToken } from "../api/client";
+import { getAuthToken } from "../auth/session";
 import { formatWhen } from "../components/Layout";
 
 export function AdminPage() {
-  const [authed, setAuthed] = useState(Boolean(getAdminToken()));
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [needNewPassword, setNeedNewPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAuthToken()
+      .then((token) => {
+        if (!cancelled) setAuthed(Boolean(token));
+      })
+      .finally(() => {
+        if (!cancelled) setChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const session = useQuery({
     queryKey: ["admin-session"],
@@ -34,48 +53,108 @@ export function AdminPage() {
 
   useEffect(() => {
     if (authed && session.data === false) {
-      setAdminToken(null);
-      setAuthed(false);
+      void signOut().finally(() => setAuthed(false));
     }
   }, [authed, session.data]);
 
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setLoginError(null);
+    setBusy(true);
+    try {
+      if (needNewPassword) {
+        await confirmSignIn({ challengeResponse: newPassword });
+        setAuthed(true);
+        setNeedNewPassword(false);
+        setPassword("");
+        setNewPassword("");
+        return;
+      }
+      try {
+        await signOut();
+      } catch {
+        /* no existing session */
+      }
+      const result = await signIn({ username: username.trim(), password });
+      if (result.nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
+        setNeedNewPassword(true);
+        setPassword("");
+        return;
+      }
+      setAuthed(true);
+      setPassword("");
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Sign-in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (checking) {
+    return <p className="muted">Checking session…</p>;
+  }
+
   if (!authed) {
     return (
-      <form
-        className="card login"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          setLoginError(null);
-          try {
-            await adminLogin(password);
-            setAuthed(true);
-          } catch (error) {
-            setLoginError((error as Error).message);
-          }
-        }}
-      >
+      <form className="card login" onSubmit={(event) => void onSubmit(event)}>
         <div className="kicker">Master admin</div>
-        <p className="meta">Only the tournament operator can change farms, dates, or scores.</p>
+        <p className="meta">
+          Sign in with the Cognito user created in this app’s user pool. Public visitors cannot
+          register.
+        </p>
         {loginError && <div className="flash err">{loginError}</div>}
         <div className="form-grid">
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-          <button className="btn primary" type="submit">
-            Sign in
+          {!needNewPassword && (
+            <>
+              <label>
+                Username
+                <input
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  autoComplete="username"
+                  required
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </label>
+            </>
+          )}
+          {needNewPassword && (
+            <label>
+              Choose a new password
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+          )}
+          <button className="btn primary" type="submit" disabled={busy}>
+            {needNewPassword ? "Save password" : "Sign in"}
           </button>
         </div>
       </form>
     );
   }
 
-  return <AdminDashboard onLogout={() => { setAdminToken(null); setAuthed(false); }} />;
+  return (
+    <AdminDashboard
+      onLogout={() => {
+        void signOut().finally(() => setAuthed(false));
+      }}
+    />
+  );
 }
 
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {

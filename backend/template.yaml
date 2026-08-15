@@ -25,8 +25,6 @@ Globals:
         SCORES_TABLE: !Ref DigScoresTable
         SUBMISSIONS_TABLE: !Ref PendingSubmissionsTable
         SFL_API_KEY: !Ref SFLApiKey
-        ADMIN_PASSWORD_HASH: !Ref AdminPasswordHash
-        ADMIN_SESSION_SECRET: !Ref AdminSessionSecret
         DISCORD_WEBHOOK_URL: !Ref DiscordWebhookUrl
         SFL_MIN_INTERVAL_SECONDS: "12"
 
@@ -53,16 +51,6 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: SFL Community API key (X-Api-Key). Never sent to the browser.
-  AdminPasswordHash:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: pbkdf2$iterations$salt$hash of the master-admin password
-  AdminSessionSecret:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: HMAC secret used to sign admin session tokens
   DiscordWebhookUrl:
     Type: String
     NoEcho: true
@@ -196,13 +184,73 @@ Resources:
           Value: !Ref ProjectNo
 
   # ----------------------------------------------------------------
-  # HTTP API — public reads + password-gated admin
+  # Cognito — admin-created users only. No self-signup.
+  # Public leaderboard stays open; JWT is required only on /admin/*.
+  # ----------------------------------------------------------------
+
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-users
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+      UserPoolTags:
+        BillingTag: !Ref BillingTag
+        ProjectNo: !Ref ProjectNo
+
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-client
+      UserPoolId: !Ref CognitoUserPool
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+
+  # ----------------------------------------------------------------
+  # HTTP API — public reads + Cognito JWT on /admin/*
   # ----------------------------------------------------------------
 
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: !Ref Environment
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            AuthorizationScopes: []
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}"
+              audience:
+                - !Ref CognitoUserPoolClient
       CorsConfiguration: !If
         - IsDev
         - AllowOrigins:
@@ -436,96 +484,118 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /submissions
             Method: POST
-        AdminLogin:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /admin/login
-            Method: POST
         AdminSession:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/session
             Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminGetConfig:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/config
             Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminPutConfig:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/config
             Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminListFarms:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/farms
             Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminAddFarm:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/farms
             Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminUpdateFarm:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/farms/{farm_id}
             Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminDeleteFarm:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/farms/{farm_id}
             Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminListSubmissions:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/submissions
             Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminApproveSubmission:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/submissions/{farm_id}/approve
             Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminRejectSubmission:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/submissions/{farm_id}
             Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminRefreshFarm:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/farms/{farm_id}/refresh
             Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminSync:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/sync
             Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminPutScore:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/scores/{farm_id}
             Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminGetSnapshot:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/scores/{farm_id}/snapshot
             Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
 
   FarmSyncFunction:
     Type: AWS::Serverless::Function
@@ -724,6 +794,26 @@ Resources:
                   - cloudfront:UpdateOriginAccessControl
                   - cloudfront:TagResource
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPool
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cognito-idp:CreateUserPoolClient
+                  - cognito-idp:UpdateUserPool
+                  - cognito-idp:UpdateUserPoolClient
+                  - cognito-idp:DescribeUserPool
+                  - cognito-idp:DescribeUserPoolClient
+                  - cognito-idp:DeleteUserPoolClient
+                  - cognito-idp:SetUserPoolMfaConfig
+                  - cognito-idp:GetUserPoolMfaConfig
+                  - cognito-idp:TagResource
+                  - cognito-idp:UntagResource
+                  - cognito-idp:ListTagsForResource
+                  - cognito-idp:AddCustomAttributes
+                Resource:
+                  - !Sub arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*
       Tags:
         - Key: BillingTag
           Value: !Ref BillingTag
@@ -837,3 +927,15 @@ Outputs:
     Value: !Ref DigScoresTable
   PendingSubmissionsTableName:
     Value: !Ref PendingSubmissionsTable
+
+  CognitoUserPoolId:
+    Description: "Cognito user pool — create the Admin user in this pool"
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-cognito-pool"
+
+  CognitoUserPoolClientId:
+    Description: "Cognito app client id — VITE_COGNITO_USER_POOL_CLIENT_ID"
+    Value: !Ref CognitoUserPoolClient
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-cognito-client"

@@ -13,14 +13,6 @@ from urllib.parse import unquote
 import boto3
 
 from common.response import create_error_response, create_response, set_request_origin
-from tournament.admin_auth import (
-    AdminAuthError,
-    configured_password_hash,
-    configured_session_secret,
-    issue_session,
-    verify_password,
-    verify_session,
-)
 from tournament.farms import FarmRegistry
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.scoring import STATUS_COMPLETED
@@ -130,11 +122,6 @@ def _path_params(event: dict[str, Any]) -> dict[str, str]:
     return {str(k): unquote(str(v)) for k, v in params.items() if v is not None}
 
 
-def _require_admin(event: dict[str, Any]) -> int:
-    token = _headers(event).get("authorization", "")
-    return verify_session(token, configured_session_secret())
-
-
 def _farm_id_from_body(body: dict[str, Any]) -> str:
     return str(body.get("farm_id") or body.get("farmId") or "").strip()
 
@@ -208,42 +195,16 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
     return create_response(201, {"submission": submission})
 
 
-def handle_admin_login(event: dict[str, Any]) -> dict[str, Any]:
-    password = str(_body(event).get("password") or "")
-    stored = configured_password_hash()
-    if not stored:
-        return create_error_response(500, "admin password is not configured", "CONFIG_ERROR")
-    if not verify_password(password, stored):
-        return create_error_response(401, "invalid admin password", "UNAUTHORIZED")
-    exp = int(datetime.now(timezone.utc).timestamp()) + 12 * 3600
-    token = issue_session(configured_session_secret())
-    return create_response(
-        200,
-        {
-            "token": token,
-            "expires_at": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
-        },
-    )
+def handle_admin_session(_event: dict[str, Any]) -> dict[str, Any]:
+    # API Gateway Cognito JWT authorizer already verified the ID token.
+    return create_response(200, {"ok": True})
 
 
-def handle_admin_session(event: dict[str, Any]) -> dict[str, Any]:
-    exp = _require_admin(event)
-    return create_response(
-        200,
-        {
-            "ok": True,
-            "expires_at": datetime.fromtimestamp(exp, tz=timezone.utc).isoformat(),
-        },
-    )
-
-
-def handle_admin_get_config(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
+def handle_admin_get_config(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"config": ensure_default_config(_get_store())})
 
 
 def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     body = _body(event)
     start = parse_iso(body.get("start_at") or body.get("startAt"))
     end = parse_iso(body.get("end_at") or body.get("endAt"))
@@ -279,13 +240,11 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_list_farms(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farms = _get_registry().list_farms()
     return create_response(200, {"farms": farms, "count": len(farms)})
 
 
 def handle_admin_add_farm(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     body = _body(event)
     farm_id = _farm_id_from_body(body)
     if not farm_id:
@@ -305,7 +264,6 @@ def handle_admin_add_farm(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_update_farm(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
@@ -327,7 +285,6 @@ def handle_admin_update_farm(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_delete_farm(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
@@ -339,14 +296,12 @@ def handle_admin_delete_farm(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_list_submissions(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     submissions = _get_store().list_submissions()
     submissions.sort(key=lambda item: item.get("submitted_at") or "", reverse=True)
     return create_response(200, {"submissions": submissions, "count": len(submissions)})
 
 
 def handle_admin_approve_submission(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     store = _get_store()
     submission = store.get_submission(farm_id)
@@ -364,7 +319,6 @@ def handle_admin_approve_submission(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_reject_submission(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     store = _get_store()
     if not store.get_submission(farm_id):
@@ -374,7 +328,6 @@ def handle_admin_reject_submission(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_refresh_farm(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     registry = _get_registry()
     farm = registry.get(farm_id)
@@ -386,7 +339,6 @@ def handle_admin_refresh_farm(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_sync(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     if not FARM_SYNC_FUNCTION:
         return create_error_response(500, "sync function is not configured", "CONFIG_ERROR")
     _lambda_client().invoke(
@@ -398,7 +350,6 @@ def handle_admin_sync(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_put_score(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     store = _get_store()
     row = store.get_score(farm_id)
@@ -439,7 +390,6 @@ def handle_admin_put_score(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_admin_get_snapshot(event: dict[str, Any]) -> dict[str, Any]:
-    _require_admin(event)
     farm_id = _path_params(event).get("farm_id", "").strip()
     snapshot = _get_store().read_snapshot(farm_id)
     if snapshot is None:
@@ -453,7 +403,6 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("GET", re.compile(r"^/leaderboard$"), handle_get_leaderboard),
     ("GET", re.compile(r"^/farms/(?P<farm_id>[^/]+)$"), handle_get_farm),
     ("POST", re.compile(r"^/submissions$"), handle_submit_farm),
-    ("POST", re.compile(r"^/admin/login$"), handle_admin_login),
     ("GET", re.compile(r"^/admin/session$"), handle_admin_session),
     ("GET", re.compile(r"^/admin/config$"), handle_admin_get_config),
     ("PUT", re.compile(r"^/admin/config$"), handle_admin_put_config),
@@ -508,8 +457,6 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         event["pathParameters"] = params
         try:
             return handler(event)
-        except AdminAuthError as exc:
-            return create_error_response(exc.status_code, str(exc), "UNAUTHORIZED")
         except ValueError as exc:
             return create_error_response(400, str(exc), "VALIDATION_ERROR")
         except Exception:

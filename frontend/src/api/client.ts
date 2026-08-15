@@ -1,32 +1,9 @@
+import { getAuthToken, handleUnauthorized } from "../auth/session";
+
 const rawBase = import.meta.env.VITE_API_BASE || "";
 export const API_BASE = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
 
-const ADMIN_TOKEN_KEY = "sfl_dig_admin_token";
-
-export function getAdminToken(): string | null {
-  try {
-    return sessionStorage.getItem(ADMIN_TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setAdminToken(token: string | null): void {
-  try {
-    if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
-    else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-export async function getAuthToken(): Promise<string | null> {
-  return getAdminToken();
-}
-
-export async function handleUnauthorized(): Promise<void> {
-  setAdminToken(null);
-}
+export { getAuthToken, handleUnauthorized };
 
 export type ApiResponse<T> = {
   response: Response;
