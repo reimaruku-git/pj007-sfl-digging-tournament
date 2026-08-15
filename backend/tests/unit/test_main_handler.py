@@ -64,6 +64,47 @@ def test_health_and_public_leaderboard(aws_env, monkeypatch):
     assert payload["config"]["prize_amount"] == "30"
 
 
+def test_leaderboard_cached_average_is_json_number(aws_env, monkeypatch):
+    """GET /leaderboard must emit avg_digs_per_day as a float after a Dynamo cache read."""
+    from datetime import datetime, timezone
+
+    from tournament.sync import refresh_leaderboard
+
+    app = _load_app(aws_env, monkeypatch)
+    store = app._get_store()
+    store.put_config(
+        {
+            "start_at": "2026-07-01T00:00:00+00:00",
+            "end_at": "2026-07-31T00:00:00+00:00",
+            "duration_days": 30,
+            "prize_amount": "30",
+            "status": "ended",
+        }
+    )
+    store.put_score(
+        {
+            "farm_id": "99",
+            "name": "rmr",
+            "status": "completed",
+            "digs_to_third_op": 12,
+            "otter_count": 3,
+            "total_digs": 70,
+            "digs_today": 0,
+            "invalidated": False,
+        }
+    )
+    refresh_leaderboard(store, now=datetime(2026, 8, 15, tzinfo=timezone.utc))
+    cached = store.get_leaderboard_cache()
+    assert cached is not None
+    assert cached["entries"]
+
+    board = app.lambda_handler(_event("GET", "/leaderboard"), None)
+    assert board["statusCode"] == 200
+    avg = _json(board)["entries"][0]["avg_digs_per_day"]
+    assert type(avg) is float
+    assert avg == 2.33
+
+
 def test_submit_then_admin_approve(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     created = app.lambda_handler(

@@ -288,7 +288,7 @@ def _from_ddb(item: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, Decimal):
             if value % 1 == 0:
                 return int(value)
-            return str(value)
+            return float(value)
         if isinstance(value, dict):
             return {k: convert(v) for k, v in value.items()}
         if isinstance(value, list):

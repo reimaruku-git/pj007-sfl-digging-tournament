@@ -139,11 +139,12 @@ def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
     cache = store.get_leaderboard_cache()
     if not cache or not cache.get("entries"):
         cache = refresh_leaderboard(store)
+    entries = [public_entry(row) for row in (cache.get("entries") or [])]
     return create_response(
         200,
         {
-            "entries": cache.get("entries") or [],
-            "count": int(cache.get("count") or 0),
+            "entries": entries,
+            "count": int(cache.get("count") or len(entries)),
             "generated_at": cache.get("generated_at"),
             "config": public_config(store.get_config()),
         },
