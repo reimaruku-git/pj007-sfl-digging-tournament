@@ -64,6 +64,15 @@ def test_ended_window_is_archived_and_survives_new_event(aws_env, monkeypatch):
     tournament_id = payload["tournaments"][0]["tournament_id"]
     assert tournament_id
     assert payload["tournaments"][0]["count"] == 1
+    keys = [
+        obj["Key"]
+        for obj in __import__("boto3")
+        .client("s3", region_name="ap-southeast-1")
+        .list_objects_v2(Bucket=aws_env["bucket"], Prefix="archives/")
+        .get("Contents", [])
+    ]
+    assert any(key.endswith(f"{tournament_id}/standings.json") for key in keys)
+    assert any(key.endswith(f"{tournament_id}/meta.json") for key in keys)
 
     detail = app.lambda_handler(
         {

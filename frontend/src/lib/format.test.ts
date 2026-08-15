@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { formatRelative, formatWhenUtc } from "./format";
+import { formatRelative, formatScore, formatWhenUtc } from "./format";
+
+describe("formatScore", () => {
+  it("prints two decimal places", () => {
+    expect(formatScore(3)).toBe("3.00");
+    expect(formatScore(0.7)).toBe("0.70");
+    expect(formatScore(null)).toBe("—");
+  });
+});
 
 describe("formatWhenUtc", () => {
   it("prints a stable UTC stamp", () => {

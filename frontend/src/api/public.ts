@@ -4,6 +4,8 @@ export type TournamentStatus = "scheduled" | "active" | "ended";
 export type FarmStatus = "not_started" | "in_progress" | "completed" | "invalidated";
 
 export type TournamentConfig = {
+  tournament_id?: string;
+  name?: string;
   start_at: string;
   end_at: string;
   duration_days?: number;
@@ -17,13 +19,13 @@ export type LeaderboardEntry = {
   rank: number | null;
   farm_id: string;
   name: string;
+  score?: number | null;
   digs_to_third_op: number | null;
   digs_to_first_op?: number | null;
   digs_to_second_op?: number | null;
   otter_count: number;
   digs_today: number;
   total_digs: number;
-  avg_digs_per_day?: number;
   tournament_days?: number;
   first_op_at?: string | null;
   second_op_at?: string | null;
@@ -75,12 +77,25 @@ export async function fetchFarm(farmId: string): Promise<LeaderboardEntry> {
   return data.farm;
 }
 
+export async function fetchTournamentFarm(
+  tournamentId: string,
+  farmId: string,
+): Promise<LeaderboardEntry> {
+  const { response, data } = await requestJson<FarmResponse>(
+    `tournaments/${encodeURIComponent(tournamentId)}/farms/${encodeURIComponent(farmId)}`,
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "farm not found"));
+  return data.farm;
+}
+
 export type TournamentSummary = {
   tournament_id: string;
+  name: string;
   start_at: string;
   end_at: string;
   duration_days: number;
   prize_amount: string;
+  status: TournamentStatus;
   archived_at: string | null;
   count: number;
   leader_farm_id: string | null;
@@ -99,7 +114,7 @@ export async function listTournaments(): Promise<{ tournaments: TournamentSummar
   const { response, data } = await requestJson<{ tournaments: TournamentSummary[]; count: number }>(
     "tournaments",
   );
-  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load past tournaments"));
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load tournaments"));
   return data;
 }
 

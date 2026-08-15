@@ -98,10 +98,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   role="menuitem"
                   onClick={() => {
                     setOpen(false);
-                    navigate("/records");
+                    navigate("/tournaments");
                   }}
                 >
-                  Past records
+                  Tournaments
                 </button>
                 <form className="menu-find" onSubmit={findFarm}>
                   <label>

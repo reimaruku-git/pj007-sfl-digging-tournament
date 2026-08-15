@@ -25,8 +25,8 @@ vi.mock("./api/public", () => ({
         digs_to_third_op: 12,
         otter_count: 3,
         digs_today: 2,
+        score: 1.71,
         total_digs: 21,
-        avg_digs_per_day: 3,
         last_updated_at: null,
         status: "completed",
         invalidated: false,
@@ -92,8 +92,8 @@ describe("routes", () => {
     });
     expect(home.textContent).toMatch(/Prize pool/);
     expect(home.textContent).toMatch(/Join the tournament/);
-    expect(home.textContent).toMatch(/Total/);
-    expect(home.textContent).toMatch(/Avg\/day/);
+    expect(home.textContent).toMatch(/3rd pebble/);
+    expect(home.textContent).not.toMatch(/Avg\/day/);
     const rules = home.querySelector("#rules");
     expect(rules).not.toBeNull();
     expect(rules?.className).toMatch(/prize-card/);
@@ -103,13 +103,13 @@ describe("routes", () => {
     expect(rules?.textContent).toMatch(/After 5 shovel digs/);
     expect(rules?.textContent).toMatch(/6, 7, 8 and 9/);
     expect(rules?.textContent).toMatch(/dig #9/);
-    expect(rules?.textContent).toMatch(/3rd Otter Pebble/);
+    expect(rules?.textContent).toMatch(/divided by the tournament length/);
     expect(rules?.textContent).toMatch(/14:00, 16:00, 18:00, 20:00, 23:00 UTC/);
     expect(rules?.textContent).toMatch(/Digs after 23:00 UTC do not count/);
     expect(rules?.textContent).toMatch(/worst finisher that day/);
     expect(rules?.textContent).toMatch(/5 per missing Otter Pebble/);
     expect(rules?.textContent).toMatch(/do not affect your score/);
-    expect(rules?.textContent).toMatch(/fewer digs to the 2nd pebble/);
+    expect(rules?.textContent).toMatch(/fewer digs to the 3rd pebble/);
     expect(rules?.textContent).toMatch(/earlier time on the 3rd pebble/);
     expect(rules?.textContent).not.toMatch(/last of those 4/);
     expect(rules?.textContent).not.toMatch(/after 4 shovel digs/i);
@@ -135,12 +135,12 @@ describe("routes", () => {
     expect(admin.querySelector('button[aria-label="Menu"]')).not.toBeNull();
   });
 
-  it("has a past-records route", async () => {
-    const records = renderApp("/records");
+  it("has a tournaments route", async () => {
+    const page = renderApp("/tournaments");
     await act(async () => {
       await Promise.resolve();
     });
-    expect(records.textContent).toMatch(/Past tournaments/);
+    expect(page.textContent).toMatch(/Upcoming|Tournaments/);
   });
 
   it("sends unknown paths to the leaderboard", async () => {

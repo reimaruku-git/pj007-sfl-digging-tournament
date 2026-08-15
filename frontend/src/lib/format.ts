@@ -52,6 +52,11 @@ export function formatRelative(value: string | null | undefined, now: Date = new
   return `${days}d ago`;
 }
 
+export function formatScore(score: number | null | undefined): string {
+  if (score == null || Number.isNaN(Number(score))) return "—";
+  return Number(score).toFixed(2);
+}
+
 export function formatUtcClock(now: Date = new Date()): string {
   const hours = String(now.getUTCHours()).padStart(2, "0");
   const minutes = String(now.getUTCMinutes()).padStart(2, "0");

@@ -6,27 +6,39 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import unquote
 
 import boto3
 
 from common.response import create_error_response, create_response, set_request_origin
+from tournament.archive import archive_current
+from tournament.catalog import (
+    CatalogError,
+    apply_live_config,
+    create_tournament,
+    delete_tournament,
+    get_public_tournament,
+    get_public_tournament_farm,
+    list_public_tournaments,
+    parse_window,
+    seed_catalog,
+    tournament_record,
+    update_tournament,
+)
 from tournament.farms import FarmRegistry
-from tournament.archive import archive_current, get_public_archive, list_public_archives
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.scoring import STATUS_COMPLETED
-from tournament.store import MIN_TOURNAMENT_DAYS, Store
+from tournament.store import Store
 from tournament.sync import (
-    ensure_default_config,
     parse_iso,
     public_config,
     refresh_leaderboard,
     rescore_from_snapshots,
     tournament_status,
 )
-from tournament.window import duration_days, tournament_days_for_average, tournament_id
+from tournament.window import configured_duration_days, tournament_id
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -124,7 +136,7 @@ def handle_health(_event: dict[str, Any]) -> dict[str, Any]:
 
 def handle_get_config(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
-    config = ensure_default_config(store)
+    config = seed_catalog(store)
     start = parse_iso(config.get("start_at"))
     end = parse_iso(config.get("end_at"))
     if start and end:
@@ -134,7 +146,7 @@ def handle_get_config(_event: dict[str, Any]) -> dict[str, Any]:
 
 def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
-    ensure_default_config(store)
+    seed_catalog(store)
     archive_current(store)
     cache = store.get_leaderboard_cache()
     if not cache or not cache.get("entries"):
@@ -166,11 +178,7 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     if tracked:
         row["name"] = tracked.get("name") or row.get("name") or ""
     config = store.get_config()
-    days = tournament_days_for_average(
-        parse_iso(config.get("start_at")),
-        parse_iso(config.get("end_at")),
-        datetime.now(timezone.utc),
-    )
+    days = configured_duration_days(config)
     ranked = rank_scores(store.list_scores(), tournament_days=days)
     match = next((item for item in ranked if item.get("farm_id") == farm_id), row)
     return create_response(200, {"farm": public_entry(match)})
@@ -220,7 +228,7 @@ def _kick_farm_sync(source: str, farm_id: str | None = None) -> bool:
 
 def handle_admin_get_config(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
-    config = ensure_default_config(store)
+    config = seed_catalog(store)
     start = parse_iso(config.get("start_at"))
     end = parse_iso(config.get("end_at"))
     if start and end:
@@ -229,9 +237,7 @@ def handle_admin_get_config(_event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_list_tournaments(_event: dict[str, Any]) -> dict[str, Any]:
-    store = _get_store()
-    archive_current(store)
-    tournaments = list_public_archives(store)
+    tournaments = list_public_tournaments(_get_store())
     return create_response(200, {"tournaments": tournaments, "count": len(tournaments)})
 
 
@@ -239,69 +245,94 @@ def handle_get_tournament(event: dict[str, Any]) -> dict[str, Any]:
     tournament = _path_params(event).get("tournament_id", "").strip()
     if not tournament:
         return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
-    payload = get_public_archive(_get_store(), tournament)
+    payload = get_public_tournament(_get_store(), tournament)
     if payload is None:
         return create_error_response(404, "tournament archive not found", "NOT_FOUND")
     return create_response(200, {"tournament": payload})
 
 
+def handle_get_tournament_farm(event: dict[str, Any]) -> dict[str, Any]:
+    params = _path_params(event)
+    tournament = params.get("tournament_id", "").strip()
+    farm_id = params.get("farm_id", "").strip()
+    if not tournament or not farm_id:
+        return create_error_response(400, "tournament_id and farm_id are required", "VALIDATION_ERROR")
+    entry = get_public_tournament_farm(_get_store(), tournament, farm_id)
+    if entry is None:
+        return create_error_response(404, "farm not found in that tournament", "NOT_FOUND")
+    return create_response(200, {"farm": entry})
+
+
+def _catalog_error(exc: CatalogError) -> dict[str, Any]:
+    return create_error_response(exc.status, exc.message, exc.code)
+
+
+def handle_admin_list_tournaments(_event: dict[str, Any]) -> dict[str, Any]:
+    tournaments = list_public_tournaments(_get_store())
+    return create_response(200, {"tournaments": tournaments, "count": len(tournaments)})
+
+
+def handle_admin_create_tournament(event: dict[str, Any]) -> dict[str, Any]:
+    try:
+        row = create_tournament(_get_store(), _body(event))
+    except CatalogError as exc:
+        return _catalog_error(exc)
+    return create_response(201, {"tournament": row})
+
+
+def handle_admin_update_tournament(event: dict[str, Any]) -> dict[str, Any]:
+    tournament = _path_params(event).get("tournament_id", "").strip()
+    if not tournament:
+        return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
+    try:
+        row = update_tournament(_get_store(), tournament, _body(event))
+    except CatalogError as exc:
+        return _catalog_error(exc)
+    return create_response(200, {"tournament": row})
+
+
+def handle_admin_delete_tournament(event: dict[str, Any]) -> dict[str, Any]:
+    tournament = _path_params(event).get("tournament_id", "").strip()
+    if not tournament:
+        return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
+    try:
+        delete_tournament(_get_store(), tournament)
+    except CatalogError as exc:
+        return _catalog_error(exc)
+    return create_response(200, {"ok": True})
+
+
 def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
     body = _body(event)
-    start = parse_iso(body.get("start_at") or body.get("startAt"))
-    raw_days = body.get("duration_days")
-    if raw_days is None:
-        raw_days = body.get("durationDays")
-    days: int | None = None
-    if raw_days is not None and str(raw_days).strip() != "":
-        try:
-            days = int(raw_days)
-        except (TypeError, ValueError):
-            return create_error_response(400, "duration_days must be an integer", "VALIDATION_ERROR")
-    end = parse_iso(body.get("end_at") or body.get("endAt"))
-    if start is None:
-        return create_error_response(400, "start_at is required", "VALIDATION_ERROR")
-    if days is not None:
-        if days < MIN_TOURNAMENT_DAYS:
-            return create_error_response(
-                400,
-                f"tournament must run at least {MIN_TOURNAMENT_DAYS} days",
-                "VALIDATION_ERROR",
-            )
-        end = start + timedelta(days=days)
-    if end is None:
-        return create_error_response(
-            400, "duration_days or end_at is required", "VALIDATION_ERROR"
-        )
-    if end <= start:
-        return create_error_response(400, "end_at must be after start_at", "VALIDATION_ERROR")
-    if end - start < timedelta(days=MIN_TOURNAMENT_DAYS):
-        return create_error_response(
-            400,
-            f"tournament must run at least {MIN_TOURNAMENT_DAYS} days",
-            "VALIDATION_ERROR",
-        )
-    days = days or duration_days(start, end)
-    prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip()
-    if not prize:
-        prize = "30"
     store = _get_store()
+    seed_catalog(store)
+    try:
+        start, end, days = parse_window(body)
+        from tournament.catalog import normalize_name
+
+        name = normalize_name(body.get("name"), start)
+    except CatalogError as exc:
+        return _catalog_error(exc)
+    prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip() or "30"
     existing = store.get_config()
     new_id = tournament_id(
         {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
     )
-    if existing.get("start_at") and tournament_id(existing) != new_id:
+    old_id = str(existing.get("current_tournament_id") or "").strip() or tournament_id(existing)
+    if existing.get("start_at") and old_id != new_id:
         archive_current(store, force=True)
-    config = store.put_config(
-        {
-            "start_at": start.isoformat(),
-            "end_at": end.isoformat(),
-            "duration_days": days,
-            "prize_amount": prize,
-            "status": tournament_status(start, end, datetime.now(timezone.utc)),
-            "last_full_sync_at": existing.get("last_full_sync_at"),
-            "leader_farm_id": existing.get("leader_farm_id"),
-        }
+    status = tournament_status(start, end, datetime.now(timezone.utc))
+    row = tournament_record(
+        start=start,
+        end=end,
+        days=days,
+        name=name,
+        prize=prize,
+        status="active" if status == "ended" else status,
+        tournament_id_value=new_id,
     )
+    store.put_tournament(row)
+    config = apply_live_config(store, row, existing=existing)
     rescore = rescore_from_snapshots(store)
     sync_accepted = _kick_farm_sync("admin-config")
     return create_response(
@@ -479,12 +510,29 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("GET", re.compile(r"^/config$"), handle_get_config),
     ("GET", re.compile(r"^/leaderboard$"), handle_get_leaderboard),
     ("GET", re.compile(r"^/tournaments$"), handle_list_tournaments),
+    (
+        "GET",
+        re.compile(r"^/tournaments/(?P<tournament_id>[^/]+)/farms/(?P<farm_id>[^/]+)$"),
+        handle_get_tournament_farm,
+    ),
     ("GET", re.compile(r"^/tournaments/(?P<tournament_id>[^/]+)$"), handle_get_tournament),
     ("GET", re.compile(r"^/farms/(?P<farm_id>[^/]+)$"), handle_get_farm),
     ("POST", re.compile(r"^/submissions$"), handle_submit_farm),
     ("GET", re.compile(r"^/admin/session$"), handle_admin_session),
     ("GET", re.compile(r"^/admin/config$"), handle_admin_get_config),
     ("PUT", re.compile(r"^/admin/config$"), handle_admin_put_config),
+    ("GET", re.compile(r"^/admin/tournaments$"), handle_admin_list_tournaments),
+    ("POST", re.compile(r"^/admin/tournaments$"), handle_admin_create_tournament),
+    (
+        "PUT",
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)$"),
+        handle_admin_update_tournament,
+    ),
+    (
+        "DELETE",
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)$"),
+        handle_admin_delete_tournament,
+    ),
     ("GET", re.compile(r"^/admin/farms$"), handle_admin_list_farms),
     ("POST", re.compile(r"^/admin/farms$"), handle_admin_add_farm),
     ("PUT", re.compile(r"^/admin/farms/(?P<farm_id>[^/]+)$"), handle_admin_update_farm),

@@ -57,7 +57,11 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
     )
     clock = _event_now(event)
+    from tournament.catalog import rollover
+
     farm_id = _event_farm_id(event)
+    if not farm_id:
+        rollover(store, now=clock)
     if farm_id:
         farm = registry.get(farm_id)
         if not farm:

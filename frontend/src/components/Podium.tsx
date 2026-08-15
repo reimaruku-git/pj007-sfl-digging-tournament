@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { LeaderboardEntry } from "../api/public";
+import { formatScore } from "../lib/format";
 import { Pebbles } from "./Pebbles";
 
 function Slot({ entry, place }: { entry?: LeaderboardEntry; place: 1 | 2 | 3 }) {
@@ -16,8 +17,8 @@ function Slot({ entry, place }: { entry?: LeaderboardEntry; place: 1 | 2 | 3 }) 
       <div className="podium-medal">{place}</div>
       <div className="podium-name">{entry.name || "Unnamed farm"}</div>
       <div className="podium-score">
-        {entry.digs_to_third_op ?? "—"}
-        <span>digs</span>
+        {formatScore(entry.score)}
+        <span>score</span>
       </div>
       <Pebbles count={entry.otter_count} />
     </Link>

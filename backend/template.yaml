@@ -488,6 +488,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /tournaments/{tournament_id}
             Method: GET
+        GetTournamentFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments/{tournament_id}/farms/{farm_id}
+            Method: GET
         GetFarm:
           Type: HttpApi
           Properties:
@@ -522,6 +528,38 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/config
             Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminListTournaments:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminCreateTournament:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminUpdateTournament:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminDeleteTournament:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}
+            Method: DELETE
             Auth:
               Authorizer: CognitoAuthorizer
         AdminListFarms:

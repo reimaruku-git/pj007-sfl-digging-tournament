@@ -6,7 +6,7 @@ import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { SyncCountdown } from "../components/SyncCountdown";
 import { readFollowedFarm, writeFollowedFarm } from "../lib/followFarm";
-import { formatRelative, formatWhenUtc, statusLabel } from "../lib/format";
+import { formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
 
 export function LeaderboardPage() {
@@ -68,10 +68,11 @@ export function LeaderboardPage() {
     <>
       <section className="hero">
         <div className="card prize-card" id="rules">
-          <div className="kicker">Prize pool</div>
+          <div className="kicker">{config?.name || "Prize pool"}</div>
           <div className="prize">{config?.prize_amount ?? "30"} Flower</div>
           <p className="meta">
-            Get the 3 Otter Pebbles as early as possible. Digs after that do not affect your score.
+            Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
+            affect your score.
           </p>
           <ul className="rules-list">
             <li>
@@ -88,7 +89,9 @@ export function LeaderboardPage() {
             </li>
             <li>
               <span>Score</span>
-              <span>The dig number when you get the 3rd Otter Pebble</span>
+              <span>
+                Your 3rd-pebble digs divided by the tournament length in days. Lower is better.
+              </span>
             </li>
             <li>
               <span>Refresh</span>
@@ -98,13 +101,13 @@ export function LeaderboardPage() {
               <span>Unfinished</span>
               <span>
                 Score of the worst finisher that day (or 30, whichever is higher) + 5 per missing
-                Otter Pebble
+                Otter Pebble, then divided by the tournament length
               </span>
             </li>
             <li>
               <span>Ties</span>
               <span>
-                Same 3rd-pebble digs: fewer digs to the 2nd pebble, then to the 1st. Still tied:
+                Same score: fewer digs to the 3rd pebble, then the 2nd, then the 1st. Still tied:
                 earlier time on the 3rd pebble, then the 2nd, then the 1st.
               </span>
             </li>
@@ -142,7 +145,7 @@ export function LeaderboardPage() {
           <span className="kicker">Your farm</span>
           <strong>
             {followed.name || "Unnamed farm"} · rank {followed.rank ?? "—"} ·{" "}
-            {followed.digs_to_third_op ?? "—"} digs
+            {formatScore(followed.score)} · {followed.digs_to_third_op ?? "—"} digs
           </strong>
           <Pebbles count={followed.otter_count} />
         </Link>
@@ -182,8 +185,7 @@ export function LeaderboardPage() {
                   <th>Rank</th>
                   <th>Farm</th>
                   <th>Score</th>
-                  <th>Total</th>
-                  <th>Avg/day</th>
+                  <th>3rd pebble</th>
                   <th>Pebbles</th>
                   <th>Today</th>
                   <th>Updated</th>
@@ -209,9 +211,8 @@ export function LeaderboardPage() {
                         <div className="farm-id">{row.farm_id}</div>
                       </Link>
                     </td>
+                    <td>{formatScore(row.score)}</td>
                     <td>{row.digs_to_third_op ?? "—"}</td>
-                    <td>{row.total_digs}</td>
-                    <td>{row.avg_digs_per_day ?? "—"}</td>
                     <td>
                       <Pebbles count={row.otter_count} />
                     </td>
@@ -250,11 +251,9 @@ export function LeaderboardPage() {
                     </div>
                   </div>
                   <div className="farm-card-score">
-                    <b>{row.digs_to_third_op ?? "—"}</b>
+                    <b>{formatScore(row.score)}</b>
                     <span>score</span>
-                    <span className="muted">
-                      {row.total_digs} tot · {row.avg_digs_per_day ?? "—"}/d
-                    </span>
+                    <span className="muted">{row.digs_to_third_op ?? "—"} to 3rd</span>
                   </div>
                 </Link>
               ))}

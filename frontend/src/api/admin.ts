@@ -1,5 +1,5 @@
 import { errorMessage, requestJson } from "./client";
-import type { LeaderboardEntry, Submission, TournamentConfig } from "./public";
+import type { LeaderboardEntry, Submission, TournamentConfig, TournamentSummary } from "./public";
 
 export type TrackedFarm = {
   farm_id: string;
@@ -89,6 +89,69 @@ export type ConfigSaveResult = {
   config: TournamentConfig;
   rescore?: ConfigRescore;
 };
+
+export type TournamentWrite = {
+  tournament_id: string;
+  name: string;
+  start_at: string;
+  end_at: string;
+  duration_days: number;
+  prize_amount: string;
+  status: string;
+};
+
+export async function listAdminTournaments(): Promise<TournamentSummary[]> {
+  const { response, data } = await requestJson<{ tournaments: TournamentSummary[]; count: number }>(
+    "admin/tournaments",
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load tournaments"));
+  return data.tournaments;
+}
+
+export async function createTournament(input: {
+  name: string;
+  start_at: string;
+  end_at?: string;
+  duration_days?: number;
+  prize_amount: string;
+}): Promise<TournamentWrite> {
+  const { response, data } = await requestJson<{ tournament: TournamentWrite }>("admin/tournaments", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok || !data?.tournament) {
+    throw new Error(errorMessage(data, "failed to create tournament"));
+  }
+  return data.tournament;
+}
+
+export async function updateTournament(
+  tournamentId: string,
+  input: {
+    name?: string;
+    start_at?: string;
+    end_at?: string;
+    duration_days?: number;
+    prize_amount?: string;
+  },
+): Promise<TournamentWrite> {
+  const { response, data } = await requestJson<{ tournament: TournamentWrite }>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}`,
+    { method: "PUT", body: JSON.stringify(input) },
+  );
+  if (!response.ok || !data?.tournament) {
+    throw new Error(errorMessage(data, "failed to update tournament"));
+  }
+  return data.tournament;
+}
+
+export async function deleteTournament(tournamentId: string): Promise<void> {
+  const { response, data } = await requestJson<{ ok: boolean }>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) throw new Error(errorMessage(data, "failed to cancel tournament"));
+}
 
 export async function saveConfig(input: {
   start_at: string;

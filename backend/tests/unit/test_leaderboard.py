@@ -1,5 +1,5 @@
 from tournament.leaderboard import build_leaderboard, official_score, rank_scores
-from tournament.window import avg_digs_per_day, tournament_days_for_average
+from tournament.window import official_score_average, tournament_days_for_average
 
 
 def test_completed_ranks_by_lowest_score():
@@ -161,25 +161,38 @@ def test_average_uses_configured_length_when_ended():
     after = datetime(2026, 9, 1, tzinfo=timezone.utc)
     assert tournament_days_for_average(start, end_7, after) == 7
     assert tournament_days_for_average(start, end_30, after) == 30
-    assert avg_digs_per_day(70, 7) == 10.0
-    assert avg_digs_per_day(70, 30) == 2.33
+    assert official_score_average(21, 7) == 3.0
+    assert official_score_average(21, 30) == 0.7
     board_7 = build_leaderboard(
-        [{"farm_id": "a", "status": "completed", "digs_to_third_op": 12, "total_digs": 70}],
+        [{"farm_id": "a", "status": "completed", "digs_to_third_op": 21, "total_digs": 70}],
         tournament_days=7,
     )
     board_30 = build_leaderboard(
-        [{"farm_id": "a", "status": "completed", "digs_to_third_op": 12, "total_digs": 70}],
+        [{"farm_id": "a", "status": "completed", "digs_to_third_op": 21, "total_digs": 70}],
         tournament_days=30,
     )
-    assert board_7["entries"][0]["avg_digs_per_day"] == 10.0
+    assert board_7["entries"][0]["score"] == 3.0
+    assert board_7["entries"][0]["digs_to_third_op"] == 21
     assert board_7["entries"][0]["total_digs"] == 70
-    assert board_30["entries"][0]["avg_digs_per_day"] == 2.33
+    assert board_30["entries"][0]["score"] == 0.7
 
 
-def test_same_pebbles_lower_average_then_total_wins():
+def test_score_ignores_digs_after_third_pebble():
+    row = {
+        "farm_id": "a",
+        "status": "completed",
+        "digs_to_third_op": 21,
+        "total_digs": 90,
+        "otter_count": 3,
+    }
+    ranked = rank_scores([row], tournament_days=7)
+    assert ranked[0]["score"] == 3.0
+
+
+def test_same_average_breaks_on_raw_pebbles_not_total():
     base = {
         "status": "completed",
-        "digs_to_third_op": 12,
+        "digs_to_third_op": 21,
         "digs_to_second_op": 8,
         "digs_to_first_op": 3,
         "third_op_at": "2026-08-14T12:00:00+00:00",
@@ -187,9 +200,9 @@ def test_same_pebbles_lower_average_then_total_wins():
         "first_op_at": "2026-08-14T10:00:00+00:00",
         "otter_count": 3,
     }
-    busy = {**base, "farm_id": "busy", "total_digs": 70}
+    busy = {**base, "farm_id": "busy", "total_digs": 90}
     lean = {**base, "farm_id": "lean", "total_digs": 21}
     ranked = rank_scores([busy, lean], tournament_days=7)
-    assert [row["farm_id"] for row in ranked] == ["lean", "busy"]
-    assert ranked[0]["avg_digs_per_day"] == 3.0
-    assert ranked[1]["avg_digs_per_day"] == 10.0
+    assert ranked[0]["score"] == ranked[1]["score"] == 3.0
+    # Same pebble race → farm_id is the last deterministic key.
+    assert [row["farm_id"] for row in ranked] == ["busy", "lean"]

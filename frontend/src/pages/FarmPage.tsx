@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { fetchFarm } from "../api/public";
+import { fetchFarm, fetchTournamentFarm } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
 import { writeFollowedFarm } from "../lib/followFarm";
-import { formatRelative, formatWhenUtc, statusLabel } from "../lib/format";
+import { formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
 
 export function FarmPage() {
-  const { farmId = "" } = useParams();
+  const { farmId = "", tournamentId } = useParams();
   const [copied, setCopied] = useState(false);
   const query = useQuery({
-    queryKey: ["farm", farmId],
-    queryFn: () => fetchFarm(farmId),
+    queryKey: tournamentId ? ["farm", tournamentId, farmId] : ["farm", farmId],
+    queryFn: () =>
+      tournamentId ? fetchTournamentFarm(tournamentId, farmId) : fetchFarm(farmId),
     enabled: Boolean(farmId),
   });
 
@@ -36,7 +37,9 @@ export function FarmPage() {
     <div className="card farm-sheet">
       <div className="kicker">Personal result</div>
       <p className="meta">
-        <Link to="/">← Back to leaderboard</Link>
+        <Link to={tournamentId ? `/tournaments/${encodeURIComponent(tournamentId)}` : "/"}>
+          ← Back to {tournamentId ? "tournament" : "leaderboard"}
+        </Link>
       </p>
       {query.isLoading && (
         <div className="skeleton-stack" aria-hidden>
@@ -54,8 +57,10 @@ export function FarmPage() {
             </div>
             <div className="farm-hero-score">
               <span className="muted">Official score</span>
-              <b>{farm.digs_to_third_op ?? "—"}</b>
-              <span className="muted">digs to 3rd OP</span>
+              <b>{formatScore(farm.score)}</b>
+              <span className="muted">
+                {farm.digs_to_third_op ?? "—"} digs / {farm.tournament_days ?? "—"} days
+              </span>
             </div>
           </div>
           <Pebbles count={farm.otter_count} size="md" />

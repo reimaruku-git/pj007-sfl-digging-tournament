@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { FarmPage } from "./pages/FarmPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
-import { RecordsPage } from "./pages/RecordsPage";
+import { TournamentsPage } from "./pages/TournamentsPage";
 
 const AdminPage = lazy(async () => {
   const module = await import("./pages/AdminPage");
@@ -15,8 +15,11 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<LeaderboardPage />} />
-        <Route path="/records" element={<RecordsPage />} />
-        <Route path="/records/:tournamentId" element={<RecordsPage />} />
+        <Route path="/tournaments" element={<TournamentsPage />} />
+        <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
+        <Route path="/tournaments/:tournamentId/farm/:farmId" element={<FarmPage />} />
+        <Route path="/records" element={<Navigate to="/tournaments" replace />} />
+        <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
         <Route path="/farm/:farmId" element={<FarmPage />} />
         <Route
           path="/admin"

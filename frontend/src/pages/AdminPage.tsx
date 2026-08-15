@@ -6,20 +6,22 @@ import {
   addFarm,
   adminSession,
   approveSubmission,
-  fetchAdminConfig,
+  createTournament,
+  deleteTournament,
   fetchSnapshot,
+  listAdminTournaments,
   listFarms,
   listSubmissions,
   overrideScore,
   refreshFarm,
   rejectSubmission,
   removeFarm,
-  saveConfig,
   triggerSync,
   updateFarm,
+  updateTournament,
 } from "../api/admin";
 import { getAuthToken } from "../auth/session";
-import { formatWhen } from "../components/Layout";
+import { formatWhenUtc, statusLabel } from "../lib/format";
 
 export function AdminPage() {
   const [authed, setAuthed] = useState(false);
@@ -162,21 +164,16 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const queryClient = useQueryClient();
   const farms = useQuery({ queryKey: ["admin-farms"], queryFn: listFarms });
   const submissions = useQuery({ queryKey: ["admin-submissions"], queryFn: listSubmissions });
-  const config = useQuery({ queryKey: ["admin-config"], queryFn: fetchAdminConfig });
+  const tournaments = useQuery({ queryKey: ["admin-tournaments"], queryFn: listAdminTournaments });
   const [farmId, setFarmId] = useState("");
   const [farmName, setFarmName] = useState("");
+  const [eventName, setEventName] = useState("");
   const [startAt, setStartAt] = useState("");
+  const [endAt, setEndAt] = useState("");
   const [durationDays, setDurationDays] = useState(7);
   const [prize, setPrize] = useState("30");
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string>("");
-
-  useEffect(() => {
-    if (!config.data || startAt) return;
-    setStartAt(toLocalInput(config.data.start_at));
-    setDurationDays(config.data.duration_days || daysBetween(config.data.start_at, config.data.end_at));
-    setPrize(config.data.prize_amount);
-  }, [config.data, startAt]);
 
   function note(text: string, kind: "ok" | "err" = "ok") {
     setFlash({ kind, text });
@@ -186,8 +183,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     void queryClient.invalidateQueries({ queryKey: ["admin-farms"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-config"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-tournaments"] });
     void queryClient.invalidateQueries({ queryKey: ["config"] });
     void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["tournaments"] });
   };
 
   const add = useMutation({
@@ -222,9 +221,63 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       {flash && <div className={`flash ${flash.kind}`}>{flash.text}</div>}
 
       <section className="card" style={{ marginBottom: 16 }}>
-        <div className="kicker">Tournament window</div>
+        <div className="kicker">Tournaments</div>
+        {(tournaments.data ?? []).length === 0 && !tournaments.isLoading && (
+          <p className="muted">No tournaments yet. Create one below.</p>
+        )}
+        {(tournaments.data ?? []).map((row) => (
+          <div key={row.tournament_id} className="toolbar" style={{ alignItems: "center" }}>
+            <span>
+              <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>{" "}
+              <b>{row.name || row.tournament_id}</b>
+              <div className="meta">
+                {formatWhenUtc(row.start_at)} → {formatWhenUtc(row.end_at)} · {row.prize_amount} Flower
+              </div>
+            </span>
+            {row.status === "scheduled" && (
+              <button
+                className="btn"
+                type="button"
+                onClick={() =>
+                  deleteTournament(row.tournament_id)
+                    .then(() => {
+                      note("Scheduled tournament cancelled.");
+                      invalidate();
+                    })
+                    .catch((error: Error) => note(error.message, "err"))
+                }
+              >
+                Cancel
+              </button>
+            )}
+            {row.status === "active" && (
+              <button
+                className="btn"
+                type="button"
+                onClick={() => {
+                  const nextName = window.prompt("Tournament name", row.name || "");
+                  if (nextName === null) return;
+                  const nextPrize = window.prompt("Prize (Flower)", row.prize_amount);
+                  if (nextPrize === null) return;
+                  updateTournament(row.tournament_id, {
+                    name: nextName.trim(),
+                    prize_amount: nextPrize.trim() || "30",
+                  })
+                    .then(() => {
+                      note("Live tournament updated.");
+                      invalidate();
+                    })
+                    .catch((error: Error) => note(error.message, "err"));
+                }}
+              >
+                Edit name / prize
+              </button>
+            )}
+          </div>
+        ))}
         <form
           className="form-grid"
+          style={{ marginTop: 16 }}
           onSubmit={(event: FormEvent) => {
             event.preventDefault();
             const start = new Date(startAt);
@@ -232,36 +285,64 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               note("Start must be a valid date.", "err");
               return;
             }
-            if (durationDays < 7) {
-              note("Tournament must run at least 7 days.", "err");
-              return;
-            }
-            saveConfig({
+            const payload: {
+              name: string;
+              start_at: string;
+              end_at?: string;
+              duration_days?: number;
+              prize_amount: string;
+            } = {
+              name: eventName.trim(),
               start_at: start.toISOString(),
-              duration_days: durationDays,
-              prize_amount: prize,
-            })
-              .then((result) => {
-                const rescored = result.rescore?.rescored ?? 0;
-                const missing = result.rescore?.missing_snapshots ?? 0;
-                let text = `Config saved. Re-scored ${rescored} farm(s) from snapshots.`;
-                if (missing > 0) {
-                  text += ` ${missing} missing a snapshot; full sync started if configured.`;
-                }
-                note(text);
+              prize_amount: prize.trim() || "30",
+            };
+            if (endAt) {
+              const end = new Date(endAt);
+              if (Number.isNaN(end.getTime())) {
+                note("End must be a valid date.", "err");
+                return;
+              }
+              payload.end_at = end.toISOString();
+            } else {
+              if (durationDays < 7) {
+                note("Tournament must run at least 7 days.", "err");
+                return;
+              }
+              payload.duration_days = durationDays;
+            }
+            createTournament(payload)
+              .then((created) => {
+                note(`Created ${created.name} (${created.status}).`);
+                setEventName("");
                 invalidate();
               })
               .catch((error: Error) => note(error.message, "err"));
           }}
         >
           <label>
-            Start
+            Name
+            <input
+              value={eventName}
+              onChange={(event) => setEventName(event.target.value)}
+              placeholder="Late August Otter Cup"
+              required
+            />
+          </label>
+          <label>
+            From
             <input
               type="datetime-local"
               value={startAt}
-              onChange={(e) => setStartAt(e.target.value)}
+              onChange={(event) => setStartAt(event.target.value)}
               required
-              disabled={!config.data}
+            />
+          </label>
+          <label>
+            To (optional)
+            <input
+              type="datetime-local"
+              value={endAt}
+              onChange={(event) => setEndAt(event.target.value)}
             />
           </label>
           <label>
@@ -272,7 +353,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 if (event.target.value === "custom") return;
                 setDurationDays(Number(event.target.value));
               }}
-              disabled={!config.data}
             >
               <option value="7">7 days</option>
               <option value="14">14 days</option>
@@ -287,15 +367,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               min={7}
               value={durationDays}
               onChange={(event) => setDurationDays(Number(event.target.value))}
-              disabled={!config.data}
             />
           </label>
           <label>
             Prize (Flower)
-            <input value={prize} onChange={(e) => setPrize(e.target.value)} />
+            <input value={prize} onChange={(event) => setPrize(event.target.value)} />
           </label>
-          <button className="btn primary" type="submit" disabled={!config.data || !startAt}>
-            Save dates & prize
+          <button className="btn primary" type="submit" disabled={!startAt || !eventName.trim()}>
+            Create tournament
           </button>
         </form>
       </section>
@@ -473,21 +552,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         {snapshot && <pre className="snapshot">{snapshot}</pre>}
       </section>
 
-      <p className="muted">Last public sync: {formatWhen(config.data?.last_full_sync_at)}</p>
+
     </>
   );
-}
-
-function daysBetween(startIso: string, endIso: string): number {
-  const start = new Date(startIso).getTime();
-  const end = new Date(endIso).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 7;
-  return Math.max(7, Math.round((end - start) / 86_400_000));
-}
-
-function toLocalInput(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

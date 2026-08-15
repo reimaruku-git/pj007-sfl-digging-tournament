@@ -54,7 +54,40 @@ def tournament_days_for_average(
 
 
 def avg_digs_per_day(total_digs: int, days: int) -> float:
+    """Legacy helper. Official board score is ``official_score_average``."""
     return round(int(total_digs or 0) / max(int(days), 1), 2)
+
+
+def official_score_average(digs_to_third: int | None, days: int) -> float | None:
+    """3rd-pebble digs divided by the configured tournament length.
+
+    Digs after the 3rd pebble are not in ``digs_to_third``. A missing
+    official dig count yields ``None``.
+    """
+    if digs_to_third is None:
+        return None
+    try:
+        value = int(digs_to_third)
+    except (TypeError, ValueError):
+        return None
+    return round(value / max(int(days), 1), 2)
+
+
+def configured_duration_days(config: dict[str, Any]) -> int:
+    start = parse_iso(config.get("start_at"))
+    end = parse_iso(config.get("end_at"))
+    raw = config.get("duration_days")
+    try:
+        days = int(raw) if raw is not None else 0
+    except (TypeError, ValueError):
+        days = 0
+    return days or duration_days(start, end)
+
+
+def default_tournament_name(start: datetime | None) -> str:
+    if start is None:
+        return "Digging tournament"
+    return f"Week of {start.day} {start.strftime('%b')}"
 
 
 def tournament_id(config: dict[str, Any]) -> str:

@@ -4,7 +4,7 @@ Wire JSON is **snake_case**. The browser talks only to this API.
 
 Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no `Bearer ` prefix.
 API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
-Public routes (`/health`, `/config`, `/leaderboard`, `/farms/{farm_id}`, `POST /submissions`) have no authorizer.
+Public routes (`/health`, `/config`, `/leaderboard`, `/farms/{farm_id}`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /submissions`) have no authorizer.
 
 Errors:
 
@@ -24,6 +24,8 @@ Errors:
 
 ```json
 {
+  "tournament_id": "20260814T120000Z_7d",
+  "name": "Week of 14 Aug",
   "start_at": "2026-08-14T12:00:00+00:00",
   "end_at": "2026-08-21T12:00:00+00:00",
   "duration_days": 7,
@@ -45,13 +47,13 @@ Cached snapshot. Frontend never calls the SFL API.
       "rank": 1,
       "farm_id": "3666918801844311",
       "name": "rmr",
+      "score": 6.0,
       "digs_to_third_op": 42,
       "digs_to_first_op": 10,
       "digs_to_second_op": 24,
       "otter_count": 3,
       "digs_today": 8,
       "total_digs": 42,
-      "avg_digs_per_day": 6.0,
       "tournament_days": 7,
       "first_op_at": "2026-08-14T12:10:00+00:00",
       "second_op_at": "2026-08-14T12:24:00+00:00",
@@ -64,6 +66,8 @@ Cached snapshot. Frontend never calls the SFL API.
   "count": 1,
   "generated_at": "2026-08-14T13:00:00+00:00",
   "config": {
+    "tournament_id": "20260814T120000Z_7d",
+    "name": "Week of 14 Aug",
     "start_at": "2026-08-14T12:00:00+00:00",
     "end_at": "2026-08-21T12:00:00+00:00",
     "duration_days": 7,
@@ -77,15 +81,13 @@ Cached snapshot. Frontend never calls the SFL API.
 
 `status` is `not_started` | `in_progress` | `completed` | `invalidated`.
 
-`avg_digs_per_day` is `total_digs / tournament_days`. `tournament_days` is elapsed
-UTC calendar days in the window (inclusive, at least 1), capped at the
-configured length. After the event ends it is the full configured length
-(7 or 30, etc.).
+`score` is the official board number: `digs_to_third_op / duration_days`
+(configured length, not days so far). Digs after the 3rd pebble do not
+enter `score`. `total_digs` is window activity for debug and is not ranked.
 
-`digs_to_third_op` is the official score. For farms that found all 3 Otter
-Pebbles it is the flattened dig number of the 3rd pebble. After the
+`digs_to_third_op` is the flattened dig number of the 3rd pebble. After the
 **23:00 UTC finalize** (and any later full sync that day), farms that did
-not find all 3 get a numeric score instead of `null`:
+not find all 3 get a numeric dig count instead of `null`:
 
 `max(highest digs_to_third_op among farms that found all 3, 30) + 5 × (3 − otter_count)`
 
@@ -94,7 +96,7 @@ If nobody finished, the floor is 30. Mid-day syncs (14:00 / 16:00 / 18:00 /
 that day are not counted. Admin `POST /admin/sync` still starts a full
 sweep; the worker applies finalize when the clock is 23:00 UTC or later.
 
-Ranking (lowest better, then earlier): official `digs_to_third_op`, then
+Ranking (lowest better): `score`, then `digs_to_third_op`, then
 `digs_to_second_op`, then `digs_to_first_op`, then `third_op_at`,
 `second_op_at`, `first_op_at`.
 
@@ -108,13 +110,13 @@ Shareable personal result.
     "rank": 1,
     "farm_id": "3666918801844311",
     "name": "rmr",
+    "score": 6.0,
     "digs_to_third_op": 42,
     "digs_to_first_op": 10,
     "digs_to_second_op": 24,
     "otter_count": 3,
     "digs_today": 8,
     "total_digs": 42,
-    "avg_digs_per_day": 6.0,
     "tournament_days": 7,
     "first_op_at": "2026-08-14T12:10:00+00:00",
     "second_op_at": "2026-08-14T12:24:00+00:00",
@@ -128,21 +130,23 @@ Shareable personal result.
 
 ### `GET /tournaments`
 
-Named list of archived events. Written to S3 when a window ends (or is
-replaced by a new start/length).
+Scheduled, live, and ended events. Ended standings are frozen to S3
+`archives/{id}/`.
 
 ```json
 {
   "tournaments": [
     {
-      "tournament_id": "20260814T000000Z_7d",
-      "start_at": "2026-08-14T00:00:00+00:00",
-      "end_at": "2026-08-21T00:00:00+00:00",
+      "tournament_id": "20260822T140000Z_7d",
+      "name": "Late August Otter Cup",
+      "start_at": "2026-08-22T14:00:00+00:00",
+      "end_at": "2026-08-29T14:00:00+00:00",
       "duration_days": 7,
       "prize_amount": "30",
-      "archived_at": "2026-08-21T00:05:00+00:00",
-      "count": 2,
-      "leader_farm_id": "3666918801844311"
+      "status": "scheduled",
+      "archived_at": null,
+      "count": 0,
+      "leader_farm_id": null
     }
   ],
   "count": 1
@@ -151,7 +155,8 @@ replaced by a new start/length).
 
 ### `GET /tournaments/{tournament_id}`
 
-Frozen standings. Not the live scores table.
+Live board if the event is active, empty entries if scheduled, frozen
+S3 standings if ended.
 
 ```json
 {
@@ -159,6 +164,8 @@ Frozen standings. Not the live scores table.
     "tournament_id": "20260814T000000Z_7d",
     "archived_at": "2026-08-21T00:05:00+00:00",
     "config": {
+      "tournament_id": "20260814T000000Z_7d",
+      "name": "Week of 14 Aug",
       "start_at": "2026-08-14T00:00:00+00:00",
       "end_at": "2026-08-21T00:00:00+00:00",
       "duration_days": 7,
@@ -168,6 +175,25 @@ Frozen standings. Not the live scores table.
     "entries": [],
     "count": 0,
     "leader_farm_id": null
+  }
+}
+```
+
+### `GET /tournaments/{tournament_id}/farms/{farm_id}`
+
+That farm's row in that event. Do not use live `GET /farms/{id}` for an
+archive.
+
+```json
+{
+  "farm": {
+    "rank": 1,
+    "farm_id": "3666918801844311",
+    "name": "rmr",
+    "score": 6.0,
+    "digs_to_third_op": 42,
+    "otter_count": 3,
+    "status": "completed"
   }
 }
 ```
@@ -269,14 +295,47 @@ still accepted. `prize_amount` is a JSON string.
 
 Changing start/length archives the previous event to S3 first. After a
 successful write the handler re-scores farms that have snapshots.
+Prefer `POST /admin/tournaments` to queue a new named event.
 
 ```json
 {
+  "name": "Week of 14 Aug",
   "start_at": "2026-08-14T00:00:00+00:00",
   "duration_days": 7,
   "prize_amount": "30"
 }
 ```
+
+### `GET /admin/tournaments`
+
+Same list shape as `GET /tournaments`.
+
+### `POST /admin/tournaments`
+
+Create a named event. `201` `{ "tournament": { … } }`. Windows may not
+overlap a scheduled or live event. Minimum 7 days. `name` is required
+(1–80 chars). `end_at` or `duration_days` is required.
+
+```json
+{
+  "name": "Late August Otter Cup",
+  "start_at": "2026-08-22T14:00:00+00:00",
+  "end_at": "2026-08-29T14:00:00+00:00",
+  "prize_amount": "30"
+}
+```
+
+A window that has already started becomes `active` if nothing else is
+live. Otherwise it is `scheduled`.
+
+### `PUT /admin/tournaments/{tournament_id}`
+
+Scheduled: name, dates, prize. Active: name and prize only (`409` if
+dates change). Ended: `409`.
+
+### `DELETE /admin/tournaments/{tournament_id}`
+
+Cancel a scheduled event. Live or ended → `409`.
 
 ```json
 {

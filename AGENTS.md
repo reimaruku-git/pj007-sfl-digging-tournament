@@ -94,6 +94,7 @@ HTTP never calls the SFL Community API.
 | Farm registry | `s3://pj007-dev-digging-tournament/config/tracked-farms.json` |
 | Frontend origin | bucket prefix `frontend/` (CloudFront OriginPath) |
 | Snapshots | `s3://…/snapshots/` |
+| Tournament archives | `s3://…/archives/{tournament_id}/` |
 
 S3 layout:
 
@@ -101,7 +102,8 @@ S3 layout:
 pj007-dev-digging-tournament/
 ├── frontend/                 ← CloudFront origin
 ├── config/tracked-farms.json ← Farm ID source of truth
-└── snapshots/
+├── snapshots/{farm_id}.json  ← live latest grid
+└── archives/{tournament_id}/ ← meta + standings + farm copies
 ```
 
 ### Lambdas
@@ -121,7 +123,7 @@ House Cognito mode, with a **product exception** on which routes are public.
 
 | Surface | Auth |
 |---------|------|
-| `/health`, `/config`, `/leaderboard`, `/farms/{id}`, `POST /submissions` | **None** — public tournament |
+| `/health`, `/config`, `/leaderboard`, `/farms/{id}`, `/tournaments`, `POST /submissions` | **None** — public tournament |
 | `/admin/*` | API Gateway JWT (`CognitoAuthorizer`) |
 
 - Admin-created users only (`AllowAdminCreateUserOnly`). **No self-signup.**
@@ -171,10 +173,11 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Four sibling `Sand Drill` tiles that share the same `dugAt` are one
   drill the API numbered once (e.g. “5th dig” on all 4 holes → 5–8).
 - Every other top-level tile (Sand Shovel / unknown) costs **1**.
-- Official score = **1-based flattened position of the 3rd Otter Pebble**.
-- Once that score is set, later tiles do not change it.
-- Tie-break: fewer digs to 2nd OP, then 1st; then earlier `third_op_at`,
-  `second_op_at`, `first_op_at`.
+- Official displayed score = **3rd-pebble digs ÷ configured duration days**.
+  Digs after the 3rd pebble do not enter the score.
+- Once the 3rd-pebble dig count is set, later tiles do not change it.
+- Tie-break: fewer digs to 3rd OP, then 2nd, then 1st; then earlier
+  `third_op_at`, `second_op_at`, `first_op_at`.
 - Tiles outside the tournament window (by `dugAt`) are ignored.
 - Scheduled full syncs: **14:00, 16:00, 18:00, 20:00, 23:00 UTC**.
   23:00 is the day’s final sync. Admin `POST /admin/sync` is on-demand.
@@ -184,9 +187,10 @@ Canonical: `backend/lib/tournament/scoring.py` +
   No completers → floor 30. Mid-day syncs do **not** assign that penalty.
 - Lower score ranks higher.
 - Default prize is `"30"` Flower (JSON **string**). Min period **7 days**.
-  Admin sets start + `duration_days` (7 or 30 typical). Ended events go to
-  S3 `archives/` and `GET /tournaments`. Average = total_digs / elapsed
-  UTC days, capped at configured length.
+  Admin creates named tournaments (`POST /admin/tournaments`) with from/to
+  or start + `duration_days`. One live event; others are scheduled or
+  ended. Ended events freeze to S3 `archives/{id}/` (meta + standings +
+  farm snapshots). Public `GET /tournaments` lists upcoming, live, and past.
 - `PUT /admin/config` re-scores farms from S3 snapshots against the new
   window, then kicks FarmSync for farms that have no snapshot. Do not only
   refresh the cached board.
@@ -233,6 +237,7 @@ Rules that bite here:
 | `src/api/public.ts` | Leaderboard, farm, config, submit |
 | `src/api/admin.ts` | Admin endpoints (no `adminLogin`) |
 | `src/components/Layout.tsx` | Public chrome: burger (rules / join / find farm). No Admin link. |
+| `src/pages/TournamentsPage.tsx` | Upcoming / live / past events |
 | `src/pages/LeaderboardPage.tsx` | Public board (`/` default): podium, pebble marks, next-sync clock |
 | `src/pages/FarmPage.tsx` | Shareable personal result |
 | `src/pages/AdminPage.tsx` | Amplify signIn + panel. Reachable only by typing `/admin`. |

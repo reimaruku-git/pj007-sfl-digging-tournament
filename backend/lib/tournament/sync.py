@@ -19,7 +19,13 @@ from tournament.scoring import (
 )
 from tournament.sfl_client import RateLimitedSFLClient, SFLApiError
 from tournament.store import MIN_TOURNAMENT_DAYS, Store
-from tournament.window import duration_days, parse_iso, tournament_days_for_average
+from tournament.window import (
+    configured_duration_days,
+    default_tournament_name,
+    duration_days,
+    parse_iso,
+    tournament_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +48,11 @@ def ensure_default_config(store: Store, *, now: datetime | None = None) -> dict[
         "end_at": end.isoformat(),
         "duration_days": MIN_TOURNAMENT_DAYS,
         "prize_amount": str(existing.get("prize_amount") or "30"),
+        "name": existing.get("name") or "",
         "status": tournament_status(start, end, clock),
         "last_full_sync_at": existing.get("last_full_sync_at"),
         "leader_farm_id": existing.get("leader_farm_id"),
+        "current_tournament_id": existing.get("current_tournament_id"),
     }
     return store.put_config(config)
 
@@ -61,7 +69,19 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
     start = parse_iso(config.get("start_at"))
     end = parse_iso(config.get("end_at"))
     days = int(config.get("duration_days") or 0) or duration_days(start, end)
+    tid = str(config.get("current_tournament_id") or config.get("tournament_id") or "").strip()
+    if not tid:
+        tid = tournament_id(
+            {
+                "start_at": config.get("start_at"),
+                "end_at": config.get("end_at"),
+                "duration_days": days,
+            }
+        )
+    name = str(config.get("name") or "").strip() or default_tournament_name(start)
     return {
+        "tournament_id": tid,
+        "name": name,
         "start_at": config.get("start_at"),
         "end_at": config.get("end_at"),
         "duration_days": days,
@@ -73,13 +93,9 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def refresh_leaderboard(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
-    clock = now or datetime.now(timezone.utc)
+    _ = now
     config = store.get_config()
-    days = tournament_days_for_average(
-        parse_iso(config.get("start_at")),
-        parse_iso(config.get("end_at")),
-        clock,
-    )
+    days = configured_duration_days(config)
     rows = store.list_scores()
     board = build_leaderboard(rows, tournament_days=days)
     cached = store.put_leaderboard_cache(board)

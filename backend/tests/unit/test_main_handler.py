@@ -64,8 +64,8 @@ def test_health_and_public_leaderboard(aws_env, monkeypatch):
     assert payload["config"]["prize_amount"] == "30"
 
 
-def test_leaderboard_cached_average_is_json_number(aws_env, monkeypatch):
-    """GET /leaderboard must emit avg_digs_per_day as a float after a Dynamo cache read."""
+def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
+    """GET /leaderboard must emit score as a float after a Dynamo cache read."""
     from datetime import datetime, timezone
 
     from tournament.sync import refresh_leaderboard
@@ -100,9 +100,9 @@ def test_leaderboard_cached_average_is_json_number(aws_env, monkeypatch):
 
     board = app.lambda_handler(_event("GET", "/leaderboard"), None)
     assert board["statusCode"] == 200
-    avg = _json(board)["entries"][0]["avg_digs_per_day"]
-    assert type(avg) is float
-    assert avg == 2.33
+    score = _json(board)["entries"][0]["score"]
+    assert type(score) is float
+    assert score == 0.4
 
 
 def test_submit_then_admin_approve(aws_env, monkeypatch):
