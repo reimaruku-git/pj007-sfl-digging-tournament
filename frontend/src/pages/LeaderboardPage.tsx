@@ -79,8 +79,8 @@ export function LeaderboardPage() {
             <li>
               <span>Drill</span>
               <span>
-                4 numbered digs. If the game stamps all 4 holes as the “5th dig”, we count 5,
-                6, 7, and 8. An Otter Pebble from that drill is the last hole — the 8th.
+                4 numbered digs. An Otter Pebble found with a drill counts as the last of those
+                4. After 4 shovel digs, that drill is 5, 6, 7, and 8 — the pebble is the 8th.
               </span>
             </li>
             <li>

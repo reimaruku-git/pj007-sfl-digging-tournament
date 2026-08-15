@@ -79,9 +79,9 @@ describe("routes", () => {
     const rules = home.querySelector("#rules");
     expect(rules).not.toBeNull();
     expect(rules?.className).toMatch(/prize-card/);
-    expect(rules?.textContent).toMatch(/5th dig/);
+    expect(rules?.textContent).toMatch(/last of those/);
     expect(rules?.textContent).toMatch(/8th/);
-    expect(rules?.textContent).toMatch(/last hole/);
+    expect(rules?.textContent).not.toMatch(/stamp/i);
     expect(home.textContent).not.toMatch(/even if it uncovers 4 tiles/);
     expect(home.querySelectorAll("#rules").length).toBe(1);
     expect(home.querySelector("section#rules")).toBeNull();
