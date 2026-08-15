@@ -12,6 +12,11 @@ Rules
   produced the **3rd Otter Pebble**.
 * Once the score is set, later tiles do not change it.
 * Tiles outside the tournament window (by ``dugAt``) are ignored.
+* At 23:00 UTC finalize (and later that UTC day) the window end is also
+  clipped to that day's 23:00 — tiles with ``dugAt`` after 23:00 UTC are
+  not counted. Farms that still do not have 3 Otter Pebbles receive
+  ``max(highest completed 3rd-OP that day, 30) + 5 * missing``.
+  Mid-day syncs (14/16/18/20 UTC) do not assign that penalty.
 """
 
 from __future__ import annotations
@@ -27,6 +32,10 @@ SAND_SHOVEL = "Sand Shovel"
 STATUS_NOT_STARTED = "not_started"
 STATUS_IN_PROGRESS = "in_progress"
 STATUS_COMPLETED = "completed"
+
+FINALIZE_HOUR_UTC = 23
+INCOMPLETE_SCORE_FLOOR = 30
+INCOMPLETE_SCORE_PER_MISSING_OP = 5
 
 
 @dataclass(frozen=True)
@@ -235,6 +244,78 @@ def score_grid(
         status=status,
         third_op_at=third_op_at,
     )
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def day_cutoff_utc(clock: datetime) -> datetime:
+    """23:00:00 UTC on the clock's UTC day — last counted instant that day."""
+    day = _as_utc(clock).date()
+    return datetime(day.year, day.month, day.day, FINALIZE_HOUR_UTC, 0, 0, tzinfo=timezone.utc)
+
+
+def is_finalize_clock(clock: datetime) -> bool:
+    """True at 23:00 UTC and later that UTC day."""
+    return _as_utc(clock).hour >= FINALIZE_HOUR_UTC
+
+
+def scoring_window_end(window_end: datetime | None, clock: datetime) -> datetime | None:
+    """Intersect the tournament end with that day's 23:00 cutoff when finalizing."""
+    if not is_finalize_clock(clock):
+        return window_end
+    cutoff = day_cutoff_utc(clock)
+    if window_end is None:
+        return cutoff
+    return min(_as_utc(window_end), cutoff)
+
+
+def incomplete_official_score(otter_count: int, highest_completed: int | None) -> int:
+    """Official score for a farm that did not find all 3 Otter Pebbles.
+
+    ``max(highest 3rd-OP among completers, 30) + 5 * missing``.
+    If nobody finished, the floor is 30.
+    """
+    missing = max(0, 3 - max(int(otter_count), 0))
+    if highest_completed is None:
+        base = INCOMPLETE_SCORE_FLOOR
+    else:
+        base = max(int(highest_completed), INCOMPLETE_SCORE_FLOOR)
+    return base + INCOMPLETE_SCORE_PER_MISSING_OP * missing
+
+
+def assign_incomplete_official_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Copy rows and fill ``digs_to_third_op`` for farms that are not completed.
+
+    Completers keep their 3rd-OP score. Invalidated rows are left alone.
+    """
+    completed_scores: list[int] = []
+    for row in rows:
+        if row.get("invalidated"):
+            continue
+        if row.get("status") != STATUS_COMPLETED:
+            continue
+        raw = row.get("digs_to_third_op")
+        if raw is None:
+            continue
+        try:
+            completed_scores.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    highest = max(completed_scores) if completed_scores else None
+    assigned: list[dict[str, Any]] = []
+    for row in rows:
+        updated = dict(row)
+        if updated.get("invalidated") or updated.get("status") == STATUS_COMPLETED:
+            assigned.append(updated)
+            continue
+        otter = int(updated.get("otter_count") or 0)
+        updated["digs_to_third_op"] = incomplete_official_score(otter, highest)
+        assigned.append(updated)
+    return assigned
 
 
 def extract_grid(farm_payload: Any) -> list[Any]:

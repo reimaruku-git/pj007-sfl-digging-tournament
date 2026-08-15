@@ -31,9 +31,9 @@ def _grid_payload(tiles):
     return {"farm": {"desert": {"digging": {"grid": tiles}}}}
 
 
-def shovel(items=None):
+def shovel(items=None, dug_at=None):
     return {
-        "dugAt": int(NOW.timestamp() * 1000),
+        "dugAt": int(NOW.timestamp() * 1000) if dug_at is None else dug_at,
         "items": items or {"Sand": 1},
         "tool": "Sand Shovel",
     }
@@ -138,3 +138,135 @@ def test_rescore_from_snapshots_applies_new_window(aws_env):
     assert row["otter_count"] == 2
     assert row["digs_to_third_op"] is None
     assert row["status"] == "in_progress"
+
+
+def _store(aws_env):
+    return Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+
+
+def _ms(dt):
+    return int(dt.timestamp() * 1000)
+
+
+def _seed_farms(store, registry, grids):
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    payloads = {}
+    for farm_id, name, tiles in grids:
+        registry.upsert(farm_id, name=name)
+        payloads[farm_id] = _grid_payload(tiles)
+    return payloads
+
+
+def test_finalize_2300_assigns_incomplete_and_is_idempotent(aws_env):
+    from tournament.sync import apply_day_finalize
+
+    store = _store(aws_env)
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    before = datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc)
+    after = datetime(2026, 8, 14, 23, 15, tzinfo=timezone.utc)
+    done_grid = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+    ]
+    short_grid = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(after)),
+    ]
+    none_grid = [shovel({"Sand": 1}, dug_at=_ms(before))]
+    for farm_id, name, grid in (
+        ("1", "done", done_grid),
+        ("2", "short", short_grid),
+        ("3", "none", none_grid),
+    ):
+        computed = score_grid(grid, now=NOW)
+        apply_computed_score(store, farm_id=farm_id, name=name, computed=computed)
+        store.write_snapshot(farm_id, {"farm_id": farm_id, "grid": grid, "score": computed.to_dict()})
+
+    clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
+    first = apply_day_finalize(store, now=clock)
+    second = apply_day_finalize(store, now=clock)
+    assert first["finalized"] is True
+    assert first["rescored"] == 3
+    done = store.get_score("1")
+    short = store.get_score("2")
+    none = store.get_score("3")
+    assert done["digs_to_third_op"] == 3
+    assert done["status"] == "completed"
+    # third pebble is after 23:00 so only 2 OP count
+    assert short["otter_count"] == 2
+    assert short["status"] == "in_progress"
+    assert short["digs_to_third_op"] == 35
+    assert none["otter_count"] == 0
+    assert none["digs_to_third_op"] == 45
+    assert store.get_score("1")["digs_to_third_op"] == done["digs_to_third_op"]
+    assert store.get_score("2")["digs_to_third_op"] == short["digs_to_third_op"]
+    assert store.get_score("3")["digs_to_third_op"] == none["digs_to_third_op"]
+    assert second["highest_completed"] == first["highest_completed"]
+    cache = store.get_leaderboard_cache()
+    by_id = {entry["farm_id"]: entry for entry in cache["entries"]}
+    assert by_id["1"]["digs_to_third_op"] == 3
+    assert by_id["2"]["digs_to_third_op"] == 35
+
+
+def test_midday_sync_does_not_assign_incomplete_penalty(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    before = datetime(2026, 8, 14, 15, 0, tzinfo=timezone.utc)
+    tiles = [shovel({"Otter Pebble": 1}, dug_at=_ms(before))]
+    payloads = _seed_farms(store, registry, [("1", "short", tiles)])
+    client = FakeClient(payloads)
+    clock = datetime(2026, 8, 14, 16, 0, tzinfo=timezone.utc)
+    result = sync_all_farms(store, registry, client, now=clock)
+    assert result["synced"] == 1
+    row = store.get_score("1")
+    assert row["otter_count"] == 1
+    assert row["digs_to_third_op"] is None
+    assert row["status"] == "in_progress"
+
+
+def test_2300_sync_applies_cutoff_and_incomplete_penalty(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    before = datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc)
+    after = datetime(2026, 8, 14, 23, 10, tzinfo=timezone.utc)
+    done = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+    ]
+    short = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(after)),
+    ]
+    payloads = _seed_farms(
+        store,
+        registry,
+        [("1", "done", done), ("2", "short", short)],
+    )
+    client = FakeClient(payloads)
+    clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
+    result = sync_all_farms(store, registry, client, now=clock)
+    assert result["synced"] == 2
+    assert result.get("finalized") is True
+    assert store.get_score("1")["digs_to_third_op"] == 3
+    assert store.get_score("2")["otter_count"] == 1
+    assert store.get_score("2")["digs_to_third_op"] == 40

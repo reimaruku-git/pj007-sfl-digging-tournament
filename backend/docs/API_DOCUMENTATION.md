@@ -68,6 +68,18 @@ Cached snapshot. Frontend never calls the SFL API.
 
 `status` is `not_started` | `in_progress` | `completed` | `invalidated`.
 
+`digs_to_third_op` is the official score. For farms that found all 3 Otter
+Pebbles it is the flattened dig number of the 3rd pebble. After the
+**23:00 UTC finalize** (and any later full sync that day), farms that did
+not find all 3 get a numeric score instead of `null`:
+
+`max(highest digs_to_third_op among farms that found all 3, 30) + 5 × (3 − otter_count)`
+
+If nobody finished, the floor is 30. Mid-day syncs (14:00 / 16:00 / 18:00 /
+20:00 UTC) leave incompletes as `null`. Tiles with `dugAt` after 23:00 UTC
+that day are not counted. Admin `POST /admin/sync` still starts a full
+sweep; the worker applies finalize when the clock is 23:00 UTC or later.
+
 ### `GET /farms/{farm_id}`
 
 Shareable personal result.

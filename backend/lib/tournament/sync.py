@@ -10,7 +10,13 @@ from urllib import error, request
 
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard
-from tournament.scoring import extract_grid, score_grid
+from tournament.scoring import (
+    assign_incomplete_official_scores,
+    extract_grid,
+    is_finalize_clock,
+    score_grid,
+    scoring_window_end,
+)
 from tournament.sfl_client import RateLimitedSFLClient, SFLApiError
 from tournament.store import MIN_TOURNAMENT_DAYS, Store
 
@@ -79,20 +85,54 @@ def refresh_leaderboard(store: Store) -> dict[str, Any]:
     return cached
 
 
+def resolve_scoring_windows(
+    config: dict[str, Any],
+    clock: datetime,
+    *,
+    finalize: bool,
+) -> tuple[datetime | None, datetime | None]:
+    window_start = parse_iso(config.get("start_at"))
+    window_end = parse_iso(config.get("end_at"))
+    if finalize:
+        window_end = scoring_window_end(window_end, clock)
+    return window_start, window_end
+
+
+def _apply_incomplete_penalties(store: Store) -> int | None:
+    rows = store.list_scores()
+    assigned = assign_incomplete_official_scores(rows)
+    highest: int | None = None
+    for row, updated in zip(rows, assigned):
+        if updated.get("status") == "completed" and updated.get("digs_to_third_op") is not None:
+            try:
+                score = int(updated["digs_to_third_op"])
+            except (TypeError, ValueError):
+                score = None
+            if score is not None:
+                highest = score if highest is None else max(highest, score)
+        if updated.get("digs_to_third_op") != row.get("digs_to_third_op"):
+            store.put_score(updated)
+    return highest
+
+
 def rescore_from_snapshots(
     store: Store,
     *,
     now: datetime | None = None,
+    finalize: bool | None = None,
 ) -> dict[str, Any]:
     """Re-run score_grid on stored snapshots using the current tournament window.
 
     Farms with no snapshot are counted in ``missing_snapshots`` and left as-is
     until the next live SFL fetch.
+
+    When ``finalize`` is true (or the clock is 23:00 UTC or later), tiles after
+    that day's 23:00 are dropped and incompletes get the official penalty score.
     """
     clock = now or datetime.now(timezone.utc)
+    do_finalize = is_finalize_clock(clock) if finalize is None else finalize
     config = ensure_default_config(store, now=clock)
-    window_start = parse_iso(config.get("start_at"))
-    window_end = parse_iso(config.get("end_at"))
+    window_start, window_end = resolve_scoring_windows(config, clock, finalize=do_finalize)
     rescored = 0
     missing = 0
     for row in store.list_scores():
@@ -121,8 +161,22 @@ def rescore_from_snapshots(
         updated["score"] = computed.to_dict()
         store.write_snapshot(farm_id, updated)
         rescored += 1
+    highest = _apply_incomplete_penalties(store) if do_finalize else None
     refresh_leaderboard(store)
-    return {"rescored": rescored, "missing_snapshots": missing}
+    return {
+        "rescored": rescored,
+        "missing_snapshots": missing,
+        "finalized": do_finalize,
+        "highest_completed": highest,
+    }
+
+
+def apply_day_finalize(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
+    """Re-score snapshots with the 23:00 cutoff and assign incomplete penalties.
+
+    Safe to run twice on the same snapshots — scores stay the same.
+    """
+    return rescore_from_snapshots(store, now=now, finalize=True)
 
 
 def apply_computed_score(
@@ -158,13 +212,13 @@ def sync_one_farm(
     farm: dict[str, Any],
     *,
     now: datetime | None = None,
+    finalize: bool = False,
 ) -> dict[str, Any]:
     farm_id = str(farm["farm_id"])
     name = farm.get("name") or ""
-    config = ensure_default_config(store, now=now)
-    window_start = parse_iso(config.get("start_at"))
-    window_end = parse_iso(config.get("end_at"))
     clock = now or datetime.now(timezone.utc)
+    config = ensure_default_config(store, now=clock)
+    window_start, window_end = resolve_scoring_windows(config, clock, finalize=finalize)
     previous = store.get_score(farm_id)
 
     try:
@@ -237,16 +291,19 @@ def sync_all_farms(
     ensure_default_config(store, now=clock)
     previous_cache = store.get_leaderboard_cache() or {}
     previous_leader = previous_cache.get("leader_farm_id")
+    finalize = is_finalize_clock(clock)
 
     farms = registry.list_farms(active_only=True)
     results: list[dict[str, Any]] = []
     failures = 0
     for farm in farms:
-        row = sync_one_farm(store, client, farm, now=clock)
+        row = sync_one_farm(store, client, farm, now=clock, finalize=finalize)
         if row.get("error"):
             failures += 1
         results.append(row)
 
+    if finalize:
+        apply_day_finalize(store, now=clock)
     cache = refresh_leaderboard(store)
     store.mark_synced()
     config = store.get_config()
@@ -274,4 +331,5 @@ def sync_all_farms(
         "farms": results,
         "leaderboard": cache,
         "config": public_config(store.get_config()),
+        "finalized": finalize,
     }

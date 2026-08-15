@@ -68,3 +68,33 @@ def test_invalidated_is_unranked():
     assert ranked[1]["farm_id"] == "bad"
     assert ranked[1]["rank"] is None
     assert ranked[1]["status"] == "invalidated"
+
+
+def test_finalized_incompletes_rank_after_completers_by_penalty():
+    rows = [
+        {
+            "farm_id": "done",
+            "status": "completed",
+            "digs_to_third_op": 12,
+            "otter_count": 3,
+            "total_digs": 12,
+        },
+        {
+            "farm_id": "two-op",
+            "status": "in_progress",
+            "digs_to_third_op": 35,
+            "otter_count": 2,
+            "total_digs": 8,
+        },
+        {
+            "farm_id": "zero-op",
+            "status": "not_started",
+            "digs_to_third_op": 45,
+            "otter_count": 0,
+            "total_digs": 0,
+        },
+    ]
+    ranked = rank_scores(rows)
+    assert [row["farm_id"] for row in ranked] == ["done", "two-op", "zero-op"]
+    assert ranked[1]["digs_to_third_op"] == 35
+    assert ranked[2]["digs_to_third_op"] == 45

@@ -99,6 +99,81 @@ textarea {
   text-transform: uppercase;
 }
 
+.menu-wrap {
+  position: relative;
+}
+
+.burger {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  padding: 12px 11px;
+  cursor: pointer;
+}
+
+.burger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--cream);
+  border-radius: 999px;
+}
+
+.burger:hover {
+  border-color: rgba(184, 154, 86, 0.45);
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(320px, calc(100vw - 36px));
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+  z-index: 20;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.menu-panel > button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--cream);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.menu-panel > button:hover {
+  background: var(--gold-dim);
+}
+
+.menu-find {
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+
+.menu-find label {
+  display: grid;
+  gap: 6px;
+  color: var(--sand);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .nav {
   display: flex;
   gap: 8px;

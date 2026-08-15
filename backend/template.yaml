@@ -616,9 +616,9 @@ Resources:
         ScheduledSync:
           Type: Schedule
           Properties:
-            Schedule: rate(15 minutes)
+            Schedule: cron(0 14,16,18,20,23 * * ? *)
             Name: !Sub ${ProjectNo}-${Environment}-${ProjectName}-sync
-            Description: Refresh tracked farm scores every 15 minutes
+            Description: Full farm sync at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC
             Enabled: true
 
   # ----------------------------------------------------------------

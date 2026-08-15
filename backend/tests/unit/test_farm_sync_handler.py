@@ -114,3 +114,78 @@ def test_omitted_farm_id_still_sweeps_all(aws_env, monkeypatch):
     assert result["synced"] == 2
     assert result["failures"] == 0
     assert client.called == ["1", "2"]
+
+
+def test_schedule_at_2300_finalizes_incompletes(aws_env, monkeypatch):
+    before = int(datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    after = int(datetime(2026, 8, 14, 23, 10, tzinfo=timezone.utc).timestamp() * 1000)
+
+    def pebble(dug_at):
+        return {"dugAt": dug_at, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}
+
+    client = FakeClient(
+        {
+            "1": _grid_payload([pebble(before), pebble(before), pebble(before)]),
+            "2": _grid_payload([pebble(before), pebble(after)]),
+        }
+    )
+    app = _load_sync(aws_env, monkeypatch, client)
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="done")
+    registry.upsert("2", name="short")
+    from tournament.store import Store
+
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    result = app.lambda_handler({"source": "aws.events", "time": "2026-08-14T23:00:00Z"}, None)
+    assert result["synced"] == 2
+    assert result.get("finalized") is True
+    assert store.get_score("1")["digs_to_third_op"] == 3
+    assert store.get_score("2")["otter_count"] == 1
+    assert store.get_score("2")["digs_to_third_op"] == 40
+
+
+def test_schedule_at_1400_leaves_incompletes_without_penalty(aws_env, monkeypatch):
+    before = int(datetime(2026, 8, 14, 13, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    client = FakeClient(
+        {
+            "1": _grid_payload(
+                [{"dugAt": before, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}]
+            ),
+        }
+    )
+    app = _load_sync(aws_env, monkeypatch, client)
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="short")
+    from tournament.store import Store
+
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    result = app.lambda_handler({"source": "aws.events", "time": "2026-08-14T14:00:00Z"}, None)
+    assert result["synced"] == 1
+    assert result.get("finalized") is not True
+    row = store.get_score("1")
+    assert row["otter_count"] == 1
+    assert row["digs_to_third_op"] is None

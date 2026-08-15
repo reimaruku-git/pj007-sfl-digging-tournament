@@ -80,7 +80,7 @@ Browser  ──public──►  HTTP API  ──►  Main Lambda (router)
                           ├── S3: config/tracked-farms.json + snapshots/
                           └── SFL Community API (server-side, rate-limited)
 
-EventBridge ──► FarmSync Lambda (full sweep or one farm, same SFL gap)
+EventBridge (14/16/18/20/23 UTC) ──► FarmSync Lambda (full sweep or one farm)
 Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke FarmSync
 HTTP never calls the SFL Community API.
 ```
@@ -173,6 +173,12 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Official score = **1-based flattened position of the 3rd Otter Pebble**.
 - Once that score is set, later tiles do not change it.
 - Tiles outside the tournament window (by `dugAt`) are ignored.
+- Scheduled full syncs: **14:00, 16:00, 18:00, 20:00, 23:00 UTC**.
+  23:00 is the day’s final sync. Admin `POST /admin/sync` is on-demand.
+- At 23:00 UTC (and later that UTC day): tiles with `dugAt` after 23:00
+  are not counted. Completers keep their 3rd-OP score. Incompletes get
+  `max(highest completed 3rd-OP, 30) + 5 × (3 − otter_count)`.
+  No completers → floor 30. Mid-day syncs do **not** assign that penalty.
 - Lower score ranks higher.
 - Default prize is `"30"` Flower (JSON **string**). Min period **7 days**.
 - `PUT /admin/config` re-scores farms from S3 snapshots against the new
@@ -220,9 +226,10 @@ Rules that bite here:
 | `src/api/client.ts` | **Only** HTTP transport |
 | `src/api/public.ts` | Leaderboard, farm, config, submit |
 | `src/api/admin.ts` | Admin endpoints (no `adminLogin`) |
-| `src/pages/LeaderboardPage.tsx` | Public board |
+| `src/components/Layout.tsx` | Public chrome: burger (rules / join / find farm). No Admin link. |
+| `src/pages/LeaderboardPage.tsx` | Public board (`/` default) |
 | `src/pages/FarmPage.tsx` | Shareable personal result |
-| `src/pages/AdminPage.tsx` | Amplify signIn + panel |
+| `src/pages/AdminPage.tsx` | Amplify signIn + panel. Reachable only by typing `/admin`. |
 
 Theme is **muted dusk**, not neon gold. Tokens in `frontend/src/index.css`:
 `--bg #1a1815`, `--gold #b89a56`. Do not revert to `#e8b923` on near-black.

@@ -219,3 +219,121 @@ def test_extract_grid_from_community_payload():
     assert len(extract_grid(payload)) == 1
     assert extract_grid({}) == []
     assert extract_grid({"farm": {}}) == []
+
+
+def _ms(year, month, day, hour, minute=0, second=0):
+    return int(
+        datetime(year, month, day, hour, minute, second, tzinfo=timezone.utc).timestamp() * 1000
+    )
+
+
+def test_tile_after_2300_utc_is_ignored_on_finalize_window():
+    from tournament.scoring import scoring_window_end
+
+    clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
+    before = _ms(2026, 8, 14, 22, 59)
+    after = _ms(2026, 8, 14, 23, 0, 1)
+    grid = [pebble(dug_at=before), pebble(dug_at=before), pebble(dug_at=after)]
+    result = score_grid(grid, now=clock, window_end=scoring_window_end(None, clock))
+    assert result.total_digs == 2
+    assert result.otter_count == 2
+    assert result.digs_to_third_op is None
+    assert result.status == STATUS_IN_PROGRESS
+
+
+def test_tile_at_exactly_2300_still_counts():
+    from tournament.scoring import scoring_window_end
+
+    clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
+    at_cutoff = _ms(2026, 8, 14, 23, 0)
+    grid = [pebble(dug_at=at_cutoff), pebble(dug_at=at_cutoff), pebble(dug_at=at_cutoff)]
+    result = score_grid(grid, now=clock, window_end=scoring_window_end(None, clock))
+    assert result.digs_to_third_op == 3
+    assert result.status == STATUS_COMPLETED
+
+
+def test_completed_farm_keeps_third_op_score():
+    from tournament.scoring import assign_incomplete_official_scores
+
+    rows = [
+        {
+            "farm_id": "done",
+            "status": STATUS_COMPLETED,
+            "digs_to_third_op": 12,
+            "otter_count": 3,
+        },
+        {
+            "farm_id": "short",
+            "status": STATUS_IN_PROGRESS,
+            "digs_to_third_op": None,
+            "otter_count": 2,
+        },
+    ]
+    assigned = assign_incomplete_official_scores(rows)
+    by_id = {row["farm_id"]: row for row in assigned}
+    assert by_id["done"]["digs_to_third_op"] == 12
+    assert by_id["done"]["status"] == STATUS_COMPLETED
+
+
+def test_incomplete_formula_missing_one_two_three_op():
+    from tournament.scoring import assign_incomplete_official_scores, incomplete_official_score
+
+    highest = 18
+    assert incomplete_official_score(2, highest) == max(highest, 30) + 5 * 1
+    assert incomplete_official_score(1, highest) == max(highest, 30) + 5 * 2
+    assert incomplete_official_score(0, highest) == max(highest, 30) + 5 * 3
+
+    rows = [
+        {"farm_id": "c", "status": STATUS_COMPLETED, "digs_to_third_op": 18, "otter_count": 3},
+        {"farm_id": "m1", "status": STATUS_IN_PROGRESS, "digs_to_third_op": None, "otter_count": 2},
+        {"farm_id": "m2", "status": STATUS_IN_PROGRESS, "digs_to_third_op": None, "otter_count": 1},
+        {"farm_id": "m3", "status": STATUS_NOT_STARTED, "digs_to_third_op": None, "otter_count": 0},
+    ]
+    assigned = {row["farm_id"]: row for row in assign_incomplete_official_scores(rows)}
+    assert assigned["c"]["digs_to_third_op"] == 18
+    assert assigned["m1"]["digs_to_third_op"] == 35
+    assert assigned["m2"]["digs_to_third_op"] == 40
+    assert assigned["m3"]["digs_to_third_op"] == 45
+
+
+def test_incomplete_floor_is_30_when_highest_completed_is_lower():
+    from tournament.scoring import incomplete_official_score
+
+    assert incomplete_official_score(2, 12) == 35
+
+
+def test_no_completers_uses_floor_30():
+    from tournament.scoring import assign_incomplete_official_scores, incomplete_official_score
+
+    assert incomplete_official_score(1, None) == 40
+    rows = [
+        {"farm_id": "a", "status": STATUS_IN_PROGRESS, "digs_to_third_op": None, "otter_count": 2},
+        {"farm_id": "b", "status": STATUS_NOT_STARTED, "digs_to_third_op": None, "otter_count": 0},
+    ]
+    assigned = {row["farm_id"]: row for row in assign_incomplete_official_scores(rows)}
+    assert assigned["a"]["digs_to_third_op"] == 35
+    assert assigned["b"]["digs_to_third_op"] == 45
+
+
+def test_midday_clock_does_not_apply_2300_cutoff():
+    from tournament.scoring import is_finalize_clock, scoring_window_end
+
+    tournament_end = datetime(2026, 8, 21, 0, 0, tzinfo=timezone.utc)
+    after = _ms(2026, 8, 14, 23, 30)
+    grid = [pebble(dug_at=after)]
+    for hour in (14, 16, 18, 20):
+        midday = datetime(2026, 8, 14, hour, 0, tzinfo=timezone.utc)
+        assert is_finalize_clock(midday) is False
+        assert scoring_window_end(tournament_end, midday) == tournament_end
+        result = score_grid(grid, now=midday, window_end=scoring_window_end(tournament_end, midday))
+        assert result.total_digs == 1
+        assert result.otter_count == 1
+
+
+def test_finalize_clock_is_2300_and_later_same_day():
+    from tournament.scoring import is_finalize_clock
+
+    assert is_finalize_clock(datetime(2026, 8, 14, 22, 59, tzinfo=timezone.utc)) is False
+    assert is_finalize_clock(datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)) is True
+    assert is_finalize_clock(datetime(2026, 8, 14, 23, 45, tzinfo=timezone.utc)) is True
+    assert is_finalize_clock(datetime(2026, 8, 15, 0, 0, tzinfo=timezone.utc)) is False

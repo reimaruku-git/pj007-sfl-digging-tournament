@@ -138,9 +138,23 @@ export function LeaderboardPage() {
         )}
       </div>
 
-      <section className="card" style={{ marginTop: 16 }}>
+      <section className="card" id="rules" style={{ marginTop: 16 }}>
+        <div className="kicker">Rules</div>
+        <p className="meta">
+          Sand Shovel costs 1 dig. Sand Drill costs 4, even if it uncovers 4 tiles. Official
+          score is the dig number of the 3rd Otter Pebble. Lower is better.
+        </p>
+        <p className="meta">
+          Scores refresh at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC. 23:00 is the last sync
+          of the day — digs after that do not count. If you have not found all 3 pebbles by
+          then, your score is the worst completed score of the day or 30 (whichever is higher),
+          plus 5 for every Otter Pebble still missing.
+        </p>
+      </section>
+
+      <section className="card" id="join" style={{ marginTop: 16 }}>
         <div className="kicker">Join the tournament</div>
-        <p className="meta">Anyone can submit a Farm ID. Only the master admin can approve it.</p>
+        <p className="meta">Anyone can submit a Farm ID. An admin approves it before it appears.</p>
         {notice && <div className={`flash ${submit.isSuccess ? "ok" : "err"}`}>{notice}</div>}
         <form className="toolbar" onSubmit={onSubmit}>
           <input

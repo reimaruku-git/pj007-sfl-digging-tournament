@@ -33,7 +33,7 @@ def official_score(row: dict[str, Any]) -> int | None:
 
 def _sort_key(row: dict[str, Any]) -> tuple:
     if row.get("invalidated"):
-        return (3, 10**12, 0, 10**12, str(row.get("farm_id") or ""))
+        return (4, 10**12, 0, 10**12, str(row.get("farm_id") or ""))
     status = row.get("status") or STATUS_NOT_STARTED
     score = official_score(row)
     otter = int(row.get("otter_count") or 0)
@@ -41,9 +41,11 @@ def _sort_key(row: dict[str, Any]) -> tuple:
     farm_id = str(row.get("farm_id") or "")
     if status == STATUS_COMPLETED and score is not None:
         return (0, score, -otter, total, farm_id)
+    if score is not None:
+        return (1, score, -otter, total, farm_id)
     if status == STATUS_IN_PROGRESS:
-        return (1, 10**12, -otter, total, farm_id)
-    return (2, 10**12, -otter, total, farm_id)
+        return (2, 10**12, -otter, total, farm_id)
+    return (3, 10**12, -otter, total, farm_id)
 
 
 def rank_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

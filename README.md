@@ -8,6 +8,7 @@ Players compete to collect **all 3 Otter Pebbles** in the fewest digs.
 - Sand Shovel = **1 dig**
 - Sand Drill = **4 digs** (nested 4-tile array is flattened)
 - Official score = flattened dig number of the **3rd Otter Pebble**
+- Auto-sync at **14:00, 16:00, 18:00, 20:00, 23:00 UTC**. After 23:00, later digs do not count. Farms missing Otter Pebbles get `max(highest completed, 30) + 5 × missing`.
 - Lower score ranks higher
 - Farm IDs live in `s3://pj007-dev-digging-tournament/config/tracked-farms.json`
 - The browser talks **only** to our API. The SFL Community API key stays on Lambda.
