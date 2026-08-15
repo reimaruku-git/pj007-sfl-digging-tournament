@@ -60,6 +60,10 @@ class DigScore:
     total_digs: int
     digs_today: int
     status: str
+    digs_to_first_op: int | None = None
+    digs_to_second_op: int | None = None
+    first_op_at: str | None = None
+    second_op_at: str | None = None
     third_op_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -241,7 +245,11 @@ def score_grid(
     otter_count = 0
     total_digs = 0
     digs_today = 0
+    digs_to_first: int | None = None
+    digs_to_second: int | None = None
     digs_to_third: int | None = None
+    first_op_at: str | None = None
+    second_op_at: str | None = None
     third_op_at: str | None = None
 
     for tile in flatten_grid(grid):
@@ -258,10 +266,16 @@ def score_grid(
 
         previous = otter_count
         otter_count += gained
+        found_at = _ms_to_utc(tile.dug_at_ms).isoformat() if tile.dug_at_ms is not None else None
+        if previous < 1 <= otter_count and digs_to_first is None:
+            digs_to_first = total_digs
+            first_op_at = found_at
+        if previous < 2 <= otter_count and digs_to_second is None:
+            digs_to_second = total_digs
+            second_op_at = found_at
         if previous < 3 <= otter_count and digs_to_third is None:
             digs_to_third = total_digs
-            if tile.dug_at_ms is not None:
-                third_op_at = _ms_to_utc(tile.dug_at_ms).isoformat()
+            third_op_at = found_at
 
     if otter_count >= 3:
         status = STATUS_COMPLETED
@@ -277,6 +291,10 @@ def score_grid(
         total_digs=total_digs,
         digs_today=digs_today,
         status=status,
+        digs_to_first_op=digs_to_first,
+        digs_to_second_op=digs_to_second,
+        first_op_at=first_op_at,
+        second_op_at=second_op_at,
         third_op_at=third_op_at,
     )
 

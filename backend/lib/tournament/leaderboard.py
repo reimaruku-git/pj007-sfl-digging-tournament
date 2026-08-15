@@ -31,21 +31,48 @@ def official_score(row: dict[str, Any]) -> int | None:
         return None
 
 
+_MISSING_DIGS = 10**12
+_LATE = "9999-12-31T23:59:59+00:00"
+
+
+def _as_rank_int(value: Any) -> int:
+    if value is None:
+        return _MISSING_DIGS
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return _MISSING_DIGS
+
+
+def _as_rank_time(value: Any) -> str:
+    text = str(value or "").strip()
+    return text if text else _LATE
+
+
+def _tie_break(row: dict[str, Any]) -> tuple:
+    """Lower digs to 2nd, then 1st; then earlier 3rd / 2nd / 1st pebble time."""
+    return (
+        _as_rank_int(row.get("digs_to_second_op")),
+        _as_rank_int(row.get("digs_to_first_op")),
+        _as_rank_time(row.get("third_op_at")),
+        _as_rank_time(row.get("second_op_at")),
+        _as_rank_time(row.get("first_op_at")),
+        str(row.get("farm_id") or ""),
+    )
+
+
 def _sort_key(row: dict[str, Any]) -> tuple:
     if row.get("invalidated"):
-        return (4, 10**12, 0, 10**12, str(row.get("farm_id") or ""))
+        return (4, _MISSING_DIGS) + _tie_break(row)
     status = row.get("status") or STATUS_NOT_STARTED
     score = official_score(row)
-    otter = int(row.get("otter_count") or 0)
-    total = int(row.get("total_digs") or 0)
-    farm_id = str(row.get("farm_id") or "")
     if status == STATUS_COMPLETED and score is not None:
-        return (0, score, -otter, total, farm_id)
+        return (0, score) + _tie_break(row)
     if score is not None:
-        return (1, score, -otter, total, farm_id)
+        return (1, score) + _tie_break(row)
     if status == STATUS_IN_PROGRESS:
-        return (2, 10**12, -otter, total, farm_id)
-    return (3, 10**12, -otter, total, farm_id)
+        return (2, _MISSING_DIGS) + _tie_break(row)
+    return (3, _MISSING_DIGS) + _tie_break(row)
 
 
 def rank_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -72,9 +99,14 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
         "farm_id": row.get("farm_id"),
         "name": row.get("name") or "",
         "digs_to_third_op": row.get("digs_to_third_op"),
+        "digs_to_first_op": row.get("digs_to_first_op"),
+        "digs_to_second_op": row.get("digs_to_second_op"),
         "otter_count": int(row.get("otter_count") or 0),
         "digs_today": int(row.get("digs_today") or 0),
         "total_digs": int(row.get("total_digs") or 0),
+        "first_op_at": row.get("first_op_at"),
+        "second_op_at": row.get("second_op_at"),
+        "third_op_at": row.get("third_op_at"),
         "last_updated_at": row.get("last_updated_at"),
         "status": row.get("status") or STATUS_NOT_STARTED,
         "invalidated": bool(row.get("invalidated")),

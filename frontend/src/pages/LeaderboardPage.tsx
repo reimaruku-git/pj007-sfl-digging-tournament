@@ -101,6 +101,13 @@ export function LeaderboardPage() {
                 Otter Pebble
               </span>
             </li>
+            <li>
+              <span>Ties</span>
+              <span>
+                Same 3rd-pebble digs: fewer digs to the 2nd pebble, then to the 1st. Still tied:
+                earlier time on the 3rd pebble, then the 2nd, then the 1st.
+              </span>
+            </li>
           </ul>
         </div>
         <div className="card stats">

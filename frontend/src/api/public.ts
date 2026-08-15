@@ -17,9 +17,14 @@ export type LeaderboardEntry = {
   farm_id: string;
   name: string;
   digs_to_third_op: number | null;
+  digs_to_first_op?: number | null;
+  digs_to_second_op?: number | null;
   otter_count: number;
   digs_today: number;
   total_digs: number;
+  first_op_at?: string | null;
+  second_op_at?: string | null;
+  third_op_at?: string | null;
   last_updated_at: string | null;
   status: FarmStatus;
   invalidated: boolean;

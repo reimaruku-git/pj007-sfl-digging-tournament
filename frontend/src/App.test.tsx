@@ -91,6 +91,8 @@ describe("routes", () => {
     expect(rules?.textContent).toMatch(/worst finisher that day/);
     expect(rules?.textContent).toMatch(/5 per missing Otter Pebble/);
     expect(rules?.textContent).toMatch(/do not affect your score/);
+    expect(rules?.textContent).toMatch(/fewer digs to the 2nd pebble/);
+    expect(rules?.textContent).toMatch(/earlier time on the 3rd pebble/);
     expect(rules?.textContent).not.toMatch(/last of those 4/);
     expect(rules?.textContent).not.toMatch(/after 4 shovel digs/i);
     expect(home.textContent).not.toMatch(/even if it uncovers 4 tiles/);

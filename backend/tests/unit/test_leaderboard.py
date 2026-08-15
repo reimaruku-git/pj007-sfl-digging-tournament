@@ -98,3 +98,54 @@ def test_finalized_incompletes_rank_after_completers_by_penalty():
     assert [row["farm_id"] for row in ranked] == ["done", "two-op", "zero-op"]
     assert ranked[1]["digs_to_third_op"] == 35
     assert ranked[2]["digs_to_third_op"] == 45
+
+
+def test_same_third_breaks_on_second_then_first_then_times():
+    """Tie-break: 3rd digs, then 2nd, then 1st, then 3rd/2nd/1st times."""
+    base = {
+        "status": "completed",
+        "digs_to_third_op": 12,
+        "otter_count": 3,
+        "total_digs": 12,
+    }
+    later = {
+        **base,
+        "farm_id": "later-second",
+        "digs_to_second_op": 8,
+        "digs_to_first_op": 2,
+        "third_op_at": "2026-08-14T12:00:00+00:00",
+        "second_op_at": "2026-08-14T11:00:00+00:00",
+        "first_op_at": "2026-08-14T10:00:00+00:00",
+    }
+    earlier_second = {
+        **base,
+        "farm_id": "earlier-second",
+        "digs_to_second_op": 6,
+        "digs_to_first_op": 4,
+        "third_op_at": "2026-08-14T12:00:00+00:00",
+        "second_op_at": "2026-08-14T11:30:00+00:00",
+        "first_op_at": "2026-08-14T10:30:00+00:00",
+    }
+    ranked = rank_scores([later, earlier_second])
+    assert [row["farm_id"] for row in ranked] == ["earlier-second", "later-second"]
+
+    same_digs_late = {
+        **base,
+        "farm_id": "late-clock",
+        "digs_to_second_op": 6,
+        "digs_to_first_op": 3,
+        "third_op_at": "2026-08-14T15:00:00+00:00",
+        "second_op_at": "2026-08-14T11:00:00+00:00",
+        "first_op_at": "2026-08-14T10:00:00+00:00",
+    }
+    same_digs_early = {
+        **base,
+        "farm_id": "early-clock",
+        "digs_to_second_op": 6,
+        "digs_to_first_op": 3,
+        "third_op_at": "2026-08-14T14:00:00+00:00",
+        "second_op_at": "2026-08-14T12:00:00+00:00",
+        "first_op_at": "2026-08-14T11:00:00+00:00",
+    }
+    by_time = rank_scores([same_digs_late, same_digs_early])
+    assert [row["farm_id"] for row in by_time] == ["early-clock", "late-clock"]

@@ -45,9 +45,14 @@ Cached snapshot. Frontend never calls the SFL API.
       "farm_id": "3666918801844311",
       "name": "rmr",
       "digs_to_third_op": 42,
+      "digs_to_first_op": 10,
+      "digs_to_second_op": 24,
       "otter_count": 3,
       "digs_today": 8,
       "total_digs": 42,
+      "first_op_at": "2026-08-14T12:10:00+00:00",
+      "second_op_at": "2026-08-14T12:24:00+00:00",
+      "third_op_at": "2026-08-14T12:42:00+00:00",
       "last_updated_at": "2026-08-14T13:00:00+00:00",
       "status": "completed",
       "invalidated": false
@@ -80,6 +85,10 @@ If nobody finished, the floor is 30. Mid-day syncs (14:00 / 16:00 / 18:00 /
 that day are not counted. Admin `POST /admin/sync` still starts a full
 sweep; the worker applies finalize when the clock is 23:00 UTC or later.
 
+Ranking (lowest better, then earlier): official `digs_to_third_op`, then
+`digs_to_second_op`, then `digs_to_first_op`, then `third_op_at`,
+`second_op_at`, `first_op_at`.
+
 ### `GET /farms/{farm_id}`
 
 Shareable personal result.
@@ -91,9 +100,14 @@ Shareable personal result.
     "farm_id": "3666918801844311",
     "name": "rmr",
     "digs_to_third_op": 42,
+    "digs_to_first_op": 10,
+    "digs_to_second_op": 24,
     "otter_count": 3,
     "digs_today": 8,
     "total_digs": 42,
+    "first_op_at": "2026-08-14T12:10:00+00:00",
+    "second_op_at": "2026-08-14T12:24:00+00:00",
+    "third_op_at": "2026-08-14T12:42:00+00:00",
     "last_updated_at": "2026-08-14T13:00:00+00:00",
     "status": "completed",
     "invalidated": false

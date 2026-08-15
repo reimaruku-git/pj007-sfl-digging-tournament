@@ -173,6 +173,8 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Every other top-level tile (Sand Shovel / unknown) costs **1**.
 - Official score = **1-based flattened position of the 3rd Otter Pebble**.
 - Once that score is set, later tiles do not change it.
+- Tie-break: fewer digs to 2nd OP, then 1st; then earlier `third_op_at`,
+  `second_op_at`, `first_op_at`.
 - Tiles outside the tournament window (by `dugAt`) are ignored.
 - Scheduled full syncs: **14:00, 16:00, 18:00, 20:00, 23:00 UTC**.
   23:00 is the day’s final sync. Admin `POST /admin/sync` is on-demand.

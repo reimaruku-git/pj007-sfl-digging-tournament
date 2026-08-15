@@ -49,6 +49,8 @@ def test_three_shovel_pebbles_score_is_third_position():
         shovel({"Crab": 1}),
     ]
     result = score_grid(grid, now=NOW)
+    assert result.digs_to_first_op == 2
+    assert result.digs_to_second_op == 4
     assert result.digs_to_third_op == 6
     assert result.otter_count == 3
     assert result.total_digs == 7
@@ -239,9 +241,12 @@ def test_third_op_on_standalone_drill_is_position_after_four_digs():
 def test_multiple_pebbles_on_one_tile():
     grid = [shovel({"Otter Pebble": 3})]
     result = score_grid(grid, now=NOW)
+    assert result.digs_to_first_op == 1
+    assert result.digs_to_second_op == 1
     assert result.digs_to_third_op == 1
     assert result.otter_count == 3
     assert result.status == STATUS_COMPLETED
+    assert result.first_op_at == result.third_op_at
 
 
 def test_tournament_window_ignores_old_tiles():

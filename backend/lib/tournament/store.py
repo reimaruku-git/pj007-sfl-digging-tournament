@@ -111,6 +111,8 @@ class Store:
             "farm_id": str(farm_id),
             "name": name,
             "digs_to_third_op": None,
+            "digs_to_first_op": None,
+            "digs_to_second_op": None,
             "otter_count": 0,
             "total_digs": 0,
             "digs_today": 0,
@@ -119,6 +121,8 @@ class Store:
             "override_digs_to_third_op": None,
             "override_reason": None,
             "error": None,
+            "first_op_at": None,
+            "second_op_at": None,
             "third_op_at": None,
             "last_updated_at": utc_now_iso(),
         }
