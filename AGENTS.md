@@ -221,13 +221,13 @@ Rules that bite here:
 
 | Path | Role |
 |------|------|
-| `src/auth/amplify.ts` | Amplify config; throws if Cognito env missing |
+| `src/auth/amplify.ts` | Amplify config; loaded only with the admin chunk |
 | `src/auth/session.ts` | ID token + 401 → signOut → `/admin` |
 | `src/api/client.ts` | **Only** HTTP transport |
 | `src/api/public.ts` | Leaderboard, farm, config, submit |
 | `src/api/admin.ts` | Admin endpoints (no `adminLogin`) |
 | `src/components/Layout.tsx` | Public chrome: burger (rules / join / find farm). No Admin link. |
-| `src/pages/LeaderboardPage.tsx` | Public board (`/` default) |
+| `src/pages/LeaderboardPage.tsx` | Public board (`/` default): podium, pebble marks, next-sync clock |
 | `src/pages/FarmPage.tsx` | Shareable personal result |
 | `src/pages/AdminPage.tsx` | Amplify signIn + panel. Reachable only by typing `/admin`. |
 

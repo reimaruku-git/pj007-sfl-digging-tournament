@@ -11,6 +11,8 @@ vi.mock("aws-amplify/auth", () => ({
   confirmSignIn: vi.fn(),
 }));
 
+vi.mock("./auth/amplify", () => ({}));
+
 vi.mock("./api/public", () => ({
   fetchLeaderboard: vi.fn().mockResolvedValue({
     entries: [],
@@ -88,8 +90,9 @@ describe("routes", () => {
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
     });
-    expect(admin.textContent).toMatch(/Master admin|Checking session|Sign in/);
+    expect(admin.textContent).toMatch(/Master admin|Checking session|Sign in|Loading admin/);
     expect(admin.querySelector('button[aria-label="Menu"]')).not.toBeNull();
   });
 

@@ -1,4 +1,3 @@
-import "./auth/amplify";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -13,8 +12,9 @@ if (!import.meta.env.VITE_API_BASE) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000,
+      staleTime: 2 * 60 * 1000,
       retry: 1,
+      refetchOnWindowFocus: true,
     },
   },
 });

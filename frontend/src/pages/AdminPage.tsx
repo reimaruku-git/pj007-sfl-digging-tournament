@@ -1,3 +1,4 @@
+import "../auth/amplify";
 import { FormEvent, useEffect, useState } from "react";
 import { confirmSignIn, signIn, signOut } from "aws-amplify/auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

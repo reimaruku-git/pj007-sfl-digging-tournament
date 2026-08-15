@@ -1,24 +1,41 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { fetchLeaderboard, submitFarm } from "../api/public";
-import { formatWhen, statusLabel } from "../components/Layout";
+import { Pebbles } from "../components/Pebbles";
+import { Podium } from "../components/Podium";
+import { SyncCountdown } from "../components/SyncCountdown";
+import { readFollowedFarm, writeFollowedFarm } from "../lib/followFarm";
+import { formatRelative, formatWhenUtc, statusLabel } from "../lib/format";
+import { msUntilNextSync } from "../lib/schedule";
 
 export function LeaderboardPage() {
   const [query, setQuery] = useState("");
   const [farmId, setFarmId] = useState("");
   const [name, setName] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [mine, setMine] = useState(() => readFollowedFarm());
 
   const board = useQuery({
     queryKey: ["leaderboard"],
     queryFn: fetchLeaderboard,
-    refetchInterval: 3 * 60 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: false,
   });
+
+  useEffect(() => {
+    const wait = Math.min(msUntilNextSync() + 45_000, 6 * 60 * 60_000);
+    const id = window.setTimeout(() => {
+      void board.refetch();
+    }, Math.max(wait, 15_000));
+    return () => window.clearTimeout(id);
+  }, [board.dataUpdatedAt, board.refetch]);
 
   const submit = useMutation({
     mutationFn: () => submitFarm(farmId.trim(), name.trim()),
     onSuccess: () => {
+      writeFollowedFarm(farmId.trim());
+      setMine(farmId.trim());
       setNotice("Farm submitted. An admin will approve it before it appears.");
       setFarmId("");
       setName("");
@@ -26,8 +43,8 @@ export function LeaderboardPage() {
     onError: (error: Error) => setNotice(error.message),
   });
 
+  const all = board.data?.entries ?? [];
   const entries = useMemo(() => {
-    const all = board.data?.entries ?? [];
     const needle = query.trim().toLowerCase();
     if (!needle) return all;
     return all.filter(
@@ -35,10 +52,11 @@ export function LeaderboardPage() {
         entry.farm_id.toLowerCase().includes(needle) ||
         (entry.name || "").toLowerCase().includes(needle),
     );
-  }, [board.data, query]);
+  }, [all, query]);
 
   const config = board.data?.config;
-  const completed = (board.data?.entries ?? []).filter((row) => row.status === "completed").length;
+  const completed = all.filter((row) => row.status === "completed").length;
+  const followed = all.find((row) => row.farm_id === mine);
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -49,12 +67,12 @@ export function LeaderboardPage() {
   return (
     <>
       <section className="hero">
-        <div className="card">
+        <div className="card prize-card">
           <div className="kicker">Prize pool</div>
           <div className="prize">{config?.prize_amount ?? "30"} Flower</div>
           <p className="meta">
             Collect all 3 Otter Pebbles in the fewest digs. Sand Shovel = 1, Sand Drill = 4.
-            Score is the dig number of the 3rd pebble. Lower is better.
+            Lower score wins.
           </p>
         </div>
         <div className="card stats">
@@ -68,8 +86,8 @@ export function LeaderboardPage() {
           </div>
           <div className="stat">
             <span className="muted">Window</span>
-            <b>
-              {config ? `${formatWhen(config.start_at)} → ${formatWhen(config.end_at)}` : "—"}
+            <b className="stat-window">
+              {config ? `${formatWhenUtc(config.start_at)} → ${formatWhenUtc(config.end_at)}` : "—"}
             </b>
           </div>
           <div className="stat">
@@ -78,8 +96,22 @@ export function LeaderboardPage() {
               {completed} / {board.data?.count ?? 0}
             </b>
           </div>
+          <SyncCountdown />
         </div>
       </section>
+
+      <Podium entries={all} />
+
+      {followed && (
+        <Link to={`/farm/${followed.farm_id}`} className="you-banner">
+          <span className="kicker">Your farm</span>
+          <strong>
+            {followed.name || "Unnamed farm"} · rank {followed.rank ?? "—"} ·{" "}
+            {followed.digs_to_third_op ?? "—"} digs
+          </strong>
+          <Pebbles count={followed.otter_count} />
+        </Link>
+      )}
 
       <div className="toolbar">
         <input
@@ -88,71 +120,124 @@ export function LeaderboardPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
+        {board.dataUpdatedAt ? (
+          <span className="muted toolbar-meta">
+            Updated {formatRelative(new Date(board.dataUpdatedAt).toISOString())}
+          </span>
+        ) : null}
       </div>
 
       <div className="card table-wrap">
-        {board.isLoading && <p className="muted">Loading cached leaderboard…</p>}
+        {board.isLoading && (
+          <div className="skeleton-stack" aria-hidden>
+            <div className="skeleton" />
+            <div className="skeleton" />
+            <div className="skeleton" />
+          </div>
+        )}
         {board.isError && <p className="flash err">{(board.error as Error).message}</p>}
         {!board.isLoading && entries.length === 0 && (
           <p className="muted">No farms match yet. Submit a Farm ID below.</p>
         )}
         {entries.length > 0 && (
-          <table>
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Farm</th>
-                <th>Digs to 3rd OP</th>
-                <th>Otter Pebbles</th>
-                <th>Digs today</th>
-                <th>Updated</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((row) => (
-                <tr
-                  key={row.farm_id}
-                  className={row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : ""}
-                >
-                  <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>
-                    {row.rank ?? "—"}
-                  </td>
-                  <td>
-                    <Link to={`/farm/${row.farm_id}`}>
-                      {row.name || "Unnamed farm"}
-                      <div className="farm-id">{row.farm_id}</div>
-                    </Link>
-                  </td>
-                  <td>{row.digs_to_third_op ?? "—"}</td>
-                  <td>{row.otter_count}/3</td>
-                  <td>{row.digs_today}</td>
-                  <td>{formatWhen(row.last_updated_at)}</td>
-                  <td>
-                    <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                  </td>
+          <>
+            <table className="board-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Farm</th>
+                  <th>Score</th>
+                  <th>Pebbles</th>
+                  <th>Today</th>
+                  <th>Updated</th>
+                  <th>Status</th>
                 </tr>
+              </thead>
+              <tbody>
+                {entries.map((row) => (
+                  <tr
+                    key={row.farm_id}
+                    className={[
+                      row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
+                      row.farm_id === mine ? "is-you" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</td>
+                    <td>
+                      <Link to={`/farm/${row.farm_id}`}>
+                        {row.name || "Unnamed farm"}
+                        {row.farm_id === mine ? <span className="you-tag">You</span> : null}
+                        <div className="farm-id">{row.farm_id}</div>
+                      </Link>
+                    </td>
+                    <td>{row.digs_to_third_op ?? "—"}</td>
+                    <td>
+                      <Pebbles count={row.otter_count} />
+                    </td>
+                    <td>{row.digs_today}</td>
+                    <td>{formatRelative(row.last_updated_at)}</td>
+                    <td>
+                      <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="board-cards">
+              {entries.map((row) => (
+                <Link
+                  key={row.farm_id}
+                  to={`/farm/${row.farm_id}`}
+                  className={[
+                    "farm-card",
+                    row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
+                    row.farm_id === mine ? "is-you" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <div className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</div>
+                  <div className="farm-card-main">
+                    <div className="farm-card-name">
+                      {row.name || "Unnamed farm"}
+                      {row.farm_id === mine ? <span className="you-tag">You</span> : null}
+                    </div>
+                    <div className="farm-id">{row.farm_id}</div>
+                    <div className="farm-card-meta">
+                      <Pebbles count={row.otter_count} />
+                      <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                    </div>
+                  </div>
+                  <div className="farm-card-score">
+                    <b>{row.digs_to_third_op ?? "—"}</b>
+                    <span>digs</span>
+                  </div>
+                </Link>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
 
-      <section className="card" id="rules" style={{ marginTop: 16 }}>
+      <section className="card" id="rules">
         <div className="kicker">Rules</div>
-        <p className="meta">
-          Sand Shovel costs 1 dig. Sand Drill costs 4, even if it uncovers 4 tiles. Official
-          score is the dig number of the 3rd Otter Pebble. Lower is better.
-        </p>
-        <p className="meta">
-          Scores refresh at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC. 23:00 is the last sync
-          of the day — digs after that do not count. If you have not found all 3 pebbles by
-          then, your score is the worst completed score of the day or 30 (whichever is higher),
-          plus 5 for every Otter Pebble still missing.
-        </p>
+        <ul className="rules-list">
+          <li>Sand Shovel costs 1 dig. Sand Drill costs 4, even if it uncovers 4 tiles.</li>
+          <li>Official score is the dig number of the 3rd Otter Pebble. Lower is better.</li>
+          <li>
+            Scores refresh at 14:00, 16:00, 18:00, 20:00, and 23:00 UTC. 23:00 is the last sync
+            of the day — later digs do not count.
+          </li>
+          <li>
+            Missing pebbles at 23:00: worst completed score that day or 30 (whichever is higher),
+            plus 5 per Otter Pebble still missing.
+          </li>
+        </ul>
       </section>
 
-      <section className="card" id="join" style={{ marginTop: 16 }}>
+      <section className="card" id="join">
         <div className="kicker">Join the tournament</div>
         <p className="meta">Anyone can submit a Farm ID. An admin approves it before it appears.</p>
         {notice && <div className={`flash ${submit.isSuccess ? "ok" : "err"}`}>{notice}</div>}
