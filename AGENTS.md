@@ -192,7 +192,7 @@ Canonical: `backend/lib/tournament/scoring.py` +
   `max(highest completed 3rd-OP, 30) + 5 × (3 − otter_count)`.
   No completers → floor 30. Mid-day syncs do **not** assign that penalty.
 - Lower score ranks higher.
-- Default prize is `"30"` Flower (JSON **string**). Min period **7 days**.
+- Default prize is `"30"` Flower (JSON **string**). Min period **1 day**.
   Admin creates named tournaments (`POST /admin/tournaments`) with from/to
   or start + `duration_days`. Empty catalog is valid — do not invent a
   default Active window. Admin can create, edit (including live duration),

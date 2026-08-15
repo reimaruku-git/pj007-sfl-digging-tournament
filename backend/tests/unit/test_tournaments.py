@@ -51,6 +51,24 @@ def test_create_scheduled_and_reject_overlap(aws_env):
         raise AssertionError("expected overlap conflict")
 
 
+def test_one_day_tournament_is_allowed(aws_env):
+    store = _store(aws_env)
+    clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
+    created = create_tournament(
+        store,
+        {
+            "name": "Sprint",
+            "start_at": "2026-08-20T00:00:00+00:00",
+            "duration_days": 1,
+            "prize_amount": "10",
+        },
+        now=clock,
+    )
+    assert created["status"] == "scheduled"
+    assert created["duration_days"] == 1
+    assert created["end_at"].startswith("2026-08-21")
+
+
 def test_empty_store_has_no_default_live(aws_env):
     from tournament.catalog import list_public_tournaments, seed_catalog
 

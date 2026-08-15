@@ -296,9 +296,9 @@ Same public shape as `GET /config` — never the raw DynamoDB item.
 
 ### `PUT /admin/config`
 
-Minimum duration is 7 days. Prefer `duration_days` (7 or 30 are the usual
-lengths); `end_at` is derived as `start_at + duration_days`. `end_at` is
-still accepted. `prize_amount` is a JSON string.
+Minimum duration is 1 day. Prefer `duration_days` (1, 7, or 30 are the
+usual lengths); `end_at` is derived as `start_at + duration_days`.
+`end_at` is still accepted. `prize_amount` is a JSON string.
 
 Changing start/length archives the previous event to S3 first. After a
 successful write the handler re-scores farms that have snapshots.
@@ -320,7 +320,7 @@ Same list shape as `GET /tournaments`.
 ### `POST /admin/tournaments`
 
 Create a named event. `201` `{ "tournament": { … } }`. Windows may not
-overlap a scheduled or live event. Minimum 7 days. `name` is required
+overlap a scheduled or live event. Minimum 1 day. `name` is required
 (1–80 chars). `end_at` or `duration_days` is required.
 
 ```json

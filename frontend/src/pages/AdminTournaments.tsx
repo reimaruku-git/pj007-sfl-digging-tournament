@@ -55,8 +55,8 @@ export function AdminTournaments({
       setError("Name and start date are required.");
       return;
     }
-    if (draft.duration_days < 7) {
-      setError("Tournament must run at least 7 days.");
+    if (draft.duration_days < 1) {
+      setError("Tournament must run at least 1 day.");
       return;
     }
     const payload: TournamentDraft = {
@@ -131,7 +131,7 @@ export function AdminTournaments({
             Length (days)
             <input
               type="number"
-              min={7}
+              min={1}
               value={draft.duration_days}
               onChange={(event) => setDraft({ ...draft, duration_days: Number(event.target.value) })}
               required

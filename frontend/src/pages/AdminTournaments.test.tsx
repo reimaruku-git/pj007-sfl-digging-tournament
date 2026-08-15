@@ -64,6 +64,7 @@ describe("AdminTournaments", () => {
     expect(container.textContent).not.toMatch(/Custom days/);
     expect(container.textContent).not.toMatch(/To \(optional\)/);
     expect(container.querySelectorAll('input[type="number"]')).toHaveLength(1);
+    expect((container.querySelector('input[type="number"]') as HTMLInputElement).min).toBe("1");
   });
 
   it("splits current and upcoming and lets both be edited", () => {

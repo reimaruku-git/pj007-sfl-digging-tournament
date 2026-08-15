@@ -390,7 +390,7 @@ def test_admin_put_config_rejects_short_duration(aws_env, monkeypatch):
         _event(
             "PUT",
             "/admin/config",
-            {"start_at": "2026-08-01T00:00:00+00:00", "duration_days": 6},
+            {"start_at": "2026-08-01T00:00:00+00:00", "duration_days": 0},
         ),
         None,
     )
