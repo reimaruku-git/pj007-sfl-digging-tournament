@@ -16,7 +16,6 @@ from common.response import create_error_response, create_response, set_request_
 from tournament.farms import FarmRegistry
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.scoring import STATUS_COMPLETED
-from tournament.sfl_client import RateLimitedSFLClient
 from tournament.store import MIN_TOURNAMENT_DAYS, Store
 from tournament.sync import (
     ensure_default_config,
@@ -24,7 +23,6 @@ from tournament.sync import (
     public_config,
     refresh_leaderboard,
     rescore_from_snapshots,
-    sync_one_farm,
     tournament_status,
 )
 
@@ -35,9 +33,7 @@ DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
 CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
 SUBMISSIONS_TABLE = os.environ.get("SUBMISSIONS_TABLE", "")
-SFL_API_KEY = os.environ.get("SFL_API_KEY", "")
 FARM_SYNC_FUNCTION = os.environ.get("FARM_SYNC_FUNCTION", "")
-SFL_MIN_INTERVAL_SECONDS = float(os.environ.get("SFL_MIN_INTERVAL_SECONDS", "12"))
 
 _store: Store | None = None
 _registry: FarmRegistry | None = None
@@ -61,13 +57,6 @@ def _get_registry() -> FarmRegistry:
     if _registry is None:
         _registry = FarmRegistry(DATA_BUCKET)
     return _registry
-
-
-def _get_client() -> RateLimitedSFLClient:
-    return RateLimitedSFLClient(
-        SFL_API_KEY,
-        min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
-    )
 
 
 def _lambda_client():
@@ -201,14 +190,17 @@ def handle_admin_session(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"ok": True})
 
 
-def _kick_farm_sync(source: str) -> bool:
+def _kick_farm_sync(source: str, farm_id: str | None = None) -> bool:
     if not FARM_SYNC_FUNCTION:
         return False
+    payload: dict[str, Any] = {"source": source}
+    if farm_id:
+        payload["farm_id"] = farm_id
     try:
         _lambda_client().invoke(
             FunctionName=FARM_SYNC_FUNCTION,
             InvocationType="Event",
-            Payload=json.dumps({"source": source}),
+            Payload=json.dumps(payload),
         )
         return True
     except Exception:
@@ -362,13 +354,15 @@ def handle_admin_reject_submission(event: dict[str, Any]) -> dict[str, Any]:
 
 def handle_admin_refresh_farm(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _path_params(event).get("farm_id", "").strip()
-    registry = _get_registry()
-    farm = registry.get(farm_id)
-    if not farm:
+    if not farm_id:
+        return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    if not _get_registry().get(farm_id):
         return create_error_response(404, "farm is not tracked", "NOT_FOUND")
-    row = sync_one_farm(_get_store(), _get_client(), farm)
-    refresh_leaderboard(_get_store())
-    return create_response(200, {"score": row})
+    if not FARM_SYNC_FUNCTION:
+        return create_error_response(500, "sync function is not configured", "CONFIG_ERROR")
+    if not _kick_farm_sync("admin-refresh", farm_id):
+        return create_error_response(500, "failed to start refresh", "SYNC_ERROR")
+    return create_response(202, {"accepted": True, "farm_id": farm_id})
 
 
 def handle_admin_sync(event: dict[str, Any]) -> dict[str, Any]:

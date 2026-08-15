@@ -214,11 +214,23 @@ without a snapshot catch up.
 
 ### `POST /admin/farms/{farm_id}/refresh`
 
-Force-refresh one farm (still respects the 10–15s SFL gap).
+`202` — asks the farm-sync worker to fetch this one tracked farm. The HTTP
+handler does not call SFL and does not return a live score.
+
+```json
+{ "accepted": true, "farm_id": "3666918801844311" }
+```
+
+`404` if the farm is not in the S3 registry.
 
 ### `POST /admin/sync`
 
-`202` — invokes the scheduled sync Lambda asynchronously.
+`202` — asks the farm-sync worker to walk every tracked farm. Asynchronous;
+the HTTP handler does not wait for SFL.
+
+```json
+{ "accepted": true }
+```
 
 ### `PUT /admin/scores/{farm_id}`
 

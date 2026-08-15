@@ -80,8 +80,9 @@ Browser  ──public──►  HTTP API  ──►  Main Lambda (router)
                           ├── S3: config/tracked-farms.json + snapshots/
                           └── SFL Community API (server-side, rate-limited)
 
-EventBridge ──► FarmSync Lambda (full sweep, same SFL gap)
-Admin POST /admin/sync ──► async invoke FarmSync
+EventBridge ──► FarmSync Lambda (full sweep or one farm, same SFL gap)
+Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke FarmSync
+HTTP never calls the SFL Community API.
 ```
 
 | Resource | Name / key |
@@ -108,7 +109,7 @@ pj007-dev-digging-tournament/
 | Function | Path | Role |
 |----------|------|------|
 | `pj007-dev-digging-tournament-main-function` | `backend/lambda_functions/main_function/app.py` | HTTP router |
-| `pj007-dev-digging-tournament-farm-sync` | `backend/lambda_functions/farm_sync/app.py` | Scheduled + on-demand sweep |
+| `pj007-dev-digging-tournament-farm-sync` | `backend/lambda_functions/farm_sync/app.py` | Scheduled sweep or one-farm refresh |
 
 Shared code is a Lambda layer from `backend/lib/`.
 

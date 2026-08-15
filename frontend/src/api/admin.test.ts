@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchAdminConfig, saveConfig } from "./admin";
+import { fetchAdminConfig, refreshFarm, saveConfig } from "./admin";
 
 vi.mock("./client", () => ({
   requestJson: vi.fn(),
@@ -56,5 +56,15 @@ describe("admin api", () => {
     });
     expect(saved.config.prize_amount).toBe("30");
     expect(saved.rescore?.rescored).toBe(2);
+  });
+
+  it("starts a one-farm refresh as accepted, not a live score", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({ accepted: true, farm_id: "3666918801844311" }),
+    );
+    await refreshFarm("3666918801844311");
+    expect(mockRequest).toHaveBeenCalledWith("admin/farms/3666918801844311/refresh", {
+      method: "POST",
+    });
   });
 });

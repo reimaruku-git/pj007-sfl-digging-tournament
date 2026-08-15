@@ -25,10 +25,10 @@ def _load_app(aws_env, monkeypatch):
     module.CONFIG_TABLE = aws_env["config_table"]
     module.SCORES_TABLE = aws_env["scores_table"]
     module.SUBMISSIONS_TABLE = aws_env["submissions_table"]
-    module.SFL_API_KEY = "test-key"
     module.FARM_SYNC_FUNCTION = ""
     module._store = None
     module._registry = None
+    module._lambda = None
     return module
 
 
@@ -193,6 +193,83 @@ def test_admin_update_farm_route_is_wired(aws_env, monkeypatch):
     assert updated["statusCode"] == 200
     assert _json(updated)["farm"]["name"] == "b"
     assert _json(updated)["farm"]["active"] is False
+
+
+class FakeLambda:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def invoke(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"StatusCode": 202}
+
+
+def test_http_handler_does_not_import_sfl_client(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    assert not hasattr(app, "_get_client")
+    assert "RateLimitedSFLClient" not in dir(app)
+    source = (ROOT / "lambda_functions" / "main_function" / "app.py").read_text()
+    assert "sync_one_farm" not in source
+    assert "community/farms" not in source
+    assert "RateLimitedSFLClient" not in source
+
+
+def test_admin_refresh_accepts_and_does_not_call_sfl(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    app.FARM_SYNC_FUNCTION = "pj007-test-farm-sync"
+    fake = FakeLambda()
+    app._lambda = fake
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("HTTP must not construct an SFL client")
+
+    monkeypatch.setattr("tournament.sfl_client.RateLimitedSFLClient", boom)
+
+    added = app.lambda_handler(
+        _event("POST", "/admin/farms", {"farm_id": "99", "name": "rmr"}),
+        None,
+    )
+    assert added["statusCode"] == 201
+    refreshed = app.lambda_handler(
+        _event("POST", "/admin/farms/99/refresh", farm_id="99"),
+        None,
+    )
+    assert refreshed["statusCode"] == 202
+    body = _json(refreshed)
+    assert body["accepted"] is True
+    assert body["farm_id"] == "99"
+    assert "score" not in body
+    assert len(fake.calls) == 1
+    assert fake.calls[0]["FunctionName"] == "pj007-test-farm-sync"
+    assert fake.calls[0]["InvocationType"] == "Event"
+    payload = json.loads(fake.calls[0]["Payload"])
+    assert payload == {"source": "admin-refresh", "farm_id": "99"}
+
+
+def test_admin_refresh_untracked_does_not_invoke(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    app.FARM_SYNC_FUNCTION = "pj007-test-farm-sync"
+    fake = FakeLambda()
+    app._lambda = fake
+    response = app.lambda_handler(
+        _event("POST", "/admin/farms/missing/refresh", farm_id="missing"),
+        None,
+    )
+    assert response["statusCode"] == 404
+    assert fake.calls == []
+
+
+def test_admin_sync_accepts_without_farm_id(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    app.FARM_SYNC_FUNCTION = "pj007-test-farm-sync"
+    fake = FakeLambda()
+    app._lambda = fake
+    response = app.lambda_handler(_event("POST", "/admin/sync"), None)
+    assert response["statusCode"] == 202
+    assert _json(response) == {"accepted": True}
+    payload = json.loads(fake.calls[0]["Payload"])
+    assert payload == {"source": "admin"}
+    assert "farm_id" not in payload
 
 
 def test_unknown_route(aws_env, monkeypatch):

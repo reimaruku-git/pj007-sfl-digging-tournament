@@ -112,13 +112,12 @@ export async function saveConfig(input: {
   };
 }
 
-export async function refreshFarm(farmId: string): Promise<LeaderboardEntry> {
-  const { response, data } = await requestJson<{ score: LeaderboardEntry }>(
+export async function refreshFarm(farmId: string): Promise<void> {
+  const { response, data } = await requestJson<{ accepted: boolean; farm_id: string }>(
     `admin/farms/${encodeURIComponent(farmId)}/refresh`,
     { method: "POST" },
   );
-  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to refresh farm"));
-  return data.score;
+  if (!response.ok) throw new Error(errorMessage(data, "failed to start farm refresh"));
 }
 
 export async function triggerSync(): Promise<void> {

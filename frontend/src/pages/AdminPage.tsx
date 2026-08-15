@@ -375,7 +375,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       type="button"
                       onClick={() =>
                         refreshFarm(farm.farm_id)
-                          .then(() => note(`Refreshed ${farm.farm_id}`))
+                          .then(() =>
+                            note(
+                              `Refresh started for ${farm.farm_id}. Score updates in the background.`,
+                            ),
+                          )
                           .catch((error: Error) => note(error.message, "err"))
                       }
                     >
