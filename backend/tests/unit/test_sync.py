@@ -28,8 +28,21 @@ class FakeClient:
         return self.payloads[farm_id]
 
 
-def _grid_payload(tiles):
-    return {"farm": {"desert": {"digging": {"grid": tiles}}}}
+def _grid_payload(tiles, streak_count=3):
+    return {
+        "farm": {
+            "desert": {
+                "digging": {
+                    "grid": tiles,
+                    "streak": {
+                        "count": streak_count,
+                        "collectedAt": "2026-08-14T00:00:00.000Z",
+                        "totalClaimed": streak_count,
+                    },
+                }
+            }
+        }
+    }
 
 
 def shovel(items=None, dug_at=None):
@@ -70,6 +83,8 @@ def test_sync_one_farm_writes_score_and_snapshot(aws_env):
     assert row["status"] == "completed"
     snapshot = store.read_snapshot("99")
     assert snapshot["score"]["digs_to_third_op"] == 6
+    assert snapshot["streak"]["count"] == 3
+    assert snapshot["digging_streak"] == 3
 
 
 def test_sync_all_records_failures_and_rebuilds_cache(aws_env):
@@ -199,7 +214,9 @@ def test_finalize_2300_assigns_incomplete_and_is_idempotent(aws_env):
     ):
         computed = score_grid(grid, now=NOW)
         apply_computed_score(store, farm_id=farm_id, name=name, computed=computed)
-        store.write_snapshot(farm_id, {"farm_id": farm_id, "grid": grid, "score": computed.to_dict()})
+        store.write_snapshot(
+            farm_id, {"farm_id": farm_id, "grid": grid, "score": computed.to_dict()}
+        )
 
     clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
     first = apply_day_finalize(store, now=clock)

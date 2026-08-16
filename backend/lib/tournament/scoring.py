@@ -371,21 +371,67 @@ def assign_incomplete_official_scores(rows: list[dict[str, Any]]) -> list[dict[s
     return assigned
 
 
-def extract_grid(farm_payload: Any) -> list[Any]:
-    """Pull ``farm.desert.digging.grid`` out of a Community API payload."""
+def _farm_section(farm_payload: Any) -> dict[str, Any]:
     if not isinstance(farm_payload, dict):
-        return []
+        return {}
     farm = farm_payload.get("farm")
-    if not isinstance(farm, dict):
-        farm = farm_payload
+    if isinstance(farm, dict):
+        return farm
+    return farm_payload
+
+
+def _digging_section(farm_payload: Any) -> dict[str, Any] | None:
+    farm = _farm_section(farm_payload)
     desert = farm.get("desert") if isinstance(farm, dict) else None
     if not isinstance(desert, dict):
-        return []
+        return None
     digging = desert.get("digging")
-    if not isinstance(digging, dict):
+    return digging if isinstance(digging, dict) else None
+
+
+def extract_grid(farm_payload: Any) -> list[Any]:
+    """Pull ``farm.desert.digging.grid`` out of a Community API payload."""
+    digging = _digging_section(farm_payload)
+    if digging is None:
         return []
     grid = digging.get("grid")
     return grid if isinstance(grid, list) else []
+
+
+def extract_streak(farm_payload: Any) -> dict[str, Any]:
+    """Pull ``farm.desert.digging.streak`` out of a Community API payload.
+
+    Shape is ``{ count, collectedAt, totalClaimed }``. A missing streak
+    (or a stored snapshot that never synced one) is count ``0``.
+    """
+    empty = {"count": 0, "collectedAt": None, "totalClaimed": None}
+    if not isinstance(farm_payload, dict):
+        return empty
+
+    raw = None
+    digging = _digging_section(farm_payload)
+    if digging is not None:
+        raw = digging.get("streak")
+    if not isinstance(raw, dict):
+        raw = farm_payload.get("streak")
+    if isinstance(raw, dict):
+        try:
+            count = int(raw.get("count") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        return {
+            "count": max(0, count),
+            "collectedAt": raw.get("collectedAt", raw.get("collected_at")),
+            "totalClaimed": raw.get("totalClaimed", raw.get("total_claimed")),
+        }
+
+    if "digging_streak" in farm_payload:
+        try:
+            count = int(farm_payload.get("digging_streak") or 0)
+        except (TypeError, ValueError):
+            count = 0
+        return {**empty, "count": max(0, count)}
+    return empty
 
 
 def iter_raw_tiles(grid: Any) -> Iterable[dict[str, Any]]:

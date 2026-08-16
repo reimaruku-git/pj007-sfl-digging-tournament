@@ -8,6 +8,7 @@ from tournament.scoring import (
     STATUS_NOT_STARTED,
     assign_incomplete_official_scores,
     extract_grid,
+    extract_streak,
     flatten_grid,
     incomplete_official_score,
     is_finalize_clock,
@@ -318,6 +319,29 @@ def test_extract_grid_from_community_payload():
     assert len(extract_grid(payload)) == 1
     assert extract_grid({}) == []
     assert extract_grid({"farm": {}}) == []
+
+
+def test_extract_streak_from_community_payload():
+    payload = {
+        "farm": {
+            "desert": {
+                "digging": {
+                    "grid": [shovel()],
+                    "streak": {
+                        "count": 9,
+                        "collectedAt": "2026-08-16T00:00:00.000Z",
+                        "totalClaimed": 9,
+                    },
+                }
+            }
+        }
+    }
+    streak = extract_streak(payload)
+    assert streak["count"] == 9
+    assert streak["collectedAt"] == "2026-08-16T00:00:00.000Z"
+    assert extract_streak({})["count"] == 0
+    assert extract_streak({"farm": {}})["count"] == 0
+    assert extract_streak({"digging_streak": 4})["count"] == 4
 
 
 def _ms(year, month, day, hour, minute=0, second=0):

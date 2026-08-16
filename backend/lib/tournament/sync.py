@@ -14,6 +14,7 @@ from tournament.membership import enrolled_farm_ids, seed_legacy_roster
 from tournament.scoring import (
     assign_incomplete_official_scores,
     extract_grid,
+    extract_streak,
     is_finalize_clock,
     score_grid,
     scoring_window_end,
@@ -270,6 +271,7 @@ def sync_one_farm(
     try:
         payload = client.fetch_farm(farm_id)
         grid = extract_grid(payload)
+        streak = extract_streak(payload)
         computed = score_grid(
             grid,
             now=clock,
@@ -282,6 +284,8 @@ def sync_one_farm(
                 "farm_id": farm_id,
                 "fetched_at": utc_now_iso(),
                 "grid": grid,
+                "streak": streak,
+                "digging_streak": streak["count"],
                 "score": computed.to_dict(),
             },
         )

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchFarm, fetchLeaderboard, submitFarm } from "./public";
+import { fetchFarm, fetchLeaderboard, fetchTournament, submitFarm } from "./public";
 
 vi.mock("./client", () => ({
   requestJson: vi.fn(),
@@ -99,5 +99,35 @@ describe("public api", () => {
     expect(result.count).toBe(1);
     expect(result.submissions[0]?.status).toBe("pending");
     expect(result.submissions[0]?.tournament_id).toBe("cup-1");
+  });
+
+  it("loads a tournament info payload including overall average per day", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        tournament: {
+          tournament_id: "cup-1",
+          archived_at: null,
+          config: {
+            tournament_id: "cup-1",
+            name: "September cup",
+            start_at: "2026-09-01T00:00:00+00:00",
+            end_at: "2026-09-08T00:00:00+00:00",
+            duration_days: 7,
+            prize_amount: "45",
+            status: "scheduled",
+            last_full_sync_at: null,
+          },
+          entries: [{ farm_id: "42", name: "Ada", score: null }],
+          count: 1,
+          leader_farm_id: null,
+          overall_average_per_day: null,
+        },
+      }),
+    );
+    const tournament = await fetchTournament("cup-1");
+    expect(mockRequest).toHaveBeenCalledWith("tournaments/cup-1");
+    expect(tournament.config.prize_amount).toBe("45");
+    expect(tournament.count).toBe(1);
+    expect(tournament.overall_average_per_day).toBeNull();
   });
 });

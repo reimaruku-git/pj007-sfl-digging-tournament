@@ -8,6 +8,7 @@ from typing import Any
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard, public_entry
 from tournament.membership import drop_tournament_members, enrolled_farm_ids, migrate_members
+from tournament.stats import overall_average_per_day
 from tournament.store import MIN_TOURNAMENT_DAYS, NAME_MAX_LEN, Store
 from tournament.sync import (
     ensure_default_config,
@@ -528,6 +529,26 @@ def list_public_tournaments(store: Store, *, now: datetime | None = None) -> lis
     return items
 
 
+def _public_tournament_payload(
+    *,
+    tournament_id_value: str,
+    archived_at: Any,
+    config: dict[str, Any],
+    entries: list[dict[str, Any]],
+    count: int,
+    leader_farm_id: Any,
+) -> dict[str, Any]:
+    return {
+        "tournament_id": tournament_id_value,
+        "archived_at": archived_at,
+        "config": config,
+        "entries": entries,
+        "count": count,
+        "leader_farm_id": leader_farm_id,
+        "overall_average_per_day": overall_average_per_day(entries),
+    }
+
+
 def get_public_tournament(
     store: Store, tournament_id_value: str, *, now: datetime | None = None
 ) -> dict[str, Any] | None:
@@ -542,53 +563,54 @@ def get_public_tournament(
             _hydrate_entry(entry, int(row.get("duration_days") or configured_duration_days(row)))
             for entry in (archive.get("entries") or [])
         ]
-        return {
-            "tournament_id": tournament_id_value,
-            "archived_at": archive.get("archived_at") or row.get("archived_at"),
-            "config": {
+        return _public_tournament_payload(
+            tournament_id_value=tournament_id_value,
+            archived_at=archive.get("archived_at") or row.get("archived_at"),
+            config={
                 **public_config({**row, "status": STATUS_ENDED}),
                 **(archive.get("config") or {}),
             },
-            "entries": entries,
-            "count": len(entries),
-            "leader_farm_id": archive.get("leader_farm_id"),
-        }
+            entries=entries,
+            count=len(entries),
+            leader_farm_id=archive.get("leader_farm_id"),
+        )
     if row and row.get("status") == STATUS_ACTIVE:
         board = live_board_payload(store, now=clock)
-        return {
-            "tournament_id": tournament_id_value,
-            "archived_at": None,
-            "config": public_config(store.get_config()),
-            "entries": board.get("entries") or [],
-            "count": int(board.get("count") or 0),
-            "leader_farm_id": board.get("leader_farm_id"),
-        }
+        return _public_tournament_payload(
+            tournament_id_value=tournament_id_value,
+            archived_at=None,
+            config=public_config(store.get_config()),
+            entries=board.get("entries") or [],
+            count=int(board.get("count") or 0),
+            leader_farm_id=board.get("leader_farm_id"),
+        )
     if row:
         board = enrollment_board(
             store,
             tournament_id_value,
             days=int(row.get("duration_days") or configured_duration_days(row)),
         )
-        return {
-            "tournament_id": tournament_id_value,
-            "archived_at": None,
-            "config": public_config({**row, "current_tournament_id": tournament_id_value}),
-            "entries": board.get("entries") or [],
-            "count": int(board.get("count") or 0),
-            "leader_farm_id": board.get("leader_farm_id"),
-        }
+        return _public_tournament_payload(
+            tournament_id_value=tournament_id_value,
+            archived_at=None,
+            config=public_config({**row, "current_tournament_id": tournament_id_value}),
+            entries=board.get("entries") or [],
+            count=int(board.get("count") or 0),
+            leader_farm_id=board.get("leader_farm_id"),
+        )
     if archive:
-        return {
-            "tournament_id": tournament_id_value,
-            "archived_at": archive.get("archived_at"),
-            "config": archive.get("config") or {},
-            "entries": [
-                _hydrate_entry(entry, int((archive.get("config") or {}).get("duration_days") or 1))
-                for entry in (archive.get("entries") or [])
-            ],
-            "count": int(archive.get("count") or 0),
-            "leader_farm_id": archive.get("leader_farm_id"),
-        }
+        entries = [
+            _hydrate_entry(entry, int((archive.get("config") or {}).get("duration_days") or 1))
+            for entry in (archive.get("entries") or [])
+        ]
+        return _public_tournament_payload(
+            tournament_id_value=tournament_id_value,
+            archived_at=archive.get("archived_at"),
+            config=archive.get("config") or {},
+            entries=entries,
+            count=int(archive.get("count") or 0),
+            leader_farm_id=archive.get("leader_farm_id"),
+        )
     return None
 
 

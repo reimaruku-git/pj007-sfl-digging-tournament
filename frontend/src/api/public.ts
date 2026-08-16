@@ -115,6 +115,7 @@ export type TournamentArchive = {
   entries: LeaderboardEntry[];
   count: number;
   leader_farm_id: string | null;
+  overall_average_per_day?: number | null;
 };
 
 export async function listTournaments(): Promise<{ tournaments: TournamentSummary[]; count: number }> {

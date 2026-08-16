@@ -160,8 +160,11 @@ Scheduled, live, and ended events. Ended standings are frozen to S3
 
 ### `GET /tournaments/{tournament_id}`
 
-Live board if the event is active, empty entries if scheduled, frozen
-S3 standings if ended.
+Live board if the event is active, enrolled ∩ tracked ∩ active
+participants if scheduled, frozen S3 standings if ended.
+`overall_average_per_day` is the mean of those entries' official scores
+(3rd-OP digs ÷ that event's duration days), or `null` when none have a
+score yet.
 
 ```json
 {
@@ -179,7 +182,8 @@ S3 standings if ended.
     },
     "entries": [],
     "count": 0,
-    "leader_farm_id": null
+    "leader_farm_id": null,
+    "overall_average_per_day": null
   }
 }
 ```
@@ -250,10 +254,11 @@ All `/admin/*` routes require a Cognito ID token. `401` if the token is missing 
 
 ### `GET /admin/farms`
 
-Collapsed player list. `average_per_day` is the live official score
-(3rd-OP digs ÷ that event's duration days) when the farm is enrolled in
-the live event, else the mean of that farm's ended-event official
-scores, or `null`.
+Collapsed player list. `digging_streak` is Sunflower Land's in-game
+`farm.desert.digging.streak.count` copied at FarmSync (missing → `0`).
+`average_per_day` is unique 3rd-OP digs ÷ the union of calendar days
+that farm was enrolled in any tournament. The same digging record on
+two overlapping boards counts once.
 
 ```json
 {
@@ -272,9 +277,9 @@ scores, or `null`.
 
 ### `GET /admin/farms/{farm_id}`
 
-Opened player: records/history, enrollments, pending joins, streak, and
-average. In-detail actions stay on the other farm routes (enable,
-refresh, snapshot, remove).
+Opened player: records/history, enrollments, pending joins, SFL digging
+streak, and unique-day average. In-detail actions stay on the other farm
+routes (enable, refresh, snapshot, remove).
 
 ```json
 {

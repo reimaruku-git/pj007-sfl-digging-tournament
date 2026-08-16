@@ -254,17 +254,20 @@ function TourneyGroup({
       <div className="kicker">{title}</div>
       {items.length === 0 && <p className="muted tourney-empty">{empty}</p>}
       {items.map((row) => (
-        <article
+        <Link
           key={row.tournament_id}
-          className="tourney-card"
+          to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+          className="tourney-card tourney-card-link"
           data-testid={`tourney-card-${row.tournament_id}`}
         >
-          <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
+          <div className="tourney-card-head">
+            <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
+            {live ? <SyncCountdown variant="card" /> : null}
+          </div>
           <div className="tourney-card-meta" data-testid={`tourney-duration-${row.tournament_id}`}>
             {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
           </div>
-          {live ? <SyncCountdown /> : null}
-        </article>
+        </Link>
       ))}
     </div>
   );

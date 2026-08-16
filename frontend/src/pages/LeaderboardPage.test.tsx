@@ -65,6 +65,7 @@ function archive(row: TournamentSummary, entries: LeaderboardEntry[]): Tournamen
     entries,
     count: entries.length,
     leader_farm_id: entries[0]?.farm_id ?? null,
+    overall_average_per_day: entries.length ? entries[0].score : null,
   };
 }
 
@@ -165,8 +166,18 @@ describe("LeaderboardPage home", () => {
     expect(durationText).toMatch(/1 Aug → 18 Aug · 17d/);
     expect(durationText).not.toMatch(/\d{2}:\d{2}/);
     expect(durationText).not.toMatch(/UTC/);
-    expect(page.querySelector('[data-testid="tourney-card-soon"]')?.textContent).toMatch(/Next refresh/);
+    const liveCard = page.querySelector('[data-testid="tourney-card-soon"]');
+    const nextRefresh = liveCard?.querySelector('[data-testid="tourney-next-refresh"]');
+    expect(liveCard?.textContent).toMatch(/Next refresh/);
+    expect(nextRefresh).not.toBeNull();
+    expect(nextRefresh?.classList.contains("tourney-next")).toBe(true);
+    expect(nextRefresh?.classList.contains("stat")).toBe(false);
+    expect(liveCard?.querySelector(".stat")).toBeNull();
+    expect(liveCard?.getAttribute("href")).toBe("/tournaments/soon");
     expect(page.querySelector('[data-testid="tourney-card-next"]')?.textContent).not.toMatch(/Next refresh/);
+    expect(page.querySelector('[data-testid="tourney-card-next"]')?.getAttribute("href")).toBe(
+      "/tournaments/next",
+    );
 
     const boards = [...page.querySelectorAll('[data-testid^="live-board-"]')];
     expect(boards).toHaveLength(2);

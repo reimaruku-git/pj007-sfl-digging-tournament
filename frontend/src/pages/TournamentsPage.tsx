@@ -23,7 +23,7 @@ function TournamentList() {
       {query.isLoading && <p className="muted">Loading tournaments…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
       <Group title="Upcoming" empty="Nothing scheduled yet." items={upcoming} />
-      <Group title="Live" empty="No live tournament." items={live} live />
+      <Group title="Live" empty="No live tournament." items={live} />
       <Group title="Past" empty="No archived tournaments yet." items={past} />
     </section>
   );
@@ -33,12 +33,10 @@ function Group({
   title,
   empty,
   items,
-  live,
 }: {
   title: string;
   empty: string;
   items: TournamentSummary[];
-  live?: boolean;
 }) {
   return (
     <div style={{ marginTop: 20 }}>
@@ -50,13 +48,7 @@ function Group({
             <li key={row.tournament_id}>
               <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
               <span>
-                <Link
-                  to={
-                    live
-                      ? "/"
-                      : `/tournaments/${encodeURIComponent(row.tournament_id)}`
-                  }
-                >
+                <Link to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}>
                   {row.name || `${row.duration_days}d event`}
                 </Link>
                 <div className="meta">
@@ -80,23 +72,38 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   });
   const data = query.data;
   return (
-    <section className="card table-wrap">
+    <section className="card table-wrap" data-testid="tournament-detail">
       <p className="meta">
-        <Link to="/tournaments">← All tournaments</Link>
+        <Link to="/">← Home</Link>
+        {" · "}
+        <Link to="/tournaments">All tournaments</Link>
       </p>
       {query.isLoading && <p className="muted">Loading tournament…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
       {data && (
         <>
           <div className="kicker">{data.config.name || "Tournament"}</div>
-          <p className="meta">
-            {formatDateRangeUtc(data.config.start_at, data.config.end_at, data.config.duration_days)} ·{" "}
-            {data.config.prize_amount} Flower
+          <p className="meta" data-testid="tournament-window">
+            {formatDateRangeUtc(data.config.start_at, data.config.end_at, data.config.duration_days)}
           </p>
+          <div className="tourney-facts">
+            <div data-testid="tournament-prize">
+              <span className="muted">Prize</span>
+              <b>{data.config.prize_amount} Flower</b>
+            </div>
+            <div data-testid="tournament-participants">
+              <span className="muted">Participants</span>
+              <b>{data.count}</b>
+            </div>
+            <div data-testid="tournament-overall-avg">
+              <span className="muted">Overall average per day</span>
+              <b>{formatScore(data.overall_average_per_day)}</b>
+            </div>
+          </div>
           {data.entries.length === 0 && (
             <p className="muted">
               {data.config.status === "scheduled"
-                ? "This event has not started."
+                ? "No farms enrolled yet."
                 : "No farms in this archive."}
             </p>
           )}

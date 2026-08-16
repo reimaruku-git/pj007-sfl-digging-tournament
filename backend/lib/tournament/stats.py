@@ -1,7 +1,7 @@
-"""Player list stats: digging streak and collapsed average per day.
+"""Player list stats: SFL digging streak and unique-day average per day.
 
 Official board score is unchanged (3rd-OP digs ÷ duration days). These
-helpers only feed the admin player list / detail.
+helpers only feed the admin player list / detail and tournament info.
 """
 
 from __future__ import annotations
@@ -9,11 +9,10 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from tournament.leaderboard import official_score
 from tournament.membership import public_member
-from tournament.scoring import flatten_grid
+from tournament.scoring import extract_streak
 from tournament.store import Store
-from tournament.window import official_score_average, parse_iso
+from tournament.window import parse_iso
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -22,70 +21,101 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
-def _tile_day(
-    dug_at_ms: int | None,
-    window_start: datetime | None,
-    window_end: datetime | None,
-):
-    if dug_at_ms is None:
-        return None
-    dug = datetime.fromtimestamp(dug_at_ms / 1000, tz=timezone.utc)
-    if window_start is not None and dug < window_start:
-        return None
-    if window_end is not None and dug > window_end:
-        return None
-    return dug.date()
+def digging_streak(source: Any) -> int:
+    """Sunflower Land in-game ``desert.digging.streak.count``.
 
-
-def digging_streak(
-    grid: Any,
-    *,
-    now: datetime | None = None,
-    window_start: datetime | None = None,
-    window_end: datetime | None = None,
-) -> int:
-    """Consecutive UTC days with ≥1 counted dig.
-
-    Walks backward from today when they dug today, otherwise from the
-    most recent dig day. Flattened Sand Drill slots share one ``dugAt``.
+    Accepts a Community API farm payload, a stored snapshot (``streak``
+    or ``digging_streak``), the raw streak object, or a bare count.
+    Missing / unreadable values are ``0``. Grid tiles are never used.
     """
-    clock = _as_utc(now or datetime.now(timezone.utc))
-    dates: set = set()
-    for tile in flatten_grid(grid):
-        day = _tile_day(tile.dug_at_ms, window_start, window_end)
-        if day is not None:
-            dates.add(day)
-    if not dates:
+    if isinstance(source, bool):
         return 0
-    today = clock.date()
-    cursor = today if today in dates else max(dates)
-    streak = 0
-    while cursor in dates:
-        streak += 1
-        cursor = cursor - timedelta(days=1)
-    return streak
+    if isinstance(source, (int, float)):
+        try:
+            return max(0, int(source))
+        except (TypeError, ValueError):
+            return 0
+    return extract_streak(source)["count"]
+
+
+def record_identity(record: dict[str, Any]) -> tuple[Any, ...]:
+    third_at = record.get("third_op_at")
+    if third_at:
+        return ("third", str(third_at))
+    return (
+        "digs",
+        record.get("digs_to_third_op"),
+        record.get("first_op_at"),
+        record.get("second_op_at"),
+        record.get("otter_count"),
+    )
+
+
+def unique_score_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One digging result, even when it landed on two tournament boards."""
+    seen: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        if record.get("digs_to_third_op") is None:
+            continue
+        try:
+            int(record["digs_to_third_op"])
+        except (TypeError, ValueError):
+            continue
+        key = record_identity(record)
+        if key not in seen:
+            seen[key] = record
+    return list(seen.values())
+
+
+def iter_window_days(start: datetime, end: datetime):
+    start_d = _as_utc(start).date()
+    end_d = _as_utc(end).date()
+    if end_d <= start_d:
+        yield start_d
+        return
+    cursor = start_d
+    while cursor < end_d:
+        yield cursor
+        cursor += timedelta(days=1)
+
+
+def unique_enrolled_days(windows: list[tuple[datetime, datetime]]) -> int:
+    """Union of UTC calendar days across enrolled tournament windows."""
+    days: set = set()
+    for start, end in windows:
+        if start is None or end is None:
+            continue
+        days.update(iter_window_days(start, end))
+    return len(days)
 
 
 def average_per_day(
     *,
-    live_enrolled: bool,
-    live_official_score: float | None,
-    ended_official_scores: list[float | int | None],
+    records: list[dict[str, Any]],
+    windows: list[tuple[datetime, datetime]],
 ) -> float | None:
-    """Collapsed list stat. Not a ranking formula.
+    """Profile avg/day: unique 3rd-OP digs ÷ unique enrolled calendar days.
 
-    Live enrollment uses that event's official score. Otherwise the mean
-    of ended-event official scores. Missing → ``None``.
+    Overlapping events that share one digging result count that record
+    once and the shared days once. Missing records or days → ``None``.
     """
-    if live_enrolled:
-        if live_official_score is None:
-            return None
-        try:
-            return round(float(live_official_score), 2)
-        except (TypeError, ValueError):
-            return None
+    days = unique_enrolled_days(windows)
+    uniq = unique_score_records(records)
+    if not days or not uniq:
+        return None
+    total = 0
+    for record in uniq:
+        total += int(record["digs_to_third_op"])
+    return round(total / days, 2)
+
+
+def overall_average_per_day(entries: list[dict[str, Any]]) -> float | None:
+    """Mean of a tournament board's official per-day scores."""
     values: list[float] = []
-    for raw in ended_official_scores:
+    for entry in entries:
+        raw = entry.get("score") if isinstance(entry, dict) else None
         if raw is None:
             continue
         try:
@@ -95,19 +125,6 @@ def average_per_day(
     if not values:
         return None
     return round(sum(values) / len(values), 2)
-
-
-def ended_official_scores_for_farm(store: Store, farm_id: str) -> list[float]:
-    scores: list[float] = []
-    for item in farm_history(store, farm_id):
-        raw = item.get("score")
-        if raw is None:
-            continue
-        try:
-            scores.append(float(raw))
-        except (TypeError, ValueError):
-            continue
-    return scores
 
 
 def farm_history(store: Store, farm_id: str) -> list[dict[str, Any]]:
@@ -141,6 +158,9 @@ def farm_history(store: Store, farm_id: str) -> list[dict[str, Any]]:
                 "duration_days": row.get("duration_days"),
                 "score": entry.get("score"),
                 "digs_to_third_op": entry.get("digs_to_third_op"),
+                "first_op_at": entry.get("first_op_at"),
+                "second_op_at": entry.get("second_op_at"),
+                "third_op_at": entry.get("third_op_at"),
                 "rank": entry.get("rank"),
                 "status": entry.get("status"),
                 "otter_count": entry.get("otter_count"),
@@ -150,65 +170,61 @@ def farm_history(store: Store, farm_id: str) -> list[dict[str, Any]]:
     return history
 
 
-def live_official_average(score_row: dict[str, Any] | None, duration_days: int) -> float | None:
-    if not score_row:
-        return None
-    return official_score_average(official_score(score_row), duration_days)
+def profile_windows_and_records(
+    store: Store, farm_id: str
+) -> tuple[list[tuple[datetime, datetime]], list[dict[str, Any]]]:
+    """Enrolled windows (any status) plus unique digging records."""
+    windows_by_tid: dict[str, tuple[datetime, datetime]] = {}
+    records: list[dict[str, Any]] = []
+
+    for item in farm_history(store, farm_id):
+        tid = str(item.get("tournament_id") or "")
+        start = parse_iso(item.get("start_at"))
+        end = parse_iso(item.get("end_at"))
+        if tid and start and end:
+            windows_by_tid[tid] = (start, end)
+        records.append(item)
+
+    for member in store.list_members(farm_id=farm_id, status="enrolled"):
+        tid = str(member.get("tournament_id") or "")
+        if not tid:
+            continue
+        event = store.get_tournament(tid) or {}
+        start = parse_iso(event.get("start_at"))
+        end = parse_iso(event.get("end_at"))
+        if start and end:
+            windows_by_tid[tid] = (start, end)
+        if event.get("status") == "active":
+            score = store.get_score(farm_id)
+            if score:
+                records.append(score)
+
+    return list(windows_by_tid.values()), records
 
 
-def snapshot_grid(snapshot: dict[str, Any] | None) -> list[Any]:
-    if not isinstance(snapshot, dict):
-        return []
-    grid = snapshot.get("grid")
-    return grid if isinstance(grid, list) else []
+def snapshot_streak_source(snapshot: dict[str, Any] | None) -> Any:
+    return snapshot if isinstance(snapshot, dict) else {}
 
 
 def collapsed_player_stats(
     *,
-    grid: Any,
-    now: datetime | None = None,
-    live_enrolled: bool,
-    live_official_score: float | None,
-    ended_official_scores: list[float | int | None],
-    window_start: datetime | None = None,
-    window_end: datetime | None = None,
+    streak_source: Any = None,
+    records: list[dict[str, Any]] | None = None,
+    windows: list[tuple[datetime, datetime]] | None = None,
 ) -> dict[str, Any]:
     return {
-        "digging_streak": digging_streak(
-            grid, now=now, window_start=window_start, window_end=window_end
-        ),
-        "average_per_day": average_per_day(
-            live_enrolled=live_enrolled,
-            live_official_score=live_official_score,
-            ended_official_scores=ended_official_scores,
-        ),
+        "digging_streak": digging_streak(streak_source),
+        "average_per_day": average_per_day(records=records or [], windows=windows or []),
     }
 
 
-def player_list_row(
-    store: Store,
-    farm: dict[str, Any],
-    *,
-    now: datetime | None = None,
-    live_tournament_id: str | None = None,
-    live_duration_days: int = 1,
-    live_window_start: datetime | None = None,
-    live_window_end: datetime | None = None,
-) -> dict[str, Any]:
+def player_list_row(store: Store, farm: dict[str, Any]) -> dict[str, Any]:
     farm_id = str(farm.get("farm_id") or "")
-    live_member = store.get_member(live_tournament_id, farm_id) if live_tournament_id else None
-    live_enrolled = bool(live_member and live_member.get("status") == "enrolled")
-    score_row = store.get_score(farm_id) if live_enrolled else None
-    live_avg = live_official_average(score_row, live_duration_days) if live_enrolled else None
-    ended = ended_official_scores_for_farm(store, farm_id)
+    windows, records = profile_windows_and_records(store, farm_id)
     stats = collapsed_player_stats(
-        grid=snapshot_grid(store.read_snapshot(farm_id)),
-        now=now,
-        live_enrolled=live_enrolled,
-        live_official_score=live_avg,
-        ended_official_scores=ended,
-        window_start=live_window_start if live_enrolled else None,
-        window_end=live_window_end if live_enrolled else None,
+        streak_source=snapshot_streak_source(store.read_snapshot(farm_id)),
+        records=records,
+        windows=windows,
     )
     return {
         "farm_id": farm_id,
@@ -226,20 +242,9 @@ def player_detail(
     now: datetime | None = None,
     live_tournament: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    _ = now, live_tournament
     farm_id = str(farm.get("farm_id") or "")
-    live_id = str((live_tournament or {}).get("tournament_id") or "") or None
-    live_days = int((live_tournament or {}).get("duration_days") or 1)
-    live_start = parse_iso((live_tournament or {}).get("start_at")) if live_tournament else None
-    live_end = parse_iso((live_tournament or {}).get("end_at")) if live_tournament else None
-    summary = player_list_row(
-        store,
-        farm,
-        now=now,
-        live_tournament_id=live_id,
-        live_duration_days=live_days,
-        live_window_start=live_start,
-        live_window_end=live_end,
-    )
+    summary = player_list_row(store, farm)
     score = store.get_score(farm_id)
     enrollments = []
     pending = []

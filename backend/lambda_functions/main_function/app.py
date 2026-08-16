@@ -401,40 +401,10 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _live_player_context(store: Store) -> dict[str, Any]:
-    live = active_tournament(store)
-    if not live:
-        return {
-            "live_tournament_id": None,
-            "live_duration_days": 1,
-            "live_window_start": None,
-            "live_window_end": None,
-            "live": None,
-        }
-    return {
-        "live_tournament_id": str(live.get("tournament_id") or "") or None,
-        "live_duration_days": int(live.get("duration_days") or configured_duration_days(live) or 1),
-        "live_window_start": parse_iso(live.get("start_at")),
-        "live_window_end": parse_iso(live.get("end_at")),
-        "live": live,
-    }
-
-
 def handle_admin_list_farms(event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
     seed_catalog(store)
-    ctx = _live_player_context(store)
-    farms = [
-        player_list_row(
-            store,
-            farm,
-            live_tournament_id=ctx["live_tournament_id"],
-            live_duration_days=ctx["live_duration_days"],
-            live_window_start=ctx["live_window_start"],
-            live_window_end=ctx["live_window_end"],
-        )
-        for farm in _get_registry().list_farms()
-    ]
+    farms = [player_list_row(store, farm) for farm in _get_registry().list_farms()]
     return create_response(200, {"farms": farms, "count": len(farms)})
 
 
@@ -447,8 +417,7 @@ def handle_admin_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     tracked = _get_registry().get(farm_id)
     if not tracked:
         return create_error_response(404, "farm not found", "NOT_FOUND")
-    ctx = _live_player_context(store)
-    farm = player_detail(store, tracked, live_tournament=ctx["live"])
+    farm = player_detail(store, tracked)
     return create_response(200, {"farm": farm})
 
 

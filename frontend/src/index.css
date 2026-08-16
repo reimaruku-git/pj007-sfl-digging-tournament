@@ -386,6 +386,23 @@ textarea {
   margin-top: 8px;
 }
 
+a.tourney-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+a.tourney-card-link:hover {
+  border-color: rgba(184, 154, 86, 0.45);
+}
+
+.tourney-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
 .tourney-card-name {
   font-weight: 700;
   color: var(--cream);
@@ -397,13 +414,47 @@ textarea {
   margin-top: 4px;
 }
 
-.tourney-card .stat {
-  margin-top: 8px;
-  padding: 8px 10px;
+.tourney-next {
+  flex: 0 0 auto;
+  text-align: right;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--mute);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.tourney-card .stat b {
+.tourney-next b {
+  display: block;
+  margin-top: 2px;
+  font-family: "DM Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cream);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tourney-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
+.tourney-facts span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tourney-facts b {
+  display: block;
+  margin-top: 4px;
+  font-family: "DM Mono", monospace;
   font-size: 16px;
+  color: var(--cream);
 }
 
 .live-board + .live-board {
@@ -968,7 +1019,8 @@ tr.player-row.is-open {
   .hero,
   .podium,
   .farm-stats,
-  .farm-hero {
+  .farm-hero,
+  .tourney-facts {
     grid-template-columns: 1fr;
   }
 
