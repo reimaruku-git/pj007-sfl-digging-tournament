@@ -162,6 +162,8 @@ Scheduled, live, and ended events. Ended standings are frozen to S3
 
 Live board if the event is active, enrolled ∩ tracked ∩ active
 participants if scheduled, frozen S3 standings if ended.
+Scheduled entries are roster identity only (`not_started`, scores
+`null`) so a farm's live-event digs do not leak onto an upcoming board.
 `overall_average_per_day` is the mean of those entries' official scores
 (3rd-OP digs ÷ that event's duration days), or `null` when none have a
 score yet.

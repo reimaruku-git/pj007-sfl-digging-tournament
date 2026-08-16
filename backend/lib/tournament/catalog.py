@@ -622,16 +622,16 @@ def live_board_payload(store: Store, *, now: datetime | None = None) -> dict[str
 
 
 def enrollment_board(store: Store, tournament_id_value: str, *, days: int) -> dict[str, Any]:
-    """Scheduled/live listing: enrolled ∩ tracked ∩ active only."""
+    """Scheduled listing: enrolled ∩ tracked ∩ active, roster identity only.
+
+    The scores table is keyed by farm_id for the live window. Reusing those
+    rows here would leak live digs onto an upcoming board and invent a
+    non-null ``overall_average_per_day``.
+    """
     registry = FarmRegistry(store.data_bucket, s3_client=store._s3)
     allowed = enrolled_farm_ids(store, tournament_id_value) & registry.farm_ids(active_only=True)
-    scores = {str(row.get("farm_id") or ""): row for row in store.list_scores()}
     rows: list[dict[str, Any]] = []
     for farm_id in allowed:
-        row = scores.get(farm_id)
-        if row:
-            rows.append(row)
-            continue
         tracked = registry.get(farm_id) or {}
         rows.append(store.empty_score(farm_id, tracked.get("name") or ""))
     return build_leaderboard(rows, tournament_days=max(int(days), 1))

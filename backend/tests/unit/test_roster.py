@@ -242,3 +242,53 @@ def test_public_board_lists_only_enrolled_active_farms(aws_env, monkeypatch):
     assert ids == ["222222"]
     assert "111111" not in ids
     assert "333333" not in ids
+
+
+def test_scheduled_tournament_does_not_leak_live_score(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
+    later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
+    app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "111111", "name": "Ada"}), None)
+    app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/tournaments/{live['tournament_id']}/farms",
+            {"farm_ids": ["111111"]},
+        ),
+        None,
+    )
+    app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/tournaments/{later['tournament_id']}/farms",
+            {"farm_ids": ["111111"]},
+        ),
+        None,
+    )
+    store = app._get_store()
+    store.put_score(
+        {
+            "farm_id": "111111",
+            "name": "Ada",
+            "digs_to_third_op": 21,
+            "otter_count": 3,
+            "total_digs": 21,
+            "digs_today": 2,
+            "status": "completed",
+            "invalidated": False,
+        }
+    )
+    app.lambda_handler(_event("GET", "/leaderboard"), None)
+
+    upcoming = _json(
+        app.lambda_handler(_event("GET", f"/tournaments/{later['tournament_id']}"), None)
+    )
+    payload = upcoming["tournament"]
+    assert payload["count"] == 1
+    row = payload["entries"][0]
+    assert row["farm_id"] == "111111"
+    assert row["name"] == "Ada"
+    assert row["status"] == "not_started"
+    assert row["score"] is None
+    assert row["digs_to_third_op"] is None
+    assert payload["overall_average_per_day"] is None
