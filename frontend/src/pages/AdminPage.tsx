@@ -1,26 +1,30 @@
 import "../auth/amplify";
 import { FormEvent, useEffect, useState } from "react";
 import { confirmSignIn, signIn, signOut } from "aws-amplify/auth";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addFarm,
+  addTournamentFarms,
   adminSession,
   approveSubmission,
   createTournament,
   deleteTournament,
+  fetchAdminFarm,
   fetchSnapshot,
+  fetchTournamentRoster,
   listAdminTournaments,
   listFarms,
   listSubmissions,
-  overrideScore,
   refreshFarm,
   rejectSubmission,
   removeFarm,
+  removeTournamentFarm,
   triggerSync,
   updateFarm,
   updateTournament,
 } from "../api/admin";
 import { getAuthToken } from "../auth/session";
+import { AdminPlayers } from "./AdminPlayers";
 import { AdminTournaments } from "./AdminTournaments";
 
 export function AdminPage() {
@@ -165,10 +169,20 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const farms = useQuery({ queryKey: ["admin-farms"], queryFn: listFarms });
   const submissions = useQuery({ queryKey: ["admin-submissions"], queryFn: listSubmissions });
   const tournaments = useQuery({ queryKey: ["admin-tournaments"], queryFn: listAdminTournaments });
-  const [farmId, setFarmId] = useState("");
-  const [farmName, setFarmName] = useState("");
+  const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string>("");
+  const detail = useQuery({
+    queryKey: ["admin-farm", selectedFarmId],
+    queryFn: () => fetchAdminFarm(selectedFarmId as string),
+    enabled: Boolean(selectedFarmId),
+  });
+  const roster = useQuery({
+    queryKey: ["admin-roster", selectedTournamentId],
+    queryFn: () => fetchTournamentRoster(selectedTournamentId as string),
+    enabled: Boolean(selectedTournamentId),
+  });
 
   function note(text: string, kind: "ok" | "err" = "ok") {
     setFlash({ kind, text });
@@ -176,24 +190,15 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-farms"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-farm"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-tournaments"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-roster"] });
     void queryClient.invalidateQueries({ queryKey: ["config"] });
     void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
     void queryClient.invalidateQueries({ queryKey: ["tournaments"] });
   };
-
-  const add = useMutation({
-    mutationFn: () => addFarm(farmId.trim(), farmName.trim()),
-    onSuccess: () => {
-      setFarmId("");
-      setFarmName("");
-      note("Farm added to S3 registry.");
-      invalidate();
-    },
-    onError: (error: Error) => note(error.message, "err"),
-  });
 
   return (
     <>
@@ -217,7 +222,11 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <AdminTournaments
         items={tournaments.data ?? []}
+        players={farms.data ?? []}
         loading={tournaments.isLoading}
+        selectedId={selectedTournamentId}
+        roster={roster.data ?? []}
+        onSelect={(id) => setSelectedTournamentId(id)}
         onCreate={async (draft) => {
           const created = await createTournament(draft);
           note(`Created ${created.name} (${created.status}).`);
@@ -230,24 +239,50 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         }}
         onDelete={async (row) => {
           await deleteTournament(row.tournament_id);
+          if (selectedTournamentId === row.tournament_id) setSelectedTournamentId(null);
           note(row.status === "active" ? "Live tournament deleted." : "Scheduled tournament cancelled.");
           invalidate();
+        }}
+        onAddFarms={async (id, farmIds) => {
+          await addTournamentFarms(id, farmIds);
+          note(`Added ${farmIds.length} player${farmIds.length === 1 ? "" : "s"} to the tournament.`);
+          invalidate();
+          void queryClient.invalidateQueries({ queryKey: ["admin-roster", id] });
+        }}
+        onRemoveFarm={async (id, farmId) => {
+          await removeTournamentFarm(id, farmId);
+          note("Removed from this tournament.");
+          invalidate();
+          void queryClient.invalidateQueries({ queryKey: ["admin-roster", id] });
+        }}
+        onApprove={async (farmId, tournamentId) => {
+          await approveSubmission(farmId, tournamentId);
+          note("Join approved.");
+          invalidate();
+          void queryClient.invalidateQueries({ queryKey: ["admin-roster", tournamentId] });
+        }}
+        onReject={async (farmId, tournamentId) => {
+          await rejectSubmission(farmId, tournamentId);
+          note("Join rejected.");
+          invalidate();
+          void queryClient.invalidateQueries({ queryKey: ["admin-roster", tournamentId] });
         }}
       />
 
       <section className="card" style={{ marginBottom: 16 }}>
-        <div className="kicker">Pending submissions</div>
+        <div className="kicker">Pending joins</div>
         {(submissions.data ?? []).length === 0 && <p className="muted">None waiting.</p>}
         {(submissions.data ?? []).map((item) => (
-          <div key={item.farm_id} className="toolbar">
+          <div key={`${item.farm_id}-${item.tournament_id}`} className="toolbar">
             <span>
               {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
+              <div className="meta">wants {item.tournament_id}</div>
             </span>
             <button
               className="btn primary"
               type="button"
               onClick={() =>
-                approveSubmission(item.farm_id)
+                approveSubmission(item.farm_id, item.tournament_id)
                   .then(() => {
                     note("Approved.");
                     invalidate();
@@ -261,7 +296,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               className="btn"
               type="button"
               onClick={() =>
-                rejectSubmission(item.farm_id)
+                rejectSubmission(item.farm_id, item.tournament_id)
                   .then(() => {
                     note("Rejected.");
                     invalidate();
@@ -275,140 +310,60 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         ))}
       </section>
 
-      <section className="card" style={{ marginBottom: 16 }}>
-        <div className="kicker">Tracked farms (S3 JSON)</div>
-        <form
-          className="toolbar"
-          onSubmit={(event) => {
-            event.preventDefault();
-            add.mutate();
-          }}
-        >
-          <input
-            className="search"
-            placeholder="Farm ID"
-            value={farmId}
-            onChange={(e) => setFarmId(e.target.value)}
-            required
-          />
-          <input placeholder="Name" value={farmName} onChange={(e) => setFarmName(e.target.value)} />
-          <button className="btn primary" type="submit">
-            Add farm
-          </button>
-        </form>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Farm</th>
-                <th>Active</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {(farms.data ?? []).map((farm) => (
-                <tr key={farm.farm_id}>
-                  <td>
-                    {farm.name || "Unnamed"}
-                    <div className="farm-id">{farm.farm_id}</div>
-                  </td>
-                  <td>{farm.active ? "yes" : "no"}</td>
-                  <td className="row-actions">
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() =>
-                        updateFarm(farm.farm_id, { active: !farm.active })
-                          .then(invalidate)
-                          .catch((error: Error) => note(error.message, "err"))
-                      }
-                    >
-                      {farm.active ? "Disable" : "Enable"}
-                    </button>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() =>
-                        refreshFarm(farm.farm_id)
-                          .then(() =>
-                            note(
-                              `Refresh started for ${farm.farm_id}. Score updates in the background.`,
-                            ),
-                          )
-                          .catch((error: Error) => note(error.message, "err"))
-                      }
-                    >
-                      Refresh
-                    </button>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() =>
-                        fetchSnapshot(farm.farm_id)
-                          .then((payload) => setSnapshot(JSON.stringify(payload, null, 2)))
-                          .catch((error: Error) => note(error.message, "err"))
-                      }
-                    >
-                      Snapshot
-                    </button>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() => {
-                        const value = window.prompt("Override digs to 3rd OP (blank to clear)");
-                        if (value === null) return;
-                        const parsed = value.trim() === "" ? null : Number(value);
-                        overrideScore(farm.farm_id, {
-                          override_digs_to_third_op: parsed,
-                          override_reason: "admin override",
-                        })
-                          .then(() => {
-                            note("Score override saved.");
-                            invalidate();
-                          })
-                          .catch((error: Error) => note(error.message, "err"));
-                      }}
-                    >
-                      Override
-                    </button>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() =>
-                        overrideScore(farm.farm_id, { invalidated: true, override_reason: "invalidated" })
-                          .then(() => {
-                            note("Score invalidated.");
-                            invalidate();
-                          })
-                          .catch((error: Error) => note(error.message, "err"))
-                      }
-                    >
-                      Invalidate
-                    </button>
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() =>
-                        removeFarm(farm.farm_id)
-                          .then(() => {
-                            note("Removed from S3 registry.");
-                            invalidate();
-                          })
-                          .catch((error: Error) => note(error.message, "err"))
-                      }
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {snapshot && <pre className="snapshot">{snapshot}</pre>}
-      </section>
-
-
+      <AdminPlayers
+        farms={farms.data ?? []}
+        selectedId={selectedFarmId}
+        detail={detail.data ?? null}
+        snapshot={snapshot}
+        onSelect={(id) => {
+          setSelectedFarmId(id);
+          setSnapshot("");
+        }}
+        onAdd={async (id, name) => {
+          try {
+            await addFarm(id, name);
+            note("Farm added to S3 registry.");
+            invalidate();
+          } catch (error) {
+            note(error instanceof Error ? error.message : "failed to add farm", "err");
+            throw error;
+          }
+        }}
+        onToggleActive={async (farm) => {
+          try {
+            await updateFarm(farm.farm_id, { active: !farm.active });
+            invalidate();
+          } catch (error) {
+            note(error instanceof Error ? error.message : "failed to update farm", "err");
+          }
+        }}
+        onRefresh={async (farm) => {
+          try {
+            await refreshFarm(farm.farm_id);
+            note(`Refresh started for ${farm.farm_id}. Score updates in the background.`);
+          } catch (error) {
+            note(error instanceof Error ? error.message : "failed to refresh", "err");
+          }
+        }}
+        onSnapshot={async (farm) => {
+          try {
+            const payload = await fetchSnapshot(farm.farm_id);
+            setSnapshot(JSON.stringify(payload, null, 2));
+          } catch (error) {
+            note(error instanceof Error ? error.message : "snapshot not found", "err");
+          }
+        }}
+        onRemove={async (farm) => {
+          try {
+            await removeFarm(farm.farm_id);
+            if (selectedFarmId === farm.farm_id) setSelectedFarmId(null);
+            note("Removed from S3 registry.");
+            invalidate();
+          } catch (error) {
+            note(error instanceof Error ? error.message : "failed to remove farm", "err");
+          }
+        }}
+      />
     </>
   );
 }

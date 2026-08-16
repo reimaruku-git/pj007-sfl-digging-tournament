@@ -199,9 +199,10 @@ Canonical: `backend/lib/tournament/scoring.py` +
   and delete scheduled and live events.
   One live event; others are scheduled or ended. Ended events freeze to
   S3 `archives/{id}/` (meta + standings + farm snapshots). Public
-  `GET /tournaments` lists upcoming, live, and past. The public board
-  only includes farms still in the S3 registry and marked active.
-  `DELETE /admin/farms/{id}` also deletes that farm’s score row.
+  `GET /tournaments` lists upcoming, live, and past. A scheduled or live
+  public board lists only farms enrolled in that event that are still
+  tracked and **active**. `DELETE /admin/farms/{id}` also deletes that
+  farm’s score row and every membership.
 - `PUT /admin/config` re-scores farms from S3 snapshots against the new
   window, then kicks FarmSync for farms that have no snapshot. Do not only
   refresh the cached board.

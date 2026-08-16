@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from tournament.farms import utc_now_iso
-from tournament.leaderboard import public_entry
+from tournament.farms import FarmRegistry, utc_now_iso
+from tournament.leaderboard import build_leaderboard, public_entry
+from tournament.membership import drop_tournament_members, enrolled_farm_ids, migrate_members
 from tournament.store import MIN_TOURNAMENT_DAYS, NAME_MAX_LEN, Store
 from tournament.sync import (
     ensure_default_config,
@@ -91,7 +92,9 @@ def _as_window(row: dict[str, Any]) -> tuple[datetime, datetime] | None:
     return start, end
 
 
-def assert_no_overlap(store: Store, start: datetime, end: datetime, *, ignore_id: str | None = None) -> None:
+def assert_no_overlap(
+    store: Store, start: datetime, end: datetime, *, ignore_id: str | None = None
+) -> None:
     for row in store.list_tournament_items():
         tid = str(row.get("tournament_id") or "")
         if ignore_id and tid == ignore_id:
@@ -100,7 +103,9 @@ def assert_no_overlap(store: Store, start: datetime, end: datetime, *, ignore_id
             continue
         other = _as_window(row)
         if other and windows_overlap(start, end, other[0], other[1]):
-            raise CatalogError("tournament window overlaps another event", code="CONFLICT", status=409)
+            raise CatalogError(
+                "tournament window overlaps another event", code="CONFLICT", status=409
+            )
 
 
 def tournament_record(
@@ -129,7 +134,9 @@ def tournament_record(
     }
 
 
-def apply_live_config(store: Store, row: dict[str, Any], *, existing: dict[str, Any] | None = None) -> dict[str, Any]:
+def apply_live_config(
+    store: Store, row: dict[str, Any], *, existing: dict[str, Any] | None = None
+) -> dict[str, Any]:
     current = existing if existing is not None else store.get_config()
     return store.put_config(
         {
@@ -230,7 +237,9 @@ def _copy_farm_snapshots(store: Store, tournament_id_value: str) -> int:
     return copied
 
 
-def freeze_tournament(store: Store, row: dict[str, Any], *, now: datetime | None = None) -> dict[str, Any]:
+def freeze_tournament(
+    store: Store, row: dict[str, Any], *, now: datetime | None = None
+) -> dict[str, Any]:
     clock = _clock(now)
     tid = str(row.get("tournament_id") or "")
     existing = store.read_archive(tid)
@@ -255,17 +264,26 @@ def freeze_tournament(store: Store, row: dict[str, Any], *, now: datetime | None
     return frozen
 
 
-def create_tournament(store: Store, body: dict[str, Any], *, now: datetime | None = None) -> dict[str, Any]:
+def create_tournament(
+    store: Store, body: dict[str, Any], *, now: datetime | None = None
+) -> dict[str, Any]:
     clock = _clock(now)
     seed_catalog(store, now=clock)
     start, end, days = parse_window(body)
     name = normalize_name(body.get("name"), start)
     prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip() or "30"
     assert_no_overlap(store, start, end)
-    tid = tournament_id({"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days})
+    tid = tournament_id(
+        {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
+    )
     if store.get_tournament(tid):
-        raise CatalogError("a tournament with that window already exists", code="CONFLICT", status=409)
-    active = next((item for item in store.list_tournament_items() if item.get("status") == STATUS_ACTIVE), None)
+        raise CatalogError(
+            "a tournament with that window already exists", code="CONFLICT", status=409
+        )
+    active = next(
+        (item for item in store.list_tournament_items() if item.get("status") == STATUS_ACTIVE),
+        None,
+    )
     if start <= clock and not active:
         status = STATUS_ACTIVE
     elif start <= clock and active:
@@ -273,6 +291,7 @@ def create_tournament(store: Store, body: dict[str, Any], *, now: datetime | Non
     else:
         status = STATUS_SCHEDULED
     row = tournament_record(start=start, end=end, days=days, name=name, prize=prize, status=status)
+    row["roster_seeded"] = True
     store.put_tournament(row)
     if status == STATUS_ACTIVE:
         apply_live_config(store, row)
@@ -292,8 +311,15 @@ def update_tournament(
     if status == STATUS_ENDED:
         raise CatalogError("ended tournaments cannot be edited", code="CONFLICT", status=409)
 
-    name = normalize_name(body.get("name") if "name" in body else existing.get("name"), parse_iso(existing.get("start_at")))
-    prize = str(body.get("prize_amount") if "prize_amount" in body or "prizeAmount" in body else existing.get("prize_amount") or "30")
+    name = normalize_name(
+        body.get("name") if "name" in body else existing.get("name"),
+        parse_iso(existing.get("start_at")),
+    )
+    prize = str(
+        body.get("prize_amount")
+        if "prize_amount" in body or "prizeAmount" in body
+        else existing.get("prize_amount") or "30"
+    )
     prize = prize.strip() or "30"
 
     window_keys = ("start_at", "startAt", "end_at", "endAt", "duration_days", "durationDays")
@@ -318,7 +344,9 @@ def update_tournament(
         )
 
     assert_no_overlap(store, start, end, ignore_id=tournament_id_value)
-    new_id = tournament_id({"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days})
+    new_id = tournament_id(
+        {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
+    )
     if clock < start:
         next_status = STATUS_SCHEDULED
     elif status == STATUS_ACTIVE or clock < end:
@@ -341,7 +369,10 @@ def update_tournament(
 
     if new_id != tournament_id_value:
         if store.get_tournament(new_id):
-            raise CatalogError("a tournament with that window already exists", code="CONFLICT", status=409)
+            raise CatalogError(
+                "a tournament with that window already exists", code="CONFLICT", status=409
+            )
+        migrate_members(store, tournament_id_value, new_id)
         store.delete_tournament(tournament_id_value)
 
     updated = tournament_record(
@@ -387,7 +418,9 @@ def active_tournament(store: Store) -> dict[str, Any] | None:
     )
 
 
-def delete_tournament(store: Store, tournament_id_value: str, *, now: datetime | None = None) -> None:
+def delete_tournament(
+    store: Store, tournament_id_value: str, *, now: datetime | None = None
+) -> None:
     seed_catalog(store, now=now)
     existing = store.get_tournament(tournament_id_value)
     if not existing:
@@ -396,7 +429,10 @@ def delete_tournament(store: Store, tournament_id_value: str, *, now: datetime |
     if status == STATUS_ENDED:
         raise CatalogError("ended tournaments cannot be cancelled", code="CONFLICT", status=409)
     if status not in {STATUS_SCHEDULED, STATUS_ACTIVE}:
-        raise CatalogError("only scheduled or live tournaments can be cancelled", code="CONFLICT", status=409)
+        raise CatalogError(
+            "only scheduled or live tournaments can be cancelled", code="CONFLICT", status=409
+        )
+    drop_tournament_members(store, tournament_id_value)
     store.delete_tournament(tournament_id_value)
     if status == STATUS_ACTIVE:
         clear_live_config(store)
@@ -425,21 +461,29 @@ def rollover(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
                 archived = freeze_tournament(store, row, now=clock)
 
     next_row = None
-    for row in sorted(store.list_tournament_items(), key=lambda item: str(item.get("start_at") or "")):
+    for row in sorted(
+        store.list_tournament_items(), key=lambda item: str(item.get("start_at") or "")
+    ):
         if row.get("status") != STATUS_SCHEDULED:
             continue
         start = parse_iso(row.get("start_at"))
         if start is not None and start <= clock:
             next_row = row
             break
-    live = next((item for item in store.list_tournament_items() if item.get("status") == STATUS_ACTIVE), None)
+    live = next(
+        (item for item in store.list_tournament_items() if item.get("status") == STATUS_ACTIVE),
+        None,
+    )
     if next_row and not live:
         next_row["status"] = STATUS_ACTIVE
         store.put_tournament(next_row)
         apply_live_config(store, next_row)
         rescore_from_snapshots(store, now=clock)
         promoted = next_row
-    return {"archived": archived is not None, "promoted": promoted.get("tournament_id") if promoted else None}
+    return {
+        "archived": archived is not None,
+        "promoted": promoted.get("tournament_id") if promoted else None,
+    }
 
 
 def public_summary(row: dict[str, Any], *, archive: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -484,7 +528,9 @@ def list_public_tournaments(store: Store, *, now: datetime | None = None) -> lis
     return items
 
 
-def get_public_tournament(store: Store, tournament_id_value: str, *, now: datetime | None = None) -> dict[str, Any] | None:
+def get_public_tournament(
+    store: Store, tournament_id_value: str, *, now: datetime | None = None
+) -> dict[str, Any] | None:
     clock = _clock(now)
     seed_catalog(store, now=clock)
     row = store.get_tournament(tournament_id_value)
@@ -499,7 +545,10 @@ def get_public_tournament(store: Store, tournament_id_value: str, *, now: dateti
         return {
             "tournament_id": tournament_id_value,
             "archived_at": archive.get("archived_at") or row.get("archived_at"),
-            "config": {**public_config({**row, "status": STATUS_ENDED}), **(archive.get("config") or {})},
+            "config": {
+                **public_config({**row, "status": STATUS_ENDED}),
+                **(archive.get("config") or {}),
+            },
             "entries": entries,
             "count": len(entries),
             "leader_farm_id": archive.get("leader_farm_id"),
@@ -515,13 +564,18 @@ def get_public_tournament(store: Store, tournament_id_value: str, *, now: dateti
             "leader_farm_id": board.get("leader_farm_id"),
         }
     if row:
+        board = enrollment_board(
+            store,
+            tournament_id_value,
+            days=int(row.get("duration_days") or configured_duration_days(row)),
+        )
         return {
             "tournament_id": tournament_id_value,
             "archived_at": None,
             "config": public_config({**row, "current_tournament_id": tournament_id_value}),
-            "entries": [],
-            "count": 0,
-            "leader_farm_id": None,
+            "entries": board.get("entries") or [],
+            "count": int(board.get("count") or 0),
+            "leader_farm_id": board.get("leader_farm_id"),
         }
     if archive:
         return {
@@ -543,6 +597,22 @@ def live_board_payload(store: Store, *, now: datetime | None = None) -> dict[str
     if cache and cache.get("entries"):
         return cache
     return refresh_leaderboard(store, now=now)
+
+
+def enrollment_board(store: Store, tournament_id_value: str, *, days: int) -> dict[str, Any]:
+    """Scheduled/live listing: enrolled ∩ tracked ∩ active only."""
+    registry = FarmRegistry(store.data_bucket, s3_client=store._s3)
+    allowed = enrolled_farm_ids(store, tournament_id_value) & registry.farm_ids(active_only=True)
+    scores = {str(row.get("farm_id") or ""): row for row in store.list_scores()}
+    rows: list[dict[str, Any]] = []
+    for farm_id in allowed:
+        row = scores.get(farm_id)
+        if row:
+            rows.append(row)
+            continue
+        tracked = registry.get(farm_id) or {}
+        rows.append(store.empty_score(farm_id, tracked.get("name") or ""))
+    return build_leaderboard(rows, tournament_days=max(int(days), 1))
 
 
 def get_public_tournament_farm(

@@ -17,8 +17,9 @@ import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
 
 export function LeaderboardPage() {
-  const [farmId, setFarmId] = useState("");
+  const [farmId, setFarmId] = useState(() => readFollowedFarm());
   const [name, setName] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [mine, setMine] = useState(() => readFollowedFarm());
   const [sortById, setSortById] = useState<Record<string, ScoreSortDir>>({});
@@ -48,13 +49,14 @@ export function LeaderboardPage() {
     })),
   });
 
+  const joinable = useMemo(() => [...live, ...upcoming], [live, upcoming]);
+
   const submit = useMutation({
-    mutationFn: () => submitFarm(farmId.trim(), name.trim()),
+    mutationFn: () => submitFarm(farmId.trim(), name.trim(), picked),
     onSuccess: () => {
       writeFollowedFarm(farmId.trim());
       setMine(farmId.trim());
-      setNotice("Farm submitted. An admin will approve it before it appears.");
-      setFarmId("");
+      setNotice("Join request sent. An admin will approve each tournament you picked.");
       setName("");
     },
     onError: (error: Error) => setNotice(error.message),
@@ -177,24 +179,56 @@ export function LeaderboardPage() {
       ))}
 
       <section className="card" id="join">
-        <div className="kicker">Join the tournament</div>
-        <p className="meta">Anyone can submit a Farm ID. An admin approves it before it appears.</p>
+        <div className="kicker">Join a tournament</div>
+        <p className="meta">
+          Enter your Farm ID — the browser remembers it. Pick one or more scheduled or live events.
+          An admin approves each join.
+        </p>
         {notice && <div className={`flash ${submit.isSuccess ? "ok" : "err"}`}>{notice}</div>}
-        <form className="toolbar" onSubmit={onSubmit}>
-          <input
-            className="search"
-            placeholder="Farm ID"
-            value={farmId}
-            onChange={(event) => setFarmId(event.target.value)}
-            required
-          />
-          <input
-            placeholder="Display name (optional)"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <button className="btn primary" type="submit" disabled={submit.isPending}>
-            Submit
+        <form className="form-grid" onSubmit={onSubmit} data-testid="join-form">
+          <label>
+            Farm ID
+            <input
+              className="search"
+              placeholder="Farm ID"
+              value={farmId}
+              onChange={(event) => setFarmId(event.target.value)}
+              required
+              data-testid="join-farm-id"
+            />
+          </label>
+          <label>
+            Display name (optional)
+            <input
+              placeholder="Display name (optional)"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <div data-testid="join-tournaments">
+            <div className="kicker">Tournaments</div>
+            {joinable.length === 0 && <p className="muted">No scheduled or live events to join yet.</p>}
+            {joinable.map((row) => (
+              <label key={row.tournament_id} className="join-option">
+                <input
+                  type="checkbox"
+                  checked={picked.includes(row.tournament_id)}
+                  onChange={() =>
+                    setPicked((current) =>
+                      current.includes(row.tournament_id)
+                        ? current.filter((id) => id !== row.tournament_id)
+                        : [...current, row.tournament_id],
+                    )
+                  }
+                />
+                <span>
+                  {row.name || "Untitled"} · {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+                </span>
+              </label>
+            ))}
+          </div>
+          <button className="btn primary" type="submit" disabled={submit.isPending || picked.length === 0}>
+            Request join
           </button>
         </form>
       </section>

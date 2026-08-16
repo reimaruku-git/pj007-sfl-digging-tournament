@@ -885,6 +885,50 @@ tr.is-you,
   flex-wrap: wrap;
 }
 
+tr.player-row {
+  cursor: pointer;
+}
+
+tr.player-row:hover,
+tr.player-row.is-open {
+  background: var(--gold-dim);
+}
+
+.player-detail {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.join-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 8px 0;
+  color: var(--sand);
+  font-size: 14px;
+}
+
+.join-option input {
+  margin-top: 4px;
+}
+
+.tourney-open {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tourney-card.is-open {
+  outline: 1px solid rgba(184, 154, 86, 0.35);
+  outline-offset: -1px;
+}
+
 .flash {
   padding: 10px 12px;
   border-radius: 10px;

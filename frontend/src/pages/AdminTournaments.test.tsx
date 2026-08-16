@@ -95,7 +95,9 @@ describe("AdminTournaments", () => {
     );
 
     act(() => {
-      const edit = container.querySelector('[data-testid="admin-card-live"] button');
+      const edit = [...container.querySelectorAll('[data-testid="admin-card-live"] button')].find(
+        (node) => node.textContent === "Edit",
+      );
       (edit as HTMLButtonElement | null)?.click();
     });
     const name = container.querySelector('input[placeholder="Late August Otter Cup"]') as HTMLInputElement;
@@ -116,5 +118,50 @@ describe("AdminTournaments", () => {
       "live",
       expect.objectContaining({ duration_days: 14, name: "Live cup" }),
     );
+  });
+
+  it("opens a roster to multi-add existing players and approve a named join", () => {
+    const onAddFarms = vi.fn().mockResolvedValue(undefined);
+    const onApprove = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "live",
+          name: "Live cup",
+          status: "active",
+        }),
+      ],
+      {
+        selectedId: "live",
+        players: [{ farm_id: "99", name: "rmr", active: true }],
+        roster: [
+          {
+            farm_id: "11",
+            name: "pending",
+            tournament_id: "live",
+            status: "pending",
+            submitted_at: "2026-08-14T13:00:00+00:00",
+          },
+        ],
+        onAddFarms,
+        onApprove,
+      },
+    );
+    expect(container.querySelector('[data-testid="admin-roster-live"]')?.textContent).toMatch(/pending/);
+    const box = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(box).not.toBeNull();
+    act(() => {
+      box.click();
+    });
+    act(() => {
+      const add = [...container.querySelectorAll("button")].find((node) => node.textContent === "Add selected");
+      add?.click();
+    });
+    expect(onAddFarms).toHaveBeenCalledWith("live", ["99"]);
+    act(() => {
+      const approve = [...container.querySelectorAll("button")].find((node) => node.textContent === "Approve");
+      approve?.click();
+    });
+    expect(onApprove).toHaveBeenCalledWith("11", "live");
   });
 });

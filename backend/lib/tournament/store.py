@@ -20,6 +20,7 @@ CONFIG_PK = "CONFIG"
 CACHE_PK = "LEADERBOARD"
 TOURNAMENT_INDEX_PK = "TOURNAMENT_INDEX"
 TOURNAMENT_PK_PREFIX = "TOURNAMENT#"
+MEMBER_PK_PREFIX = "MEMBER#"
 DEFAULT_PRIZE = "30"
 MIN_TOURNAMENT_DAYS = 1
 NAME_MAX_LEN = 80
@@ -42,6 +43,10 @@ class Store:
         self.submissions_table = resource.Table(submissions_table)
         self._bucket = data_bucket
         self._s3 = s3_client or boto3.client("s3")
+
+    @property
+    def data_bucket(self) -> str:
+        return self._bucket
 
     # ------------------------------------------------------------------
     # Config
@@ -170,6 +175,66 @@ class Store:
         self.submissions_table.delete_item(Key={"farm_id": str(farm_id)})
 
     # ------------------------------------------------------------------
+    # Per-tournament membership (pending join or enrolled)
+    # ------------------------------------------------------------------
+
+    def member_pk(self, tournament_id: str, farm_id: str) -> str:
+        return f"{MEMBER_PK_PREFIX}{tournament_id}#{farm_id}"
+
+    def put_member(self, item: dict[str, Any]) -> dict[str, Any]:
+        farm_id = str(item.get("farm_id") or "").strip()
+        tournament_id = str(item.get("tournament_id") or "").strip()
+        if not farm_id or not tournament_id:
+            raise ValueError("farm_id and tournament_id are required")
+        stored = dict(item)
+        stored["farm_id"] = farm_id
+        stored["tournament_id"] = tournament_id
+        stored["pk"] = self.member_pk(tournament_id, farm_id)
+        stored["updated_at"] = utc_now_iso()
+        self.config_table.put_item(Item=_to_ddb(stored))
+        return stored
+
+    def get_member(self, tournament_id: str, farm_id: str) -> dict[str, Any] | None:
+        response = self.config_table.get_item(
+            Key={"pk": self.member_pk(str(tournament_id), str(farm_id))}
+        )
+        item = response.get("Item")
+        return _from_ddb(item) if item else None
+
+    def delete_member(self, tournament_id: str, farm_id: str) -> None:
+        self.config_table.delete_item(Key={"pk": self.member_pk(str(tournament_id), str(farm_id))})
+
+    def list_members(
+        self,
+        *,
+        tournament_id: str | None = None,
+        status: str | None = None,
+        farm_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        prefix = MEMBER_PK_PREFIX
+        if tournament_id:
+            prefix = f"{MEMBER_PK_PREFIX}{tournament_id}#"
+        items: list[dict[str, Any]] = []
+        scan_kwargs: dict[str, Any] = {
+            "FilterExpression": "begins_with(pk, :prefix)",
+            "ExpressionAttributeValues": {":prefix": prefix},
+        }
+        while True:
+            response = self.config_table.scan(**scan_kwargs)
+            items.extend(_from_ddb(item) for item in response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+        if status:
+            items = [item for item in items if item.get("status") == status]
+        if farm_id:
+            wanted = str(farm_id)
+            items = [item for item in items if str(item.get("farm_id") or "") == wanted]
+        items.sort(key=lambda item: str(item.get("submitted_at") or ""), reverse=True)
+        return items
+
+    # ------------------------------------------------------------------
     # Leaderboard cache
     # ------------------------------------------------------------------
 
@@ -261,9 +326,12 @@ class Store:
         tid = str(item.get("tournament_id") or "").strip()
         if not tid:
             raise ValueError("tournament_id is required")
+        existing = self.get_tournament(tid) or {}
         stored = dict(item)
         stored["pk"] = self.tournament_pk(tid)
         stored["updated_at"] = utc_now_iso()
+        if "roster_seeded" not in stored and "roster_seeded" in existing:
+            stored["roster_seeded"] = existing["roster_seeded"]
         self.config_table.put_item(Item=_to_ddb(stored))
         ids = self.list_tournament_ids()
         if tid not in ids:

@@ -104,7 +104,7 @@ describe("routes", () => {
       await new Promise((resolve) => setTimeout(resolve, 30));
     });
     expect(home.textContent).toMatch(/Prize pool/);
-    expect(home.textContent).toMatch(/Join the tournament/);
+    expect(home.textContent).toMatch(/Join a tournament/);
     expect(home.textContent).toMatch(/3rd pebble/);
     expect(home.textContent).toMatch(/Ongoing/);
     expect(home.textContent).toMatch(/Upcoming/);

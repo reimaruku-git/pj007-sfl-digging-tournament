@@ -205,22 +205,38 @@ archive.
 
 ### `POST /submissions`
 
+Join request for one or more scheduled/live tournaments. Visitors have no
+accounts; they send a numeric farm ID. Already-tracked farms may still
+request another event. `tournament_id` (one) or `tournament_ids` (many)
+is required.
+
 ```json
-{ "farm_id": "3666918801844311", "name": "rmr" }
+{
+  "farm_id": "3666918801844311",
+  "name": "rmr",
+  "tournament_ids": ["20260814T120000Z_7d", "20260822T140000Z_7d"]
+}
 ```
 
 ```json
 {
-  "submission": {
-    "farm_id": "3666918801844311",
-    "name": "rmr",
-    "submitted_at": "2026-08-14T13:00:00+00:00",
-    "status": "pending"
-  }
+  "submissions": [
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "tournament_id": "20260814T120000Z_7d",
+      "status": "pending",
+      "submitted_at": "2026-08-14T13:00:00+00:00",
+      "approved_at": null
+    }
+  ],
+  "count": 1
 }
 ```
 
-`409` if the farm is already tracked or already pending.
+`400` if no joinable `tournament_id` is sent. `409` if that
+`(farm_id, tournament_id)` pair is already pending or enrolled.
+Approving tournament A does not enroll the farm in tournament B.
 
 ## Admin
 
@@ -234,12 +250,74 @@ All `/admin/*` routes require a Cognito ID token. `401` if the token is missing 
 
 ### `GET /admin/farms`
 
+Collapsed player list. `average_per_day` is the live official score
+(3rd-OP digs ÷ that event's duration days) when the farm is enrolled in
+the live event, else the mean of that farm's ended-event official
+scores, or `null`.
+
 ```json
 {
   "farms": [
-    { "farm_id": "3666918801844311", "name": "rmr", "active": true }
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "active": true,
+      "digging_streak": 3,
+      "average_per_day": 6.0
+    }
   ],
   "count": 1
+}
+```
+
+### `GET /admin/farms/{farm_id}`
+
+Opened player: records/history, enrollments, pending joins, streak, and
+average. In-detail actions stay on the other farm routes (enable,
+refresh, snapshot, remove).
+
+```json
+{
+  "farm": {
+    "farm_id": "3666918801844311",
+    "name": "rmr",
+    "active": true,
+    "digging_streak": 3,
+    "average_per_day": 6.0,
+    "score": {
+      "farm_id": "3666918801844311",
+      "digs_to_third_op": 42,
+      "otter_count": 3,
+      "status": "completed"
+    },
+    "history": [
+      {
+        "tournament_id": "20260701T000000Z_7d",
+        "name": "July cup",
+        "start_at": "2026-07-01T00:00:00+00:00",
+        "end_at": "2026-07-08T00:00:00+00:00",
+        "duration_days": 7,
+        "score": 2.0,
+        "digs_to_third_op": 14,
+        "rank": 1,
+        "status": "completed",
+        "otter_count": 3
+      }
+    ],
+    "enrollments": [
+      {
+        "farm_id": "3666918801844311",
+        "name": "rmr",
+        "tournament_id": "20260814T120000Z_7d",
+        "status": "enrolled",
+        "submitted_at": "2026-08-14T13:00:00+00:00",
+        "approved_at": "2026-08-14T13:05:00+00:00",
+        "tournament_name": "Week of 14 Aug",
+        "tournament_status": "active"
+      }
+    ],
+    "pending_joins": []
+  }
 }
 ```
 
@@ -259,23 +337,49 @@ Writes the S3 JSON source of truth.
 
 ### `DELETE /admin/farms/{farm_id}`
 
-Removes the farm from `config/tracked-farms.json` and deletes its score
-row. The public leaderboard only lists farms that are still tracked and
-active. Leftover untracked scores are purged on the next board refresh.
+Removes the farm from `config/tracked-farms.json`, deletes its score
+row, and drops every pending/enrolled membership. The public board for a
+scheduled or live event lists only farms enrolled in that event that are
+still tracked and **active**. Removing a farm from one tournament leaves
+their other enrollments and the global player row.
 
 ### `GET /admin/submissions`
 
+Pending joins across all events. Each row names the tournament they
+asked for.
+
 ```json
-{ "submissions": [], "count": 0 }
+{
+  "submissions": [
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "tournament_id": "20260814T120000Z_7d",
+      "status": "pending",
+      "submitted_at": "2026-08-14T13:00:00+00:00",
+      "approved_at": null
+    }
+  ],
+  "count": 1
+}
 ```
 
-### `POST /admin/submissions/{farm_id}/approve`
+### `POST /admin/submissions/{farm_id}/{tournament_id}/approve`
 
-Moves a pending farm into the S3 registry.
+Enrolls the farm in that tournament only. Adds them to the S3 registry
+if they are not already tracked.
 
-### `DELETE /admin/submissions/{farm_id}`
+```json
+{ "farm": { "farm_id": "3666918801844311", "name": "rmr", "active": true } }
+```
 
-Rejects a pending farm.
+### `DELETE /admin/submissions/{farm_id}/{tournament_id}`
+
+Rejects that pending join. Other pending or enrolled rows are unchanged.
+
+```json
+{ "ok": true }
+```
 
 ### `GET /admin/config`
 
@@ -346,6 +450,55 @@ prize. Changing the live window re-scores farms from snapshots. Ended:
 Cancel a scheduled or live event. Ended → `409`. Deleting the live
 event clears the current window; the catalog stays empty until an
 admin creates another.
+
+```json
+{ "ok": true }
+```
+
+### `GET /admin/tournaments/{tournament_id}/roster`
+
+Enrolled players and pending joins for that event.
+
+```json
+{
+  "members": [
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "tournament_id": "20260814T120000Z_7d",
+      "status": "enrolled",
+      "submitted_at": "2026-08-14T13:00:00+00:00",
+      "approved_at": "2026-08-14T13:05:00+00:00",
+      "active": true,
+      "tracked": true
+    }
+  ],
+  "count": 1
+}
+```
+
+### `POST /admin/tournaments/{tournament_id}/farms`
+
+Multi-add existing tracked players onto that tournament.
+
+```json
+{ "farm_ids": ["3666918801844311", "2791164672544774"] }
+```
+
+```json
+{
+  "farms": [
+    { "farm_id": "3666918801844311", "name": "rmr", "active": true }
+  ],
+  "count": 1
+}
+```
+
+`404` if the tournament or a farm is missing. `409` if the event has ended.
+
+### `DELETE /admin/tournaments/{tournament_id}/farms/{farm_id}`
+
+Unenroll from that tournament only. The global player row stays.
 
 ```json
 { "ok": true }

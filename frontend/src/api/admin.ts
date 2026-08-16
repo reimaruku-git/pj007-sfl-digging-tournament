@@ -5,6 +5,41 @@ export type TrackedFarm = {
   farm_id: string;
   name: string;
   active: boolean;
+  digging_streak?: number;
+  average_per_day?: number | null;
+};
+
+export type FarmHistoryRow = {
+  tournament_id: string;
+  name: string;
+  start_at: string | null;
+  end_at: string | null;
+  duration_days?: number | null;
+  score: number | null;
+  digs_to_third_op: number | null;
+  rank: number | null;
+  status: string;
+  otter_count?: number;
+};
+
+export type RosterMember = {
+  farm_id: string;
+  name: string;
+  tournament_id: string;
+  status: "pending" | "enrolled" | string;
+  submitted_at: string | null;
+  approved_at?: string | null;
+  active?: boolean;
+  tracked?: boolean;
+  tournament_name?: string;
+  tournament_status?: string;
+};
+
+export type PlayerDetail = TrackedFarm & {
+  score?: Record<string, unknown> | null;
+  history: FarmHistoryRow[];
+  enrollments: RosterMember[];
+  pending_joins: RosterMember[];
 };
 
 export async function adminSession(): Promise<boolean> {
@@ -18,6 +53,14 @@ export async function listFarms(): Promise<TrackedFarm[]> {
   );
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load farms"));
   return data.farms;
+}
+
+export async function fetchAdminFarm(farmId: string): Promise<PlayerDetail> {
+  const { response, data } = await requestJson<{ farm: PlayerDetail }>(
+    `admin/farms/${encodeURIComponent(farmId)}`,
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load farm"));
+  return data.farm;
 }
 
 export async function addFarm(farmId: string, name: string): Promise<TrackedFarm> {
@@ -57,20 +100,48 @@ export async function listSubmissions(): Promise<Submission[]> {
   return data.submissions;
 }
 
-export async function approveSubmission(farmId: string): Promise<void> {
+export async function approveSubmission(farmId: string, tournamentId: string): Promise<void> {
   const { response, data } = await requestJson<{ farm: TrackedFarm }>(
-    `admin/submissions/${encodeURIComponent(farmId)}/approve`,
+    `admin/submissions/${encodeURIComponent(farmId)}/${encodeURIComponent(tournamentId)}/approve`,
     { method: "POST" },
   );
   if (!response.ok) throw new Error(errorMessage(data, "failed to approve"));
 }
 
-export async function rejectSubmission(farmId: string): Promise<void> {
+export async function rejectSubmission(farmId: string, tournamentId: string): Promise<void> {
   const { response, data } = await requestJson<{ ok: boolean }>(
-    `admin/submissions/${encodeURIComponent(farmId)}`,
+    `admin/submissions/${encodeURIComponent(farmId)}/${encodeURIComponent(tournamentId)}`,
     { method: "DELETE" },
   );
   if (!response.ok) throw new Error(errorMessage(data, "failed to reject"));
+}
+
+export async function fetchTournamentRoster(tournamentId: string): Promise<RosterMember[]> {
+  const { response, data } = await requestJson<{ members: RosterMember[]; count: number }>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}/roster`,
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load roster"));
+  return data.members;
+}
+
+export async function addTournamentFarms(
+  tournamentId: string,
+  farmIds: string[],
+): Promise<TrackedFarm[]> {
+  const { response, data } = await requestJson<{ farms: TrackedFarm[]; count: number }>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}/farms`,
+    { method: "POST", body: JSON.stringify({ farm_ids: farmIds }) },
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to add farms"));
+  return data.farms;
+}
+
+export async function removeTournamentFarm(tournamentId: string, farmId: string): Promise<void> {
+  const { response, data } = await requestJson<{ ok: boolean }>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}/farms/${encodeURIComponent(farmId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) throw new Error(errorMessage(data, "failed to remove farm from tournament"));
 }
 
 export async function fetchAdminConfig(): Promise<TournamentConfig> {

@@ -579,6 +579,14 @@ Resources:
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
+        AdminGetFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/farms/{farm_id}
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminUpdateFarm:
           Type: HttpApi
           Properties:
@@ -595,6 +603,30 @@ Resources:
             Method: DELETE
             Auth:
               Authorizer: CognitoAuthorizer
+        AdminTournamentRoster:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}/roster
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminAddTournamentFarms:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}/farms
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminRemoveTournamentFarm:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}/farms/{farm_id}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminListSubmissions:
           Type: HttpApi
           Properties:
@@ -607,7 +639,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /admin/submissions/{farm_id}/approve
+            Path: /admin/submissions/{farm_id}/{tournament_id}/approve
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
@@ -615,7 +647,7 @@ Resources:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /admin/submissions/{farm_id}
+            Path: /admin/submissions/{farm_id}/{tournament_id}
             Method: DELETE
             Auth:
               Authorizer: CognitoAuthorizer

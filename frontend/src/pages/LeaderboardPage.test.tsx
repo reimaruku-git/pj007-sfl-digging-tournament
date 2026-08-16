@@ -15,6 +15,7 @@ vi.mock("../api/public", () => ({
   submitFarm: (...args: unknown[]) => submitFarm(...args),
 }));
 
+import { writeFollowedFarm } from "../lib/followFarm";
 import { LeaderboardPage } from "./LeaderboardPage";
 
 let root: Root;
@@ -104,6 +105,7 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
@@ -223,5 +225,45 @@ describe("LeaderboardPage home", () => {
     expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
     expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
     expect(secondBoard?.querySelector("tbody tr")?.textContent).not.toMatch(/Player 12/);
+  });
+
+  it("prefills the remembered farm id and offers a tournament picker", async () => {
+    writeFollowedFarm("3666918801844311");
+    const live = summary({
+      tournament_id: "live",
+      name: "Live cup",
+      status: "active",
+    });
+    const next = summary({
+      tournament_id: "next",
+      name: "September cup",
+      status: "scheduled",
+      start_at: "2026-09-01T00:00:00.000Z",
+      end_at: "2026-09-08T00:00:00.000Z",
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live, next], count: 2 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    submitFarm.mockResolvedValue({ submissions: [], count: 0 });
+
+    const page = await renderHome();
+    const farmInput = page.querySelector('[data-testid="join-farm-id"]') as HTMLInputElement;
+    expect(farmInput.value).toBe("3666918801844311");
+    const picker = page.querySelector('[data-testid="join-tournaments"]');
+    expect(picker?.textContent).toMatch(/Live cup/);
+    expect(picker?.textContent).toMatch(/September cup/);
+
+    const boxes = [...page.querySelectorAll('[data-testid="join-tournaments"] input[type="checkbox"]')] as HTMLInputElement[];
+    expect(boxes).toHaveLength(2);
+    act(() => {
+      boxes[0]?.click();
+      boxes[1]?.click();
+    });
+    act(() => {
+      (page.querySelector('[data-testid="join-form"]') as HTMLFormElement).requestSubmit();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(submitFarm).toHaveBeenCalledWith("3666918801844311", "", ["live", "next"]);
   });
 });

@@ -49,8 +49,15 @@ export type FarmResponse = {
 export type Submission = {
   farm_id: string;
   name: string;
-  submitted_at: string;
+  tournament_id: string;
+  submitted_at: string | null;
+  approved_at?: string | null;
   status: string;
+};
+
+export type SubmissionList = {
+  submissions: Submission[];
+  count: number;
 };
 
 export async function fetchHealth(): Promise<{ status: string }> {
@@ -126,11 +133,15 @@ export async function fetchTournament(tournamentId: string): Promise<TournamentA
   return data.tournament;
 }
 
-export async function submitFarm(farmId: string, name: string): Promise<Submission> {
-  const { response, data } = await requestJson<{ submission: Submission }>("submissions", {
+export async function submitFarm(
+  farmId: string,
+  name: string,
+  tournamentIds: string[],
+): Promise<SubmissionList> {
+  const { response, data } = await requestJson<SubmissionList>("submissions", {
     method: "POST",
-    body: JSON.stringify({ farm_id: farmId, name }),
+    body: JSON.stringify({ farm_id: farmId, name, tournament_ids: tournamentIds }),
   });
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to submit farm"));
-  return data.submission;
+  return data;
 }

@@ -32,7 +32,22 @@ from tournament.catalog import (
 )
 from tournament.farms import FarmRegistry
 from tournament.leaderboard import official_score, public_entry, rank_scores
+from tournament.membership import (
+    MembershipError,
+    add_farms_to_tournament,
+    approve_join,
+    drop_farm_members,
+    enrolled_farm_ids,
+    parse_farm_ids,
+    parse_tournament_ids,
+    public_member,
+    reject_join,
+    remove_farm_from_tournament,
+    request_joins,
+    roster_members,
+)
 from tournament.scoring import STATUS_COMPLETED
+from tournament.stats import player_detail, player_list_row
 from tournament.store import Store
 from tournament.sync import (
     drop_untracked_scores,
@@ -199,7 +214,11 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     row["name"] = tracked.get("name") or row.get("name") or ""
     config = store.get_config()
     days = configured_duration_days(config)
+    tid = str(config.get("current_tournament_id") or "").strip()
     allowed = registry.farm_ids(active_only=True)
+    event = store.get_tournament(tid) if tid else None
+    if tid and event and event.get("roster_seeded"):
+        allowed = allowed & enrolled_farm_ids(store, tid)
     ranked = rank_scores(
         [item for item in store.list_scores() if str(item.get("farm_id") or "") in allowed],
         tournament_days=days,
@@ -216,15 +235,19 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
     if not re.fullmatch(r"[0-9]{6,32}", farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
-    registry = _get_registry()
-    if registry.get(farm_id):
-        return create_error_response(409, "farm is already tracked", "CONFLICT")
+    try:
+        tournament_ids = parse_tournament_ids(body)
+    except MembershipError as exc:
+        return _membership_error(exc)
     store = _get_store()
-    existing = store.get_submission(farm_id)
-    if existing:
-        return create_error_response(409, "farm is already pending approval", "CONFLICT")
-    submission = store.put_submission(farm_id, name)
-    return create_response(201, {"submission": submission})
+    seed_catalog(store)
+    try:
+        submissions = request_joins(
+            store, farm_id=farm_id, name=name, tournament_ids=tournament_ids
+        )
+    except MembershipError as exc:
+        return _membership_error(exc)
+    return create_response(201, {"submissions": submissions, "count": len(submissions)})
 
 
 def handle_admin_session(_event: dict[str, Any]) -> dict[str, Any]:
@@ -282,7 +305,9 @@ def handle_get_tournament_farm(event: dict[str, Any]) -> dict[str, Any]:
     tournament = params.get("tournament_id", "").strip()
     farm_id = params.get("farm_id", "").strip()
     if not tournament or not farm_id:
-        return create_error_response(400, "tournament_id and farm_id are required", "VALIDATION_ERROR")
+        return create_error_response(
+            400, "tournament_id and farm_id are required", "VALIDATION_ERROR"
+        )
     entry = get_public_tournament_farm(_get_store(), tournament, farm_id)
     if entry is None:
         return create_error_response(404, "farm not found in that tournament", "NOT_FOUND")
@@ -290,6 +315,10 @@ def handle_get_tournament_farm(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _catalog_error(exc: CatalogError) -> dict[str, Any]:
+    return create_error_response(exc.status, exc.message, exc.code)
+
+
+def _membership_error(exc: MembershipError) -> dict[str, Any]:
     return create_error_response(exc.status, exc.message, exc.code)
 
 
@@ -372,9 +401,55 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _live_player_context(store: Store) -> dict[str, Any]:
+    live = active_tournament(store)
+    if not live:
+        return {
+            "live_tournament_id": None,
+            "live_duration_days": 1,
+            "live_window_start": None,
+            "live_window_end": None,
+            "live": None,
+        }
+    return {
+        "live_tournament_id": str(live.get("tournament_id") or "") or None,
+        "live_duration_days": int(live.get("duration_days") or configured_duration_days(live) or 1),
+        "live_window_start": parse_iso(live.get("start_at")),
+        "live_window_end": parse_iso(live.get("end_at")),
+        "live": live,
+    }
+
+
 def handle_admin_list_farms(event: dict[str, Any]) -> dict[str, Any]:
-    farms = _get_registry().list_farms()
+    store = _get_store()
+    seed_catalog(store)
+    ctx = _live_player_context(store)
+    farms = [
+        player_list_row(
+            store,
+            farm,
+            live_tournament_id=ctx["live_tournament_id"],
+            live_duration_days=ctx["live_duration_days"],
+            live_window_start=ctx["live_window_start"],
+            live_window_end=ctx["live_window_end"],
+        )
+        for farm in _get_registry().list_farms()
+    ]
     return create_response(200, {"farms": farms, "count": len(farms)})
+
+
+def handle_admin_get_farm(event: dict[str, Any]) -> dict[str, Any]:
+    farm_id = _path_params(event).get("farm_id", "").strip()
+    if not farm_id:
+        return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    store = _get_store()
+    seed_catalog(store)
+    tracked = _get_registry().get(farm_id)
+    if not tracked:
+        return create_error_response(404, "farm not found", "NOT_FOUND")
+    ctx = _live_player_context(store)
+    farm = player_detail(store, tracked, live_tournament=ctx["live"])
+    return create_response(200, {"farm": farm})
 
 
 def handle_admin_add_farm(event: dict[str, Any]) -> dict[str, Any]:
@@ -429,37 +504,103 @@ def handle_admin_delete_farm(event: dict[str, Any]) -> dict[str, Any]:
         return create_error_response(404, "farm not found", "NOT_FOUND")
     store = _get_store()
     store.delete_score(farm_id)
+    drop_farm_members(store, farm_id)
     _refresh_public_board(store)
     return create_response(200, {"farms": saved["farms"], "count": len(saved["farms"])})
 
 
 def handle_admin_list_submissions(event: dict[str, Any]) -> dict[str, Any]:
-    submissions = _get_store().list_submissions()
+    store = _get_store()
+    submissions = [public_member(item) for item in store.list_members(status="pending")]
     submissions.sort(key=lambda item: item.get("submitted_at") or "", reverse=True)
     return create_response(200, {"submissions": submissions, "count": len(submissions)})
 
 
 def handle_admin_approve_submission(event: dict[str, Any]) -> dict[str, Any]:
-    farm_id = _path_params(event).get("farm_id", "").strip()
+    params = _path_params(event)
+    farm_id = params.get("farm_id", "").strip()
+    tournament_id = (
+        params.get("tournament_id", "").strip()
+        or str(_body(event).get("tournament_id") or "").strip()
+    )
+    if not farm_id or not tournament_id:
+        return create_error_response(
+            400, "farm_id and tournament_id are required", "VALIDATION_ERROR"
+        )
     store = _get_store()
-    submission = store.get_submission(farm_id)
-    if not submission:
-        return create_error_response(404, "submission not found", "NOT_FOUND")
-    saved = _get_registry().upsert(farm_id, name=submission.get("name") or "", active=True)
-    store.delete_submission(farm_id)
-    if not store.get_score(farm_id):
-        store.put_score(store.empty_score(farm_id, submission.get("name") or ""))
+    try:
+        farm = approve_join(store, _get_registry(), farm_id=farm_id, tournament_id=tournament_id)
+    except MembershipError as exc:
+        return _membership_error(exc)
     _refresh_public_board(store)
-    farm = next(item for item in saved["farms"] if item["farm_id"] == farm_id)
     return create_response(200, {"farm": farm})
 
 
 def handle_admin_reject_submission(event: dict[str, Any]) -> dict[str, Any]:
-    farm_id = _path_params(event).get("farm_id", "").strip()
+    params = _path_params(event)
+    farm_id = params.get("farm_id", "").strip()
+    tournament_id = (
+        params.get("tournament_id", "").strip()
+        or str(_body(event).get("tournament_id") or "").strip()
+    )
+    if not farm_id or not tournament_id:
+        return create_error_response(
+            400, "farm_id and tournament_id are required", "VALIDATION_ERROR"
+        )
+    try:
+        reject_join(_get_store(), farm_id=farm_id, tournament_id=tournament_id)
+    except MembershipError as exc:
+        return _membership_error(exc)
+    return create_response(200, {"ok": True})
+
+
+def handle_admin_tournament_roster(event: dict[str, Any]) -> dict[str, Any]:
+    tournament_id = _path_params(event).get("tournament_id", "").strip()
+    if not tournament_id:
+        return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
     store = _get_store()
-    if not store.get_submission(farm_id):
-        return create_error_response(404, "submission not found", "NOT_FOUND")
-    store.delete_submission(farm_id)
+    if not store.get_tournament(tournament_id):
+        return create_error_response(404, "tournament not found", "NOT_FOUND")
+    members = roster_members(store, _get_registry(), tournament_id)
+    return create_response(200, {"members": members, "count": len(members)})
+
+
+def handle_admin_add_tournament_farms(event: dict[str, Any]) -> dict[str, Any]:
+    tournament_id = _path_params(event).get("tournament_id", "").strip()
+    if not tournament_id:
+        return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
+    try:
+        farm_ids = parse_farm_ids(_body(event))
+        added = add_farms_to_tournament(
+            _get_store(),
+            _get_registry(),
+            tournament_id=tournament_id,
+            farm_ids=farm_ids,
+        )
+    except MembershipError as exc:
+        return _membership_error(exc)
+    _refresh_public_board()
+    farms = [
+        {"farm_id": item["farm_id"], "name": item.get("name") or "", "active": item.get("active")}
+        for item in added
+    ]
+    return create_response(200, {"farms": farms, "count": len(farms)})
+
+
+def handle_admin_remove_tournament_farm(event: dict[str, Any]) -> dict[str, Any]:
+    params = _path_params(event)
+    tournament_id = params.get("tournament_id", "").strip()
+    farm_id = params.get("farm_id", "").strip()
+    if not tournament_id or not farm_id:
+        return create_error_response(
+            400, "tournament_id and farm_id are required", "VALIDATION_ERROR"
+        )
+    store = _get_store()
+    try:
+        remove_farm_from_tournament(store, tournament_id=tournament_id, farm_id=farm_id)
+    except MembershipError as exc:
+        return _membership_error(exc)
+    _refresh_public_board(store)
     return create_response(200, {"ok": True})
 
 
@@ -562,17 +703,33 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ),
     ("GET", re.compile(r"^/admin/farms$"), handle_admin_list_farms),
     ("POST", re.compile(r"^/admin/farms$"), handle_admin_add_farm),
+    ("GET", re.compile(r"^/admin/farms/(?P<farm_id>[^/]+)$"), handle_admin_get_farm),
     ("PUT", re.compile(r"^/admin/farms/(?P<farm_id>[^/]+)$"), handle_admin_update_farm),
     ("DELETE", re.compile(r"^/admin/farms/(?P<farm_id>[^/]+)$"), handle_admin_delete_farm),
+    (
+        "GET",
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)/roster$"),
+        handle_admin_tournament_roster,
+    ),
+    (
+        "POST",
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)/farms$"),
+        handle_admin_add_tournament_farms,
+    ),
+    (
+        "DELETE",
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)/farms/(?P<farm_id>[^/]+)$"),
+        handle_admin_remove_tournament_farm,
+    ),
     ("GET", re.compile(r"^/admin/submissions$"), handle_admin_list_submissions),
     (
         "POST",
-        re.compile(r"^/admin/submissions/(?P<farm_id>[^/]+)/approve$"),
+        re.compile(r"^/admin/submissions/(?P<farm_id>[^/]+)/(?P<tournament_id>[^/]+)/approve$"),
         handle_admin_approve_submission,
     ),
     (
         "DELETE",
-        re.compile(r"^/admin/submissions/(?P<farm_id>[^/]+)$"),
+        re.compile(r"^/admin/submissions/(?P<farm_id>[^/]+)/(?P<tournament_id>[^/]+)$"),
         handle_admin_reject_submission,
     ),
     (

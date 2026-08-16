@@ -91,7 +91,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   Rules
                 </button>
                 <button type="button" role="menuitem" onClick={goJoin}>
-                  Join the tournament
+                  Join a tournament
                 </button>
                 <button
                   type="button"

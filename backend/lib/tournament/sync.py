@@ -10,6 +10,7 @@ from urllib import error, request
 
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard
+from tournament.membership import enrolled_farm_ids, seed_legacy_roster
 from tournament.scoring import (
     assign_incomplete_official_scores,
     extract_grid,
@@ -105,14 +106,22 @@ def drop_untracked_scores(store: Store, registry) -> list[str]:
     return dropped
 
 
-def refresh_leaderboard(store: Store, *, now: datetime | None = None, registry=None) -> dict[str, Any]:
+def refresh_leaderboard(
+    store: Store, *, now: datetime | None = None, registry=None
+) -> dict[str, Any]:
     _ = now
     config = store.get_config()
     days = configured_duration_days(config)
     rows = store.list_scores()
     if registry is not None:
+        seed_legacy_roster(store, registry)
         allowed = registry.farm_ids(active_only=True)
         rows = [row for row in rows if str(row.get("farm_id") or "") in allowed]
+    tid = str(config.get("current_tournament_id") or "").strip()
+    event = store.get_tournament(tid) if tid else None
+    if tid and event and event.get("roster_seeded"):
+        enrolled = enrolled_farm_ids(store, tid)
+        rows = [row for row in rows if str(row.get("farm_id") or "") in enrolled]
     board = build_leaderboard(rows, tournament_days=days)
     cached = store.put_leaderboard_cache(board)
     return cached

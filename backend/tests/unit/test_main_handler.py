@@ -114,13 +114,26 @@ def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
 
 def test_submit_then_admin_approve(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
+    opened = _open_live_cup(app)
     created = app.lambda_handler(
-        _event("POST", "/submissions", {"farm_id": "3666918801844311", "name": "rmr"}),
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": opened["tournament_id"],
+            },
+        ),
         None,
     )
     assert created["statusCode"] == 201
     duplicate = app.lambda_handler(
-        _event("POST", "/submissions", {"farm_id": "3666918801844311"}),
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "3666918801844311", "tournament_id": opened["tournament_id"]},
+        ),
         None,
     )
     assert duplicate["statusCode"] == 409
@@ -128,33 +141,18 @@ def test_submit_then_admin_approve(aws_env, monkeypatch):
     listed = app.lambda_handler(_event("GET", "/admin/submissions"), None)
     assert listed["statusCode"] == 200
     assert _json(listed)["count"] == 1
+    assert _json(listed)["submissions"][0]["tournament_id"] == opened["tournament_id"]
 
     approved = app.lambda_handler(
         _event(
             "POST",
-            "/admin/submissions/3666918801844311/approve",
-            farm_id="3666918801844311",
+            f"/admin/submissions/3666918801844311/{opened['tournament_id']}/approve",
         ),
         None,
     )
     assert approved["statusCode"] == 200
     farms = app.lambda_handler(_event("GET", "/admin/farms"), None)
     assert _json(farms)["farms"][0]["farm_id"] == "3666918801844311"
-
-    created = app.lambda_handler(
-        _event(
-            "POST",
-            "/admin/tournaments",
-            {
-                "name": "Live cup",
-                "start_at": "2026-08-10T00:00:00+00:00",
-                "end_at": "2026-08-20T00:00:00+00:00",
-                "prize_amount": "30",
-            },
-        ),
-        None,
-    )
-    assert created["statusCode"] == 201
 
     board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
     assert board["count"] == 1
@@ -193,6 +191,12 @@ def test_admin_override_score(aws_env, monkeypatch):
         None,
     )
     assert opened["statusCode"] == 201
+    tid = _json(opened)["tournament"]["tournament_id"]
+    enrolled = app.lambda_handler(
+        _event("POST", f"/admin/tournaments/{tid}/farms", {"farm_ids": ["42"]}),
+        None,
+    )
+    assert enrolled["statusCode"] == 200
     board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
     assert board["entries"][0]["digs_to_third_op"] == 11
     assert board["entries"][0]["status"] == "completed"
@@ -213,11 +217,25 @@ def _open_live_cup(app):
         None,
     )
     assert created["statusCode"] == 201
+    return _json(created)["tournament"]
+
+
+def _enroll(app, tournament_id, farm_ids):
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/tournaments/{tournament_id}/farms",
+            {"farm_ids": farm_ids},
+        ),
+        None,
+    )
+    assert response["statusCode"] == 200
+    return response
 
 
 def test_untracked_farm_is_purged_from_leaderboard(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    _open_live_cup(app)
+    cup = _open_live_cup(app)
     store = app._get_store()
     store.put_score(
         {
@@ -232,6 +250,7 @@ def test_untracked_farm_is_purged_from_leaderboard(aws_env, monkeypatch):
         }
     )
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "42", "name": "kept"}), None)
+    _enroll(app, cup["tournament_id"], ["42"])
     board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
     ids = [row["farm_id"] for row in board["entries"]]
     assert "ghost" not in ids
@@ -241,9 +260,10 @@ def test_untracked_farm_is_purged_from_leaderboard(aws_env, monkeypatch):
 
 def test_remove_farm_deletes_score_and_board_row(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    _open_live_cup(app)
+    cup = _open_live_cup(app)
     added = app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "42", "name": "x"}), None)
     assert added["statusCode"] == 201
+    _enroll(app, cup["tournament_id"], ["42"])
     store = app._get_store()
     store.put_score(
         {
@@ -266,8 +286,9 @@ def test_remove_farm_deletes_score_and_board_row(aws_env, monkeypatch):
 
 def test_disabled_farm_hidden_from_board_but_score_kept(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    _open_live_cup(app)
+    cup = _open_live_cup(app)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "42", "name": "x"}), None)
+    _enroll(app, cup["tournament_id"], ["42"])
     store = app._get_store()
     store.put_score(
         {

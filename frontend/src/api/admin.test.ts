@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchAdminConfig, refreshFarm, saveConfig } from "./admin";
+import {
+  addTournamentFarms,
+  approveSubmission,
+  fetchAdminConfig,
+  fetchAdminFarm,
+  fetchTournamentRoster,
+  refreshFarm,
+  rejectSubmission,
+  saveConfig,
+} from "./admin";
 
 vi.mock("./client", () => ({
   requestJson: vi.fn(),
@@ -56,6 +65,51 @@ describe("admin api", () => {
     });
     expect(saved.config.prize_amount).toBe("30");
     expect(saved.rescore?.rescored).toBe(2);
+  });
+
+  it("loads a player detail from the authenticated farm route", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        farm: {
+          farm_id: "99",
+          name: "rmr",
+          active: true,
+          digging_streak: 2,
+          average_per_day: 6,
+          history: [],
+          enrollments: [],
+          pending_joins: [],
+        },
+      }),
+    );
+    const farm = await fetchAdminFarm("99");
+    expect(mockRequest).toHaveBeenCalledWith("admin/farms/99");
+    expect(farm.digging_streak).toBe(2);
+  });
+
+  it("approves and rejects a join that names a tournament", async () => {
+    mockRequest.mockResolvedValueOnce(ok({ farm: { farm_id: "99", name: "rmr", active: true } }));
+    await approveSubmission("99", "cup-1");
+    expect(mockRequest).toHaveBeenCalledWith("admin/submissions/99/cup-1/approve", {
+      method: "POST",
+    });
+    mockRequest.mockResolvedValueOnce(ok({ ok: true }));
+    await rejectSubmission("99", "cup-1");
+    expect(mockRequest).toHaveBeenCalledWith("admin/submissions/99/cup-1", { method: "DELETE" });
+  });
+
+  it("loads a roster and multi-adds existing farms", async () => {
+    mockRequest.mockResolvedValueOnce(ok({ members: [], count: 0 }));
+    await fetchTournamentRoster("cup-1");
+    expect(mockRequest).toHaveBeenCalledWith("admin/tournaments/cup-1/roster");
+    mockRequest.mockResolvedValueOnce(
+      ok({ farms: [{ farm_id: "99", name: "rmr", active: true }], count: 1 }),
+    );
+    await addTournamentFarms("cup-1", ["99"]);
+    expect(mockRequest).toHaveBeenCalledWith("admin/tournaments/cup-1/farms", {
+      method: "POST",
+      body: JSON.stringify({ farm_ids: ["99"] }),
+    });
   });
 
   it("starts a one-farm refresh as accepted, not a live score", async () => {

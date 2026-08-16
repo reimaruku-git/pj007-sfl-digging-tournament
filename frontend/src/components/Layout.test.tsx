@@ -43,7 +43,7 @@ describe("public chrome", () => {
       (burger as HTMLButtonElement).click();
     });
     expect(el.textContent).toMatch(/Rules/);
-    expect(el.textContent).toMatch(/Join the tournament/);
+    expect(el.textContent).toMatch(/Join a tournament/);
     expect(el.textContent).toMatch(/Tournaments/);
     const hrefs = [...el.querySelectorAll("a")].map((node) => node.getAttribute("href"));
     expect(hrefs).not.toContain("/admin");

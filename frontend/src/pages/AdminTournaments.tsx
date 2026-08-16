@@ -1,4 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
+import type { RosterMember, TrackedFarm } from "../api/admin";
 import type { TournamentSummary } from "../api/public";
 import { liveTournamentsSoonestFirst, upcomingTournaments } from "../lib/board";
 import { formatDateRangeUtc, isoToDateInput } from "../lib/format";
@@ -14,16 +15,32 @@ type Editor = { mode: "create" } | { mode: "edit"; id: string } | null;
 
 export function AdminTournaments({
   items,
+  players = [],
   loading,
+  selectedId = null,
+  roster = [],
+  onSelect,
   onCreate,
   onUpdate,
   onDelete,
+  onAddFarms,
+  onRemoveFarm,
+  onApprove,
+  onReject,
 }: {
   items: TournamentSummary[];
+  players?: TrackedFarm[];
   loading?: boolean;
+  selectedId?: string | null;
+  roster?: RosterMember[];
+  onSelect?: (id: string | null) => void;
   onCreate: (draft: TournamentDraft) => Promise<void>;
   onUpdate: (id: string, draft: TournamentDraft) => Promise<void>;
   onDelete: (row: TournamentSummary) => Promise<void>;
+  onAddFarms?: (id: string, farmIds: string[]) => Promise<void>;
+  onRemoveFarm?: (id: string, farmId: string) => Promise<void>;
+  onApprove?: (farmId: string, tournamentId: string) => Promise<void>;
+  onReject?: (farmId: string, tournamentId: string) => Promise<void>;
 }) {
   const live = useMemo(() => liveTournamentsSoonestFirst(items), [items]);
   const upcoming = useMemo(() => upcomingTournaments(items), [items]);
@@ -93,15 +110,39 @@ export function AdminTournaments({
       </div>
 
       <div className="tourney-home admin-tourney-home">
-        <AdminGroup title="Ongoing" empty="No ongoing tournament." items={live} onEdit={openEdit} onDelete={onDelete} />
+        <AdminGroup
+          title="Ongoing"
+          empty="No ongoing tournament."
+          items={live}
+          selectedId={selectedId}
+          onOpen={onSelect}
+          onEdit={openEdit}
+          onDelete={onDelete}
+        />
         <AdminGroup
           title="Upcoming"
           empty="No upcoming tournaments."
           items={upcoming}
+          selectedId={selectedId}
+          onOpen={onSelect}
           onEdit={openEdit}
           onDelete={onDelete}
         />
       </div>
+
+      {selectedId && (
+        <TournamentRoster
+          tournamentId={selectedId}
+          name={items.find((item) => item.tournament_id === selectedId)?.name || selectedId}
+          players={players}
+          roster={roster}
+          onAddFarms={onAddFarms}
+          onRemoveFarm={onRemoveFarm}
+          onApprove={onApprove}
+          onReject={onReject}
+          onClose={() => onSelect?.(null)}
+        />
+      )}
 
       {loading && <p className="muted">Loading tournaments…</p>}
 
@@ -166,12 +207,16 @@ function AdminGroup({
   title,
   empty,
   items,
+  selectedId,
+  onOpen,
   onEdit,
   onDelete,
 }: {
   title: string;
   empty: string;
   items: TournamentSummary[];
+  selectedId?: string | null;
+  onOpen?: (id: string | null) => void;
   onEdit: (row: TournamentSummary) => void;
   onDelete: (row: TournamentSummary) => Promise<void>;
 }) {
@@ -180,11 +225,22 @@ function AdminGroup({
       <div className="kicker">{title}</div>
       {items.length === 0 && <p className="muted tourney-empty">{empty}</p>}
       {items.map((row) => (
-        <article key={row.tournament_id} className="tourney-card" data-testid={`admin-card-${row.tournament_id}`}>
-          <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
-          <div className="tourney-card-meta">
-            {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount} Flower
-          </div>
+        <article
+          key={row.tournament_id}
+          className={selectedId === row.tournament_id ? "tourney-card is-open" : "tourney-card"}
+          data-testid={`admin-card-${row.tournament_id}`}
+        >
+          <button
+            type="button"
+            className="tourney-open"
+            data-testid={`admin-open-${row.tournament_id}`}
+            onClick={() => onOpen?.(selectedId === row.tournament_id ? null : row.tournament_id)}
+          >
+            <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
+            <div className="tourney-card-meta">
+              {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount} Flower
+            </div>
+          </button>
           <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
             <button className="btn" type="button" onClick={() => onEdit(row)}>
               Edit
@@ -195,6 +251,123 @@ function AdminGroup({
           </div>
         </article>
       ))}
+    </div>
+  );
+}
+
+function TournamentRoster({
+  tournamentId,
+  name,
+  players,
+  roster,
+  onAddFarms,
+  onRemoveFarm,
+  onApprove,
+  onReject,
+  onClose,
+}: {
+  tournamentId: string;
+  name: string;
+  players: TrackedFarm[];
+  roster: RosterMember[];
+  onAddFarms?: (id: string, farmIds: string[]) => Promise<void>;
+  onRemoveFarm?: (id: string, farmId: string) => Promise<void>;
+  onApprove?: (farmId: string, tournamentId: string) => Promise<void>;
+  onReject?: (farmId: string, tournamentId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const enrolled = new Set(
+    roster.filter((item) => item.status === "enrolled").map((item) => item.farm_id),
+  );
+  const pending = roster.filter((item) => item.status === "pending");
+  const available = players.filter((item) => !enrolled.has(item.farm_id));
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  function toggle(farmId: string) {
+    setPicked((current) =>
+      current.includes(farmId) ? current.filter((id) => id !== farmId) : [...current, farmId],
+    );
+  }
+
+  return (
+    <div className="player-detail" data-testid={`admin-roster-${tournamentId}`}>
+      <div className="toolbar" style={{ justifyContent: "space-between" }}>
+        <div className="kicker" style={{ marginBottom: 0 }}>
+          Roster · {name}
+        </div>
+        <button className="btn" type="button" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <div className="kicker">Pending joins</div>
+      {pending.length === 0 && <p className="muted">None waiting for this event.</p>}
+      {pending.map((item) => (
+        <div key={item.farm_id} className="toolbar">
+          <span>
+            {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
+          </span>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => void onApprove?.(item.farm_id, tournamentId)}
+          >
+            Approve
+          </button>
+          <button className="btn" type="button" onClick={() => void onReject?.(item.farm_id, tournamentId)}>
+            Reject
+          </button>
+        </div>
+      ))}
+      <div className="kicker">Enrolled</div>
+      {roster.filter((item) => item.status === "enrolled").length === 0 && (
+        <p className="muted">No one enrolled yet.</p>
+      )}
+      {roster
+        .filter((item) => item.status === "enrolled")
+        .map((item) => (
+          <div key={item.farm_id} className="toolbar">
+            <span>
+              {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
+            </span>
+            <button
+              className="btn"
+              type="button"
+              onClick={() => void onRemoveFarm?.(tournamentId, item.farm_id)}
+            >
+              Remove from event
+            </button>
+          </div>
+        ))}
+      <div className="kicker">Add existing players</div>
+      {available.length === 0 && <p className="muted">Every tracked player is already on this event.</p>}
+      {available.map((farm) => (
+        <label key={farm.farm_id} className="join-option">
+          <input
+            type="checkbox"
+            checked={picked.includes(farm.farm_id)}
+            onChange={() => toggle(farm.farm_id)}
+          />
+          <span>
+            {farm.name || "Unnamed"} <span className="farm-id">{farm.farm_id}</span>
+          </span>
+        </label>
+      ))}
+      {available.length > 0 && (
+        <button
+          className="btn primary"
+          type="button"
+          disabled={busy || picked.length === 0}
+          onClick={() => {
+            setBusy(true);
+            void onAddFarms?.(tournamentId, picked)
+              .then(() => setPicked([]))
+              .finally(() => setBusy(false));
+          }}
+        >
+          Add selected
+        </button>
+      )}
     </div>
   );
 }

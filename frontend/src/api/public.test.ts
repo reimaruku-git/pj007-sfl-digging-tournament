@@ -75,22 +75,29 @@ describe("public api", () => {
     expect(farm.status).toBe("in_progress");
   });
 
-  it("submits a farm id for admin approval", async () => {
+  it("submits a farm id for named tournaments", async () => {
     mockRequest.mockResolvedValueOnce(
       ok({
-        submission: {
-          farm_id: "333",
-          name: "bob",
-          submitted_at: "2026-08-14T13:00:00+00:00",
-          status: "pending",
-        },
+        submissions: [
+          {
+            farm_id: "333",
+            name: "bob",
+            tournament_id: "cup-1",
+            submitted_at: "2026-08-14T13:00:00+00:00",
+            approved_at: null,
+            status: "pending",
+          },
+        ],
+        count: 1,
       }),
     );
-    const submission = await submitFarm("333", "bob");
+    const result = await submitFarm("333", "bob", ["cup-1"]);
     expect(mockRequest).toHaveBeenCalledWith("submissions", {
       method: "POST",
-      body: JSON.stringify({ farm_id: "333", name: "bob" }),
+      body: JSON.stringify({ farm_id: "333", name: "bob", tournament_ids: ["cup-1"] }),
     });
-    expect(submission.status).toBe("pending");
+    expect(result.count).toBe(1);
+    expect(result.submissions[0]?.status).toBe("pending");
+    expect(result.submissions[0]?.tournament_id).toBe("cup-1");
   });
 });
