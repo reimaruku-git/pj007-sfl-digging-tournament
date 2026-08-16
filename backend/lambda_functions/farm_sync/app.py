@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 
-from datetime import datetime, timezone
-
+from tournament.archive import archive_current
+from tournament.catalog import rollover
 from tournament.farms import FarmRegistry
 from tournament.sfl_client import RateLimitedSFLClient
 from tournament.store import Store
@@ -57,8 +58,6 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
     )
     clock = _event_now(event)
-    from tournament.catalog import rollover
-
     farm_id = _event_farm_id(event)
     dropped = drop_untracked_scores(store, registry)
     if dropped:
@@ -87,8 +86,6 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         webhook_url=DISCORD_WEBHOOK_URL,
         now=clock,
     )
-    from tournament.archive import archive_current
-
     archive_current(store, now=clock)
     logger.info(
         "farm_sync done: synced=%s failures=%s finalized=%s",

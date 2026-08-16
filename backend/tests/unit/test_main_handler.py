@@ -4,7 +4,11 @@ import importlib
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+
+from tournament.scoring import score_grid
+from tournament.sync import apply_computed_score, refresh_leaderboard
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda_functions" / "main_function"))
@@ -71,10 +75,6 @@ def test_health_and_public_leaderboard(aws_env, monkeypatch):
 
 def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
     """GET /leaderboard must emit score as a float after a Dynamo cache read."""
-    from datetime import datetime, timezone
-
-    from tournament.sync import refresh_leaderboard
-
     app = _load_app(aws_env, monkeypatch)
     store = app._get_store()
     store.put_config(
@@ -305,11 +305,6 @@ def test_admin_get_config_is_public_shape(aws_env, monkeypatch):
 
 
 def test_admin_put_config_rescores_from_snapshot(aws_env, monkeypatch):
-    from datetime import datetime, timezone
-
-    from tournament.scoring import score_grid
-    from tournament.sync import apply_computed_score
-
     app = _load_app(aws_env, monkeypatch)
     added = app.lambda_handler(
         _event("POST", "/admin/farms", {"farm_id": "99", "name": "rmr"}),

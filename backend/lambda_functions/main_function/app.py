@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from tournament.catalog import (
     get_public_tournament,
     get_public_tournament_farm,
     list_public_tournaments,
+    normalize_name,
     parse_window,
     seed_catalog,
     tournament_record,
@@ -111,8 +113,6 @@ def _body(event: dict[str, Any]) -> dict[str, Any]:
     if not raw:
         return {}
     if event.get("isBase64Encoded"):
-        import base64
-
         raw = base64.b64decode(raw).decode("utf-8")
     if isinstance(raw, dict):
         return raw
@@ -334,8 +334,6 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
     seed_catalog(store)
     try:
         start, end, days = parse_window(body)
-        from tournament.catalog import normalize_name
-
         name = normalize_name(body.get("name"), start)
     except CatalogError as exc:
         return _catalog_error(exc)

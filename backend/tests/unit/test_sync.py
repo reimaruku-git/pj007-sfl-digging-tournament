@@ -6,6 +6,7 @@ from tournament.store import Store
 from tournament.scoring import score_grid
 from tournament.sync import (
     apply_computed_score,
+    apply_day_finalize,
     rescore_from_snapshots,
     sync_all_farms,
     sync_one_farm,
@@ -170,8 +171,6 @@ def _seed_farms(store, registry, grids):
 
 
 def test_finalize_2300_assigns_incomplete_and_is_idempotent(aws_env):
-    from tournament.sync import apply_day_finalize
-
     store = _store(aws_env)
     store.put_config(
         {

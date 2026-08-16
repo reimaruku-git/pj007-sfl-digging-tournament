@@ -1,9 +1,20 @@
 """Named tournament catalog: queue, overlap, and rollover."""
 
+import importlib
 import json
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
-from tournament.catalog import CatalogError, create_tournament, delete_tournament, rollover
+from tournament.catalog import (
+    CatalogError,
+    create_tournament,
+    delete_tournament,
+    list_public_tournaments,
+    rollover,
+    seed_catalog,
+    update_tournament,
+)
 from tournament.store import Store
 from tournament.sync import apply_computed_score, refresh_leaderboard
 from tournament.scoring import score_grid
@@ -70,8 +81,6 @@ def test_one_day_tournament_is_allowed(aws_env):
 
 
 def test_empty_store_has_no_default_live(aws_env):
-    from tournament.catalog import list_public_tournaments, seed_catalog
-
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
     seed_catalog(store, now=clock)
@@ -82,8 +91,6 @@ def test_empty_store_has_no_default_live(aws_env):
 
 
 def test_can_edit_active_duration(aws_env):
-    from tournament.catalog import update_tournament
-
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
     live = create_tournament(
@@ -211,10 +218,6 @@ def test_rollover_archives_then_promotes_next(aws_env):
 
 
 def test_admin_http_create_and_cancel(aws_env, monkeypatch):
-    import importlib
-    import sys
-    from pathlib import Path
-
     root = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(root / "lambda_functions" / "main_function"))
     monkeypatch.setenv("DATA_BUCKET", aws_env["bucket"])

@@ -1,3 +1,7 @@
+import json
+
+import boto3
+
 from tournament.farms import FarmRegistry
 
 
@@ -27,10 +31,6 @@ def test_upsert_and_remove_round_trip(aws_env):
 
 
 def test_accepts_camel_case_on_read(aws_env):
-    import json
-
-    import boto3
-
     boto3.client("s3", region_name="ap-southeast-1").put_object(
         Bucket=aws_env["bucket"],
         Key="config/tracked-farms.json",

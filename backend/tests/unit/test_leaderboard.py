@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from tournament.leaderboard import build_leaderboard, official_score, rank_scores
 from tournament.window import official_score_average, tournament_days_for_average
 
@@ -153,8 +155,6 @@ def test_same_third_breaks_on_second_then_first_then_times():
 
 
 def test_average_uses_configured_length_when_ended():
-    from datetime import datetime, timezone
-
     start = datetime(2026, 8, 1, tzinfo=timezone.utc)
     end_7 = datetime(2026, 8, 8, tzinfo=timezone.utc)
     end_30 = datetime(2026, 8, 31, tzinfo=timezone.utc)

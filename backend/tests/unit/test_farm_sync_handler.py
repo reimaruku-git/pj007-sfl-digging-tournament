@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tournament.farms import FarmRegistry
+from tournament.store import Store
 
 ROOT = Path(__file__).resolve().parents[2]
 NOW = datetime(2026, 8, 14, 12, 0, tzinfo=timezone.utc)
@@ -76,8 +77,6 @@ def test_one_farm_invoke_updates_only_that_farm(aws_env, monkeypatch):
     assert result["farm_id"] == "1"
     assert client.called == ["1"]
 
-    from tournament.store import Store
-
     store = Store(
         config_table=aws_env["config_table"],
         scores_table=aws_env["scores_table"],
@@ -133,8 +132,6 @@ def test_schedule_at_2300_finalizes_incompletes(aws_env, monkeypatch):
     registry = FarmRegistry(aws_env["bucket"])
     registry.upsert("1", name="done")
     registry.upsert("2", name="short")
-    from tournament.store import Store
-
     store = Store(
         config_table=aws_env["config_table"],
         scores_table=aws_env["scores_table"],
@@ -168,8 +165,6 @@ def test_schedule_at_1400_leaves_incompletes_without_penalty(aws_env, monkeypatc
     app = _load_sync(aws_env, monkeypatch, client)
     registry = FarmRegistry(aws_env["bucket"])
     registry.upsert("1", name="short")
-    from tournament.store import Store
-
     store = Store(
         config_table=aws_env["config_table"],
         scores_table=aws_env["scores_table"],

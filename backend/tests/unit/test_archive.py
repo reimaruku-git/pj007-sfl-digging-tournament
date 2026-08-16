@@ -1,16 +1,18 @@
 """Ended tournaments are frozen in S3 and stay readable after a new window."""
 
-from tournament.sync import apply_computed_score, refresh_leaderboard
+import importlib
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import boto3
+
 from tournament.scoring import score_grid
+from tournament.sync import apply_computed_score, refresh_leaderboard
 
 
 def test_ended_window_is_archived_and_survives_new_event(aws_env, monkeypatch):
-    import importlib
-    import json
-    import sys
-    from datetime import datetime, timezone
-    from pathlib import Path
-
     ROOT = Path(__file__).resolve().parents[2]
     sys.path.insert(0, str(ROOT / "lambda_functions" / "main_function"))
     monkeypatch.setenv("DATA_BUCKET", aws_env["bucket"])
@@ -66,8 +68,7 @@ def test_ended_window_is_archived_and_survives_new_event(aws_env, monkeypatch):
     assert payload["tournaments"][0]["count"] == 1
     keys = [
         obj["Key"]
-        for obj in __import__("boto3")
-        .client("s3", region_name="ap-southeast-1")
+        for obj in boto3.client("s3", region_name="ap-southeast-1")
         .list_objects_v2(Bucket=aws_env["bucket"], Prefix="archives/")
         .get("Contents", [])
     ]

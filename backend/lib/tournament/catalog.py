@@ -6,8 +6,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from tournament.farms import utc_now_iso
+from tournament.leaderboard import public_entry
 from tournament.store import MIN_TOURNAMENT_DAYS, NAME_MAX_LEN, Store
-from tournament.sync import public_config, refresh_leaderboard, rescore_from_snapshots, tournament_status
+from tournament.sync import (
+    ensure_default_config,
+    public_config,
+    refresh_leaderboard,
+    rescore_from_snapshots,
+    tournament_status,
+)
 from tournament.window import (
     configured_duration_days,
     default_tournament_name,
@@ -141,8 +148,6 @@ def apply_live_config(store: Store, row: dict[str, Any], *, existing: dict[str, 
 
 def seed_catalog(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
     """Mirror a real CONFIG window into the catalog. Empty config stays empty."""
-    from tournament.sync import ensure_default_config
-
     clock = _clock(now)
     config = ensure_default_config(store, now=clock)
     start = parse_iso(config.get("start_at"))
@@ -413,9 +418,11 @@ def rollover(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
             archived = freeze_tournament(store, current, now=clock)
             current = store.get_tournament(current_id)
     elif parse_iso(config.get("end_at")) and clock >= parse_iso(config.get("end_at")):
-        from tournament.archive import archive_current
-
-        archive_current(store, now=clock, force=True)
+        start = parse_iso(config.get("start_at"))
+        if start is not None:
+            row = store.get_tournament(current_id or tournament_id(config))
+            if row is not None:
+                archived = freeze_tournament(store, row, now=clock)
 
     next_row = None
     for row in sorted(store.list_tournament_items(), key=lambda item: str(item.get("start_at") or "")):
@@ -555,8 +562,6 @@ def get_public_tournament_farm(
 
 
 def _hydrate_entry(entry: dict[str, Any], days: int) -> dict[str, Any]:
-    from tournament.leaderboard import public_entry
-
     row = dict(entry)
     row.setdefault("tournament_days", days)
     return public_entry(row)
