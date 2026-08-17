@@ -39,6 +39,19 @@ export function joinableTournaments(items: TournamentSummary[]): TournamentSumma
   return [...liveTournamentsSoonestFirst(items), ...upcomingTournaments(items)];
 }
 
+/** Home join list only: live by oldest start_at, then upcoming by soonest start_at. */
+export function joinListTournaments(items: TournamentSummary[]): TournamentSummary[] {
+  return items
+    .filter((row) => row.status === "active" || row.status === "scheduled")
+    .slice()
+    .sort((a, b) => {
+      const aLive = a.status === "active" ? 0 : 1;
+      const bLive = b.status === "active" ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+      return Date.parse(a.start_at) - Date.parse(b.start_at);
+    });
+}
+
 export const HOME_TOURNEY_LIMIT = 2;
 
 export function homeTourneyPreview(items: TournamentSummary[]): TournamentSummary[] {

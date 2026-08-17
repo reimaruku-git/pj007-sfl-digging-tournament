@@ -7,12 +7,12 @@ import {
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
+import { JoinTournamentList } from "../components/JoinTournamentList";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { SyncCountdown } from "../components/SyncCountdown";
 import {
   homeTourneyPreview,
-  joinableTournaments,
   liveTournamentsSoonestFirst,
   upcomingTournaments,
   visibleBoardEntries,
@@ -54,8 +54,6 @@ export function LeaderboardPage() {
       queryFn: () => fetchTournament(row.tournament_id),
     })),
   });
-
-  const joinable = useMemo(() => joinableTournaments(items), [items]);
 
   const featured = live[0];
   const featuredEntries = boards[0]?.data?.entries ?? [];
@@ -165,38 +163,7 @@ export function LeaderboardPage() {
         />
       ))}
 
-      <section className="card" id="join">
-        <div className="kicker">Join a tournament</div>
-        <p className="meta">
-          Open an upcoming or ongoing event to see the prize and join from there.
-          {identity ? (
-            <>
-              {" "}
-              You are <strong>{identity.name}</strong>.
-            </>
-          ) : (
-            <> Connect your farm to join.</>
-          )}
-        </p>
-        <div data-testid="join-tournaments">
-          {joinable.length === 0 && (
-            <p className="muted">No scheduled or live events to join yet.</p>
-          )}
-          {joinable.map((row) => (
-            <Link
-              key={row.tournament_id}
-              to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
-              className="join-option"
-              data-testid={`join-link-${row.tournament_id}`}
-            >
-              <span>
-                {row.name || "Untitled"} ·{" "}
-                {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <JoinTournamentList items={items} connectedName={identity?.name ?? null} />
     </>
   );
 }

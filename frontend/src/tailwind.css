@@ -1,0 +1,13 @@
+/* Utilities only so index.css dusk chrome stays intact. */
+@layer theme, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@theme {
+  --color-dusk: #1a1815;
+  --color-dusk-panel: #23201c;
+  --color-dusk-gold: #b89a56;
+  --color-dusk-mute: #9b9488;
+  --color-dusk-cream: #e4dfd5;
+}
