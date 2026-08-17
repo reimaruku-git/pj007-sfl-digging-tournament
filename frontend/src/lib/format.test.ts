@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  catalogStatusLabel,
   formatDateRangeUtc,
   formatDateUtc,
   formatRelative,
@@ -7,6 +8,14 @@ import {
   formatWhenUtc,
   isoToDateInput,
 } from "./format";
+
+describe("catalogStatusLabel", () => {
+  it("labels live events Ongoing and scheduled events Upcoming", () => {
+    expect(catalogStatusLabel("active")).toBe("Ongoing");
+    expect(catalogStatusLabel("scheduled")).toBe("Upcoming");
+    expect(catalogStatusLabel("ended")).toBe("Ended");
+  });
+});
 
 describe("formatScore", () => {
   it("prints two decimal places", () => {

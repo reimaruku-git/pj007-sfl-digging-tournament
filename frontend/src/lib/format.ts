@@ -19,6 +19,12 @@ export function statusLabel(status: string): string {
   }
 }
 
+export function catalogStatusLabel(status: string): string {
+  if (status === "active") return "Ongoing";
+  if (status === "scheduled") return "Upcoming";
+  return statusLabel(status);
+}
+
 export function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);

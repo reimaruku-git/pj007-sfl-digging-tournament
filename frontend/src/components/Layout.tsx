@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useFarmSession } from "../lib/farmSession";
+import { FarmConnect } from "./FarmConnect";
 import { SyncCountdown } from "./SyncCountdown";
 
 export { formatWhen, statusLabel } from "../lib/format";
@@ -10,7 +11,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { identity, disconnect } = useFarmSession();
+  const isAdmin = location.pathname.startsWith("/admin");
 
   useEffect(() => {
     if (!open) return;
@@ -67,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </Link>
         <div className="topbar-tools">
+          {!isAdmin && <FarmConnect />}
           <SyncCountdown compact />
           <div className="menu-wrap" ref={rootRef}>
             <button

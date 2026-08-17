@@ -8,8 +8,9 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
+import { joinableTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
-import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
+import { catalogStatusLabel, formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 
 export function TournamentsPage() {
   const { tournamentId } = useParams();
@@ -20,55 +21,69 @@ export function TournamentsPage() {
 function TournamentList() {
   const query = useQuery({ queryKey: ["tournaments"], queryFn: listTournaments });
   const items = query.data?.tournaments ?? [];
-  const upcoming = items.filter((row) => row.status === "scheduled");
-  const live = items.filter((row) => row.status === "active");
+  const windows = joinableTournaments(items);
   const past = items.filter((row) => row.status === "ended");
   return (
-    <section className="card">
-      <div className="kicker">Tournaments</div>
-      <p className="meta">Upcoming events, the live board, and frozen past standings.</p>
+    <>
+      <div className="tourney-catalog-head">
+        <div className="kicker">Tournaments</div>
+        <p className="meta">Ongoing first, then upcoming. Nearest event sits at the top.</p>
+      </div>
       {query.isLoading && <p className="muted">Loading tournaments…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
-      <Group title="Upcoming" empty="Nothing scheduled yet." items={upcoming} />
-      <Group title="Live" empty="No live tournament." items={live} />
-      <Group title="Past" empty="No archived tournaments yet." items={past} />
-    </section>
+      {!query.isLoading && windows.length === 0 && (
+        <p className="muted">No ongoing or upcoming events.</p>
+      )}
+      {windows.length > 0 && (
+        <div className="tourney-stack" data-testid="tourney-stack">
+          {windows.map((row) => (
+            <CatalogWindow key={row.tournament_id} row={row} />
+          ))}
+        </div>
+      )}
+      {past.length > 0 && (
+        <section className="card">
+          <div className="kicker">Past</div>
+          <ul className="rules-list" style={{ listStyle: "none", marginLeft: 0 }}>
+            {past.map((row) => (
+              <li key={row.tournament_id}>
+                <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                <span>
+                  <Link to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}>
+                    {row.name || `${row.duration_days}d event`}
+                  </Link>
+                  <div className="meta">
+                    {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} ·{" "}
+                    {row.prize_amount} Flower · {row.count} farm{row.count === 1 ? "" : "s"}
+                  </div>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
   );
 }
 
-function Group({
-  title,
-  empty,
-  items,
-}: {
-  title: string;
-  empty: string;
-  items: TournamentSummary[];
-}) {
+function CatalogWindow({ row }: { row: TournamentSummary }) {
+  const ongoing = row.status === "active";
+  const tone = ongoing ? "ongoing" : "upcoming";
   return (
-    <div style={{ marginTop: 20 }}>
-      <div className="kicker">{title}</div>
-      {items.length === 0 && <p className="muted">{empty}</p>}
-      {items.length > 0 && (
-        <ul className="rules-list" style={{ listStyle: "none", marginLeft: 0 }}>
-          {items.map((row) => (
-            <li key={row.tournament_id}>
-              <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-              <span>
-                <Link to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}>
-                  {row.name || `${row.duration_days}d event`}
-                </Link>
-                <div className="meta">
-                  {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} ·{" "}
-                  {row.prize_amount} Flower
-                  {row.status === "ended" ? ` · ${row.count} farm${row.count === 1 ? "" : "s"}` : ""}
-                </div>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <Link
+      to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+      className={`tourney-window is-${tone}`}
+      data-testid={`tourney-window-${row.tournament_id}`}
+    >
+      <span className={`tourney-status ${tone}`} data-testid={`tourney-status-${tone}`}>
+        {catalogStatusLabel(row.status)}
+      </span>
+      <div className="tourney-window-name">{row.name || `${row.duration_days}d event`}</div>
+      <div className="tourney-window-meta">
+        {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
+        Flower
+      </div>
+    </Link>
   );
 }
 
@@ -81,7 +96,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   });
   const join = useMutation({
     mutationFn: () => {
-      if (!identity) throw new Error("Enter your Farm ID first");
+      if (!identity) throw new Error("Connect your farm first");
       return submitFarm(identity.farm_id, identity.name, [tournamentId]);
     },
     onSuccess: () => setNotice("Join request sent. An admin will approve it."),
@@ -102,7 +117,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
         <>
           <div className="kicker">{data.config.name || "Tournament"}</div>
           <p className="meta" data-testid="tournament-window">
-            {formatDateRangeUtc(data.config.start_at, data.config.end_at, data.config.duration_days)}
+            {formatDateRangeUtc(
+              data.config.start_at,
+              data.config.end_at,
+              data.config.duration_days,
+            )}
           </p>
           <div className="tourney-facts">
             <div data-testid="tournament-prize">
@@ -120,9 +139,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
           </div>
           {joinable && identity && (
             <div className="join-detail" data-testid="join-detail">
-              {notice && (
-                <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>
-              )}
+              {notice && <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>}
               <p className="meta">
                 Joining as <strong>{identity.name}</strong> · {identity.farm_id}
               </p>
@@ -139,6 +156,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 {join.isPending ? "Sending…" : "Join this tournament"}
               </button>
             </div>
+          )}
+          {joinable && !identity && (
+            <p className="meta" data-testid="join-need-connect">
+              Connect your farm in the header to join this event.
+            </p>
           )}
           {data.entries.length === 0 && (
             <p className="muted">

@@ -15,15 +15,19 @@ vi.mock("../api/public", () => ({
   submitFarm: (...args: unknown[]) => submitFarm(...args),
 }));
 
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
-import { writeFarmIdentity } from "../lib/followFarm";
+import { clearFarmIdentity, writeFarmIdentity } from "../lib/followFarm";
 import { TournamentsPage } from "./TournamentsPage";
 
 let root: Root;
 let container: HTMLDivElement;
 
 function summary(
-  partial: Partial<TournamentSummary> & Pick<TournamentSummary, "tournament_id" | "name" | "status">,
+  partial: Partial<TournamentSummary> &
+    Pick<TournamentSummary, "tournament_id" | "name" | "status">,
 ): TournamentSummary {
   return {
     start_at: "2026-08-16T00:00:00.000Z",
@@ -117,6 +121,73 @@ afterEach(() => {
 });
 
 describe("TournamentsPage", () => {
+  it("stacks ongoing then upcoming windows, nearest first, without a farm gate", async () => {
+    clearFarmIdentity();
+    const lateLive = summary({
+      tournament_id: "late",
+      name: "Late live",
+      status: "active",
+      start_at: "2026-08-10T00:00:00.000Z",
+      end_at: "2026-08-25T00:00:00.000Z",
+    });
+    const soonLive = summary({
+      tournament_id: "soon",
+      name: "Ends first",
+      status: "active",
+      start_at: "2026-08-01T00:00:00.000Z",
+      end_at: "2026-08-20T00:00:00.000Z",
+    });
+    const laterUp = summary({
+      tournament_id: "later",
+      name: "October cup",
+      status: "scheduled",
+      start_at: "2026-10-01T00:00:00.000Z",
+      end_at: "2026-10-08T00:00:00.000Z",
+      duration_days: 7,
+    });
+    const nextUp = summary({
+      tournament_id: "next",
+      name: "Creators Digging Tournament",
+      status: "scheduled",
+      start_at: "2026-08-17T00:00:00.000Z",
+      end_at: "2026-08-24T00:00:00.000Z",
+      duration_days: 7,
+    });
+    const past = summary({
+      tournament_id: "past",
+      name: "Old cup",
+      status: "ended",
+    });
+    listTournaments.mockResolvedValue({
+      tournaments: [laterUp, lateLive, past, nextUp, soonLive],
+      count: 5,
+    });
+    const page = await renderAt("/tournaments");
+    expect(page.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
+    const stack = page.querySelector('[data-testid="tourney-stack"]');
+    expect(stack).not.toBeNull();
+    const windows = [...stack!.querySelectorAll('[data-testid^="tourney-window-"]')];
+    expect(windows.map((node) => node.getAttribute("data-testid"))).toEqual([
+      "tourney-window-soon",
+      "tourney-window-late",
+      "tourney-window-next",
+      "tourney-window-later",
+    ]);
+    expect(windows[0]?.textContent).toMatch(/Ongoing/);
+    expect(windows[0]?.textContent).toMatch(/Ends first/);
+    expect(windows[1]?.textContent).toMatch(/Ongoing/);
+    expect(windows[2]?.textContent).toMatch(/Upcoming/);
+    expect(windows[2]?.textContent).toMatch(/Creators Digging Tournament/);
+    expect(windows[3]?.textContent).toMatch(/Upcoming/);
+    expect(page.querySelector('[data-testid="tourney-window-past"]')).toBeNull();
+    expect(page.textContent).toMatch(/Old cup/);
+    expect(page.querySelector('[data-testid="tourney-window-soon"]')?.getAttribute("href")).toBe(
+      "/tournaments/soon",
+    );
+    expect(stack!.querySelectorAll('[data-testid="tourney-status-ongoing"]')).toHaveLength(2);
+    expect(stack!.querySelectorAll('[data-testid="tourney-status-upcoming"]')).toHaveLength(2);
+  });
+
   it("links ongoing and upcoming events to the info view", async () => {
     const live = summary({ tournament_id: "live", name: "Test Tournament 2", status: "active" });
     const next = summary({
@@ -134,6 +205,17 @@ describe("TournamentsPage", () => {
     expect(links).toContain("/tournaments/next");
     expect(page.textContent).toMatch(/Test Tournament 2/);
     expect(page.textContent).toMatch(/Creators Digging Tournament/);
+    expect(page.querySelector('[data-testid="tourney-window-live"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="tourney-window-next"]')).not.toBeNull();
+  });
+
+  it("reads Ongoing green and Upcoming gray from the shipped stylesheet", () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.tourney-status\.ongoing\s*\{[^}]*color:\s*var\(--green\)/s);
+    expect(css).toMatch(/\.tourney-status\.upcoming\s*\{[^}]*color:\s*var\(--mute\)/s);
   });
 
   it("shows start to end, prize, participants, and overall average per day", async () => {
@@ -154,12 +236,16 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toMatch(
       /16 Aug → 17 Aug · 1d/,
     );
-    expect(page.querySelector('[data-testid="tournament-prize"]')?.textContent).toMatch(/30 Flower/);
+    expect(page.querySelector('[data-testid="tournament-prize"]')?.textContent).toMatch(
+      /30 Flower/,
+    );
     expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(/2/);
     expect(page.querySelector('[data-testid="tournament-overall-avg"]')?.textContent).toMatch(
       /Overall average per day/,
     );
-    expect(page.querySelector('[data-testid="tournament-overall-avg"]')?.textContent).toMatch(/4\.50/);
+    expect(page.querySelector('[data-testid="tournament-overall-avg"]')?.textContent).toMatch(
+      /4\.50/,
+    );
     expect(page.textContent).toMatch(/Ada/);
     expect(page.textContent).toMatch(/Bea/);
     expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
@@ -187,6 +273,22 @@ describe("TournamentsPage", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(submitFarm).toHaveBeenCalledWith("3666918801844311", "rmr", ["next"]);
+  });
+
+  it("does not offer join submit until a farm is connected", async () => {
+    clearFarmIdentity();
+    const live = summary({
+      tournament_id: "live",
+      name: "Test Tournament 2",
+      status: "active",
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-need-connect"]')?.textContent).toMatch(
+      /Connect your farm/,
+    );
   });
 
   it("does not offer join on an ended tournament", async () => {

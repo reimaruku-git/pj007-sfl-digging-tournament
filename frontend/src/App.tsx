@@ -1,6 +1,5 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { FarmGate } from "./components/FarmGate";
 import { Layout } from "./components/Layout";
 import { FarmSessionProvider } from "./lib/farmSession";
 import { FarmPage } from "./pages/FarmPage";
@@ -25,16 +24,14 @@ export default function App() {
               </Suspense>
             }
           />
-          <Route element={<FarmGate />}>
-            <Route path="/" element={<LeaderboardPage />} />
-            <Route path="/tournaments" element={<TournamentsPage />} />
-            <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
-            <Route path="/tournaments/:tournamentId/farm/:farmId" element={<FarmPage />} />
-            <Route path="/records" element={<Navigate to="/tournaments" replace />} />
-            <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
-            <Route path="/farm/:farmId" element={<FarmPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
+          <Route path="/" element={<LeaderboardPage />} />
+          <Route path="/tournaments" element={<TournamentsPage />} />
+          <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
+          <Route path="/tournaments/:tournamentId/farm/:farmId" element={<FarmPage />} />
+          <Route path="/records" element={<Navigate to="/tournaments" replace />} />
+          <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
+          <Route path="/farm/:farmId" element={<FarmPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
     </FarmSessionProvider>

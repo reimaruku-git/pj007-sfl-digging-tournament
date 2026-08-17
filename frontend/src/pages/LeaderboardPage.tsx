@@ -35,9 +35,12 @@ export function LeaderboardPage() {
 
   useEffect(() => {
     const wait = Math.min(msUntilNextSync() + 45_000, 6 * 60 * 60_000);
-    const id = window.setTimeout(() => {
-      void catalog.refetch();
-    }, Math.max(wait, 15_000));
+    const id = window.setTimeout(
+      () => {
+        void catalog.refetch();
+      },
+      Math.max(wait, 15_000),
+    );
     return () => window.clearTimeout(id);
   }, [catalog.dataUpdatedAt, catalog.refetch]);
 
@@ -83,8 +86,8 @@ export function LeaderboardPage() {
               <span>Drill</span>
               <span>
                 Counts as 4 digs. An Otter Pebble found with a Drill is counted as the exact dig
-                number within those 4. Example: After 5 shovel digs, the next Drill becomes digs
-                6, 7, 8 and 9. A pebble in the last tile is dig #9.
+                number within those 4. Example: After 5 shovel digs, the next Drill becomes digs 6,
+                7, 8 and 9. A pebble in the last tile is dig #9.
               </span>
             </li>
             <li>
@@ -114,9 +117,7 @@ export function LeaderboardPage() {
           </ul>
         </div>
         <div className="card tourney-home">
-          {catalog.isError && (
-            <p className="flash err">{(catalog.error as Error).message}</p>
-          )}
+          {catalog.isError && <p className="flash err">{(catalog.error as Error).message}</p>}
           <TourneyGroup
             title="Ongoing"
             empty="No ongoing tournament."
@@ -167,11 +168,20 @@ export function LeaderboardPage() {
       <section className="card" id="join">
         <div className="kicker">Join a tournament</div>
         <p className="meta">
-          Open an upcoming or ongoing event to see the prize and join from there. You are{" "}
-          <strong>{identity?.name || "signed in"}</strong>.
+          Open an upcoming or ongoing event to see the prize and join from there.
+          {identity ? (
+            <>
+              {" "}
+              You are <strong>{identity.name}</strong>.
+            </>
+          ) : (
+            <> Connect your farm to join.</>
+          )}
         </p>
         <div data-testid="join-tournaments">
-          {joinable.length === 0 && <p className="muted">No scheduled or live events to join yet.</p>}
+          {joinable.length === 0 && (
+            <p className="muted">No scheduled or live events to join yet.</p>
+          )}
           {joinable.map((row) => (
             <Link
               key={row.tournament_id}
@@ -180,7 +190,8 @@ export function LeaderboardPage() {
               data-testid={`join-link-${row.tournament_id}`}
             >
               <span>
-                {row.name || "Untitled"} · {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+                {row.name || "Untitled"} ·{" "}
+                {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
               </span>
             </Link>
           ))}
@@ -247,9 +258,14 @@ function LiveBoard({
   const rows = visibleBoardEntries(entries, sort, 10);
   const sortLabel = sort === "asc" ? "↑" : "↓";
   return (
-    <section className="card table-wrap live-board" data-testid={`live-board-${tournament.tournament_id}`}>
+    <section
+      className="card table-wrap live-board"
+      data-testid={`live-board-${tournament.tournament_id}`}
+    >
       <div className="kicker">{tournament.name || "Live board"}</div>
-      <p className="meta">{formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}</p>
+      <p className="meta">
+        {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
+      </p>
       {loading && (
         <div className="skeleton-stack" aria-hidden>
           <div className="skeleton" />
