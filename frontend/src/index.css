@@ -1227,6 +1227,54 @@ a.join-option:hover {
   border-color: rgba(184, 154, 86, 0.45);
 }
 
+/* Unlayered so these beat the file-top `* { padding:0; margin:0 }` reset.
+   Tailwind join utilities live in @layer utilities and lose that fight. */
+#join.join-list {
+  margin-top: 16px;
+}
+
+#join .join-head {
+  margin: 0 0 8px;
+}
+
+#join .join-sub {
+  margin: 0 0 16px;
+}
+
+#join .join-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+a.join-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  color: inherit;
+  text-decoration: none;
+}
+
+a.join-card:hover {
+  border-color: rgba(184, 154, 86, 0.35);
+}
+
+.join-card-meta {
+  margin-top: 4px;
+}
+
+.join-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
 @media (max-width: 800px) {
   .hero,
   .podium,

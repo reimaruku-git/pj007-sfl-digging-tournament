@@ -430,6 +430,65 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelectorAll('[data-testid^="live-board-"]')).toHaveLength(3);
   });
 
+  it("gives join cards and badges computed padding that beats the universal reset", async () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[^}]*padding:\s*0/s);
+    expect(css).not.toMatch(/@layer[^{]*\{[^}]*\.join-card/s);
+    expect(css).toMatch(/a\.join-card\s*\{[^}]*padding:\s*20px/s);
+    expect(css).toMatch(/\.join-badge\s*\{[^}]*padding:\s*4px 10px/s);
+    const sheet = document.createElement("style");
+    sheet.setAttribute("data-testid", "join-style-sheet");
+    sheet.textContent = css;
+    document.head.appendChild(sheet);
+
+    const live = summary({
+      tournament_id: "creators",
+      name: "Creators Digging Tournament",
+      status: "active",
+      start_at: "2026-08-17T00:00:00.000Z",
+      end_at: "2026-08-24T00:00:00.000Z",
+      duration_days: 7,
+    });
+    const next = summary({
+      tournament_id: "test-3",
+      name: "Test Tournament 3",
+      status: "scheduled",
+      start_at: "2026-08-24T00:00:00.000Z",
+      end_at: "2026-08-31T00:00:00.000Z",
+      duration_days: 7,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [next, live], count: 2 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+
+    try {
+      const page = await renderHome();
+      const card = page.querySelector('[data-testid="join-link-creators"]') as HTMLElement;
+      const badge = page.querySelector('[data-testid="join-badge-ongoing"]') as HTMLElement;
+      const sub = page.querySelector("#join .join-sub") as HTMLElement;
+      const stack = page.querySelector('[data-testid="join-tournaments"]') as HTMLElement;
+      expect(card).not.toBeNull();
+      expect(badge).not.toBeNull();
+      const cardStyle = getComputedStyle(card);
+      expect(parseFloat(cardStyle.paddingTop)).toBeGreaterThanOrEqual(16);
+      expect(parseFloat(cardStyle.paddingRight)).toBeGreaterThanOrEqual(16);
+      expect(parseFloat(cardStyle.paddingBottom)).toBeGreaterThanOrEqual(16);
+      expect(parseFloat(cardStyle.paddingLeft)).toBeGreaterThanOrEqual(16);
+      const badgeStyle = getComputedStyle(badge);
+      expect(parseFloat(badgeStyle.paddingTop)).toBeGreaterThan(0);
+      expect(parseFloat(badgeStyle.paddingRight)).toBeGreaterThan(0);
+      expect(parseFloat(badgeStyle.paddingBottom)).toBeGreaterThan(0);
+      expect(parseFloat(badgeStyle.paddingLeft)).toBeGreaterThan(0);
+      expect(parseFloat(getComputedStyle(sub).marginBottom)).toBeGreaterThanOrEqual(12);
+      const stackStyle = getComputedStyle(stack);
+      expect(parseFloat(stackStyle.gap || stackStyle.rowGap)).toBeGreaterThanOrEqual(12);
+    } finally {
+      sheet.remove();
+    }
+  });
+
   it("styles join cards with Tailwind utilities, not the old join-option row", () => {
     const list = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), "../components/JoinTournamentList.tsx"),
