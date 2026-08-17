@@ -1,7 +1,14 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { fetchTournament, listTournaments, type TournamentSummary } from "../api/public";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  fetchTournament,
+  listTournaments,
+  submitFarm,
+  type TournamentSummary,
+} from "../api/public";
 import { Pebbles } from "../components/Pebbles";
+import { useFarmSession } from "../lib/farmSession";
 import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 
 export function TournamentsPage() {
@@ -66,11 +73,22 @@ function Group({
 }
 
 function TournamentDetail({ tournamentId }: { tournamentId: string }) {
+  const { identity } = useFarmSession();
+  const [notice, setNotice] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
     queryFn: () => fetchTournament(tournamentId),
   });
+  const join = useMutation({
+    mutationFn: () => {
+      if (!identity) throw new Error("Enter your Farm ID first");
+      return submitFarm(identity.farm_id, identity.name, [tournamentId]);
+    },
+    onSuccess: () => setNotice("Join request sent. An admin will approve it."),
+    onError: (error: Error) => setNotice(error.message),
+  });
   const data = query.data;
+  const joinable = data?.config.status === "scheduled" || data?.config.status === "active";
   return (
     <section className="card table-wrap" data-testid="tournament-detail">
       <p className="meta">
@@ -100,6 +118,28 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               <b>{formatScore(data.overall_average_per_day)}</b>
             </div>
           </div>
+          {joinable && identity && (
+            <div className="join-detail" data-testid="join-detail">
+              {notice && (
+                <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>
+              )}
+              <p className="meta">
+                Joining as <strong>{identity.name}</strong> · {identity.farm_id}
+              </p>
+              <button
+                className="btn primary"
+                type="button"
+                data-testid="join-tournament"
+                disabled={join.isPending}
+                onClick={() => {
+                  setNotice(null);
+                  join.mutate();
+                }}
+              >
+                {join.isPending ? "Sending…" : "Join this tournament"}
+              </button>
+            </div>
+          )}
           {data.entries.length === 0 && (
             <p className="muted">
               {data.config.status === "scheduled"

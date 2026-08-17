@@ -134,6 +134,22 @@ export async function fetchTournament(tournamentId: string): Promise<TournamentA
   return data.tournament;
 }
 
+export type FarmIdentityResponse = {
+  farm_id: string;
+  name: string;
+  nft_id?: number | null;
+  identified_at?: string | null;
+};
+
+export async function identifyFarm(farmId: string): Promise<FarmIdentityResponse> {
+  const { response, data } = await requestJson<FarmIdentityResponse>("identify", {
+    method: "POST",
+    body: JSON.stringify({ farm_id: farmId }),
+  });
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to identify farm"));
+  return data;
+}
+
 export async function submitFarm(
   farmId: string,
   name: string,

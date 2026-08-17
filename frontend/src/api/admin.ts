@@ -47,6 +47,21 @@ export async function adminSession(): Promise<boolean> {
   return response.ok;
 }
 
+export type IdentifiedFarm = {
+  farm_id: string;
+  name: string;
+  nft_id?: number | null;
+  identified_at?: string | null;
+};
+
+export async function listIdentities(): Promise<IdentifiedFarm[]> {
+  const { response, data } = await requestJson<{ identities: IdentifiedFarm[]; count: number }>(
+    "admin/identities",
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load identities"));
+  return data.identities;
+}
+
 export async function listFarms(): Promise<TrackedFarm[]> {
   const { response, data } = await requestJson<{ farms: TrackedFarm[]; count: number }>(
     "admin/farms",

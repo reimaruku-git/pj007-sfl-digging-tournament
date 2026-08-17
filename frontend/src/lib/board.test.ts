@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { LeaderboardEntry, TournamentSummary } from "../api/public";
-import { liveTournamentsSoonestFirst, upcomingTournaments, visibleBoardEntries } from "./board";
+import {
+  homeTourneyPreview,
+  joinableTournaments,
+  liveTournamentsSoonestFirst,
+  upcomingTournaments,
+  visibleBoardEntries,
+} from "./board";
 
 function entry(partial: Partial<LeaderboardEntry> & Pick<LeaderboardEntry, "farm_id" | "rank" | "score">): LeaderboardEntry {
   return {
@@ -88,5 +94,30 @@ describe("tournament section order", () => {
 
   it("keeps scheduled events in upcoming", () => {
     expect(upcomingTournaments(items).map((row) => row.name)).toEqual(["September"]);
+  });
+
+  it("lists live then upcoming for the join surface", () => {
+    expect(joinableTournaments(items).map((row) => row.tournament_id)).toEqual([
+      "soon",
+      "late",
+      "next",
+    ]);
+  });
+
+  it("caps the home widget at two tournaments", () => {
+    const many = [
+      ...items,
+      {
+        ...items[2],
+        tournament_id: "later",
+        name: "October",
+        start_at: "2026-10-01T00:00:00Z",
+      },
+    ];
+    expect(homeTourneyPreview(upcomingTournaments(many)).map((row) => row.tournament_id)).toEqual([
+      "next",
+      "later",
+    ]);
+    expect(homeTourneyPreview(liveTournamentsSoonestFirst(many))).toHaveLength(2);
   });
 });

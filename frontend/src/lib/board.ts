@@ -34,3 +34,13 @@ export function upcomingTournaments(items: TournamentSummary[]): TournamentSumma
     .filter((row) => row.status === "scheduled")
     .sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at));
 }
+
+export function joinableTournaments(items: TournamentSummary[]): TournamentSummary[] {
+  return [...liveTournamentsSoonestFirst(items), ...upcomingTournaments(items)];
+}
+
+export const HOME_TOURNEY_LIMIT = 2;
+
+export function homeTourneyPreview(items: TournamentSummary[]): TournamentSummary[] {
+  return items.slice(0, HOME_TOURNEY_LIMIT);
+}

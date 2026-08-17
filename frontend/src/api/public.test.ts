@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchFarm, fetchLeaderboard, fetchTournament, submitFarm } from "./public";
+import { fetchFarm, fetchLeaderboard, fetchTournament, identifyFarm, submitFarm } from "./public";
 
 vi.mock("./client", () => ({
   requestJson: vi.fn(),
@@ -73,6 +73,24 @@ describe("public api", () => {
     const farm = await fetchFarm("222");
     expect(mockRequest).toHaveBeenCalledWith("farms/222");
     expect(farm.status).toBe("in_progress");
+  });
+
+  it("identifies a farm through our sfl.world lookup", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        farm_id: "3666918801844311",
+        name: "rmr",
+        nft_id: 220411,
+        identified_at: "2026-08-17T12:00:00+00:00",
+      }),
+    );
+    const identity = await identifyFarm("3666918801844311");
+    expect(mockRequest).toHaveBeenCalledWith("identify", {
+      method: "POST",
+      body: JSON.stringify({ farm_id: "3666918801844311" }),
+    });
+    expect(identity.name).toBe("rmr");
+    expect(identity.farm_id).toBe("3666918801844311");
   });
 
   it("submits a farm id for named tournaments", async () => {

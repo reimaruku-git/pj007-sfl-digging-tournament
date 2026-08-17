@@ -5,17 +5,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../api/public";
 
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 const listTournaments = vi.fn();
 const fetchTournament = vi.fn();
-const submitFarm = vi.fn();
 
 vi.mock("../api/public", () => ({
   listTournaments: (...args: unknown[]) => listTournaments(...args),
   fetchTournament: (...args: unknown[]) => fetchTournament(...args),
-  submitFarm: (...args: unknown[]) => submitFarm(...args),
 }));
 
-import { writeFollowedFarm } from "../lib/followFarm";
+import { FarmSessionProvider } from "../lib/farmSession";
+import { writeFarmIdentity } from "../lib/followFarm";
 import { LeaderboardPage } from "./LeaderboardPage";
 
 let root: Root;
@@ -80,7 +83,9 @@ async function renderHome() {
     root.render(
       <QueryClientProvider client={client}>
         <MemoryRouter>
-          <LeaderboardPage />
+          <FarmSessionProvider>
+            <LeaderboardPage />
+          </FarmSessionProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -94,7 +99,7 @@ async function renderHome() {
 beforeEach(() => {
   listTournaments.mockReset();
   fetchTournament.mockReset();
-  submitFarm.mockReset();
+  writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
   vi.stubGlobal(
     "requestAnimationFrame",
     (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0) as unknown as number,
@@ -238,8 +243,7 @@ describe("LeaderboardPage home", () => {
     expect(secondBoard?.querySelector("tbody tr")?.textContent).not.toMatch(/Player 12/);
   });
 
-  it("prefills the remembered farm id and offers a tournament picker", async () => {
-    writeFollowedFarm("3666918801844311");
+  it("lists upcoming and ongoing as links with no farm id or display name fields", async () => {
     const live = summary({
       tournament_id: "live",
       name: "Live cup",
@@ -254,27 +258,67 @@ describe("LeaderboardPage home", () => {
     });
     listTournaments.mockResolvedValue({ tournaments: [live, next], count: 2 });
     fetchTournament.mockResolvedValue(archive(live, []));
-    submitFarm.mockResolvedValue({ submissions: [], count: 0 });
 
     const page = await renderHome();
-    const farmInput = page.querySelector('[data-testid="join-farm-id"]') as HTMLInputElement;
-    expect(farmInput.value).toBe("3666918801844311");
+    expect(page.querySelector('[data-testid="join-farm-id"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Display name/);
+    expect(page.querySelector('[data-testid="join-form"]')).toBeNull();
     const picker = page.querySelector('[data-testid="join-tournaments"]');
     expect(picker?.textContent).toMatch(/Live cup/);
     expect(picker?.textContent).toMatch(/September cup/);
+    expect(page.querySelector('[data-testid="join-link-live"]')?.getAttribute("href")).toBe(
+      "/tournaments/live",
+    );
+    expect(page.querySelector('[data-testid="join-link-next"]')?.getAttribute("href")).toBe(
+      "/tournaments/next",
+    );
+    expect(page.querySelectorAll('[data-testid="join-tournaments"] input')).toHaveLength(0);
+  });
 
-    const boxes = [...page.querySelectorAll('[data-testid="join-tournaments"] input[type="checkbox"]')] as HTMLInputElement[];
-    expect(boxes).toHaveLength(2);
-    act(() => {
-      boxes[0]?.click();
-      boxes[1]?.click();
+  it("caps the home ongoing and upcoming widgets at two each", async () => {
+    const live = [1, 2, 3].map((index) =>
+      summary({
+        tournament_id: `live-${index}`,
+        name: `Live ${index}`,
+        status: "active",
+        end_at: `2026-08-${18 + index}T00:00:00.000Z`,
+      }),
+    );
+    const upcoming = [1, 2, 3].map((index) =>
+      summary({
+        tournament_id: `next-${index}`,
+        name: `Soon ${index}`,
+        status: "scheduled",
+        start_at: `2026-09-0${index}T00:00:00.000Z`,
+        end_at: `2026-09-1${index}T00:00:00.000Z`,
+      }),
+    );
+    listTournaments.mockResolvedValue({ tournaments: [...live, ...upcoming], count: 6 });
+    fetchTournament.mockImplementation(async (id: string) => {
+      const row = live.find((item) => item.tournament_id === id) ?? live[0];
+      return archive(row, []);
     });
-    act(() => {
-      (page.querySelector('[data-testid="join-form"]') as HTMLFormElement).requestSubmit();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
-    expect(submitFarm).toHaveBeenCalledWith("3666918801844311", "", ["live", "next"]);
+
+    const page = await renderHome();
+    const ongoingCards = page.querySelectorAll('[data-testid="ongoing-group"] [data-testid^="tourney-card-"]');
+    const upcomingCards = page.querySelectorAll(
+      '[data-testid="upcoming-group"] [data-testid^="tourney-card-"]',
+    );
+    expect(ongoingCards).toHaveLength(2);
+    expect(upcomingCards).toHaveLength(2);
+    expect(page.querySelector('[data-testid="tourney-card-live-3"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tourney-card-next-3"]')).toBeNull();
+    expect(page.querySelectorAll('[data-testid^="live-board-"]')).toHaveLength(3);
+  });
+
+  it("stretches the home tourney panel to the prize card height", () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.hero\s*\{[^}]*align-items:\s*stretch/s);
+    expect(css).toMatch(/\.hero\s*>\s*\.card\s*\{[^}]*height:\s*100%/s);
+    expect(css).toMatch(/\.tourney-home\s*\{[^}]*min-height:\s*100%/s);
+    expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*align-content:\s*start/s);
   });
 });

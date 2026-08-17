@@ -1,16 +1,16 @@
-import { FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { writeFollowedFarm } from "../lib/followFarm";
+import { useFarmSession } from "../lib/farmSession";
 import { SyncCountdown } from "./SyncCountdown";
 
 export { formatWhen, statusLabel } from "../lib/format";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [farmQuery, setFarmQuery] = useState("");
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { identity, disconnect } = useFarmSession();
 
   useEffect(() => {
     if (!open) return;
@@ -46,14 +46,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     });
   }
 
-  function findFarm(event: FormEvent) {
-    event.preventDefault();
-    const farmId = farmQuery.trim();
-    if (!farmId) return;
-    writeFollowedFarm(farmId);
+  function onDisconnect() {
+    disconnect();
     setOpen(false);
-    setFarmQuery("");
-    navigate(`/farm/${encodeURIComponent(farmId)}`);
+    navigate("/");
   }
 
   return (
@@ -103,20 +99,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 >
                   Tournaments
                 </button>
-                <form className="menu-find" onSubmit={findFarm}>
-                  <label>
-                    Find a farm
-                    <input
-                      value={farmQuery}
-                      onChange={(event) => setFarmQuery(event.target.value)}
-                      placeholder="Farm ID"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <button className="btn" type="submit">
-                    Go
+                {identity && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="disconnect-farm"
+                    onClick={onDisconnect}
+                  >
+                    Disconnect {identity.name}
                   </button>
-                </form>
+                )}
               </div>
             )}
           </div>

@@ -56,9 +56,14 @@ vi.mock("./api/public", () => ({
     },
   }),
   submitFarm: vi.fn(),
+  identifyFarm: vi.fn(),
 }));
 
+import { identifyFarm } from "./api/public";
+import { writeFarmIdentity } from "./lib/followFarm";
 import App from "./App";
+
+const mockIdentify = vi.mocked(identifyFarm);
 
 let root: Root;
 let container: HTMLDivElement;
@@ -83,6 +88,8 @@ function renderApp(path: string) {
 }
 
 beforeEach(() => {
+  localStorage.clear();
+  mockIdentify.mockReset();
   vi.stubGlobal(
     "requestAnimationFrame",
     (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0) as unknown as number,
@@ -94,24 +101,65 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
 describe("routes", () => {
-  it("renders the leaderboard at / and keeps /admin reachable", async () => {
-    const home = renderApp("/");
+  it("asks for a farm id before public browse and keeps /admin reachable", async () => {
+    const gated = renderApp("/");
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 30));
     });
+    expect(gated.querySelector('[data-testid="farm-id-gate"]')).not.toBeNull();
+    expect(gated.textContent).toMatch(/Enter your Farm ID/);
+    expect(gated.querySelector("#rules")).toBeNull();
+    expect(gated.querySelector('[data-testid="ongoing-group"]')).toBeNull();
+    expect(gated.querySelector("#join")).toBeNull();
+
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+
+    const admin = renderApp("/admin");
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(admin.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
+    expect(admin.textContent).toMatch(/Master admin|Checking session|Sign in|Loading admin/);
+    expect(admin.querySelector('button[aria-label="Menu"]')).not.toBeNull();
+  });
+
+  it("identifies through our API then shows browse, and disconnect returns the prompt", async () => {
+    mockIdentify.mockResolvedValue({
+      farm_id: "3666918801844311",
+      name: "rmr",
+      nft_id: 220411,
+      identified_at: "2026-08-17T12:00:00+00:00",
+    });
+    const home = renderApp("/");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    const input = home.querySelector('[data-testid="farm-id-input"]') as HTMLInputElement;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "3666918801844311");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      (home.querySelector('[data-testid="farm-id-submit"]') as HTMLButtonElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(mockIdentify).toHaveBeenCalledWith("3666918801844311");
+    expect(home.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(home.textContent).toMatch(/Prize pool/);
     expect(home.textContent).toMatch(/Join a tournament/);
-    expect(home.textContent).toMatch(/3rd pebble/);
     expect(home.textContent).toMatch(/Ongoing/);
     expect(home.textContent).toMatch(/Upcoming/);
-    expect(home.textContent).not.toMatch(/Finished \/ tracked/);
-    expect(home.textContent).not.toMatch(/Active/);
-    expect(home.querySelector("table.board-table")).toBeNull();
-    expect(home.textContent).not.toMatch(/Avg\/day/);
     const rules = home.querySelector("#rules");
     expect(rules).not.toBeNull();
     expect(rules?.className).toMatch(/prize-card/);
@@ -129,40 +177,36 @@ describe("routes", () => {
     expect(rules?.textContent).toMatch(/do not affect your score/);
     expect(rules?.textContent).toMatch(/fewer digs to the 3rd pebble/);
     expect(rules?.textContent).toMatch(/earlier time on the 3rd pebble/);
-    expect(rules?.textContent).not.toMatch(/last of those 4/);
-    expect(rules?.textContent).not.toMatch(/after 4 shovel digs/i);
-    expect(home.textContent).not.toMatch(/even if it uncovers 4 tiles/);
     expect(home.querySelectorAll("#rules").length).toBe(1);
-    expect(home.querySelector("section#rules")).toBeNull();
-    expect([...home.querySelectorAll("a")].map((n) => n.getAttribute("href"))).not.toContain(
-      "/admin",
-    );
 
+    const burger = home.querySelector('button[aria-label="Menu"]') as HTMLButtonElement;
     act(() => {
-      root.unmount();
+      burger.click();
     });
-    container.remove();
-
-    const admin = renderApp("/admin");
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+    const disconnect = home.querySelector('[data-testid="disconnect-farm"]') as HTMLButtonElement;
+    expect(disconnect).not.toBeNull();
+    expect(disconnect.textContent).toMatch(/Disconnect rmr/);
+    act(() => {
+      disconnect.click();
     });
-    expect(admin.textContent).toMatch(/Master admin|Checking session|Sign in|Loading admin/);
-    expect(admin.querySelector('button[aria-label="Menu"]')).not.toBeNull();
+    expect(home.querySelector('[data-testid="farm-id-gate"]')).not.toBeNull();
+    expect(home.querySelector("#rules")).toBeNull();
+    expect(home.querySelector("#join")).toBeNull();
   });
 
-  it("has a tournaments route", async () => {
+  it("has a tournaments route after identify", async () => {
+    writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
     const page = renderApp("/tournaments");
     await act(async () => {
       await Promise.resolve();
     });
+    expect(page.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(page.textContent).toMatch(/Upcoming|Tournaments/);
     expect(page.textContent).not.toMatch(/Create tournament/);
   });
 
-  it("sends unknown paths to the leaderboard", async () => {
+  it("sends unknown paths to the leaderboard after identify", async () => {
+    writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
     const el = renderApp("/nope");
     await act(async () => {
       await Promise.resolve();

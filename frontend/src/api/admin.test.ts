@@ -5,6 +5,7 @@ import {
   fetchAdminConfig,
   fetchAdminFarm,
   fetchTournamentRoster,
+  listIdentities,
   refreshFarm,
   rejectSubmission,
   saveConfig,
@@ -34,6 +35,26 @@ const config = {
 describe("admin api", () => {
   beforeEach(() => {
     mockRequest.mockReset();
+  });
+
+  it("lists identified farms from the admin route", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        identities: [
+          {
+            farm_id: "3666918801844311",
+            name: "rmr",
+            nft_id: 220411,
+            identified_at: "2026-08-17T12:00:00+00:00",
+          },
+        ],
+        count: 1,
+      }),
+    );
+    const identities = await listIdentities();
+    expect(mockRequest).toHaveBeenCalledWith("admin/identities");
+    expect(identities[0]?.farm_id).toBe("3666918801844311");
+    expect(identities[0]?.name).toBe("rmr");
   });
 
   it("loads admin config from the authenticated route", async () => {

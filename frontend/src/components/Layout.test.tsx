@@ -2,6 +2,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
+import { FarmSessionProvider } from "../lib/farmSession";
+import { writeFarmIdentity } from "../lib/followFarm";
 import { Layout } from "./Layout";
 
 let root: Root;
@@ -14,9 +16,11 @@ function renderAt(path = "/") {
   act(() => {
     root.render(
       <MemoryRouter initialEntries={[path]}>
-        <Layout>
-          <main>page-body</main>
-        </Layout>
+        <FarmSessionProvider>
+          <Layout>
+            <main>page-body</main>
+          </Layout>
+        </FarmSessionProvider>
       </MemoryRouter>,
     );
   });
@@ -28,6 +32,7 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+  localStorage.clear();
 });
 
 describe("public chrome", () => {
@@ -45,7 +50,20 @@ describe("public chrome", () => {
     expect(el.textContent).toMatch(/Rules/);
     expect(el.textContent).toMatch(/Join a tournament/);
     expect(el.textContent).toMatch(/Tournaments/);
+    expect(el.textContent).not.toMatch(/Find a farm/);
+    expect(el.querySelector('[data-testid="disconnect-farm"]')).toBeNull();
     const hrefs = [...el.querySelectorAll("a")].map((node) => node.getAttribute("href"));
     expect(hrefs).not.toContain("/admin");
+  });
+
+  it("offers disconnect when a farm identity is stored", () => {
+    writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
+    const el = renderAt("/");
+    act(() => {
+      (el.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
+    });
+    const disconnect = el.querySelector('[data-testid="disconnect-farm"]');
+    expect(disconnect).not.toBeNull();
+    expect(disconnect?.textContent).toMatch(/Disconnect rmr/);
   });
 });

@@ -14,6 +14,7 @@ import {
   fetchTournamentRoster,
   listAdminTournaments,
   listFarms,
+  listIdentities,
   listSubmissions,
   refreshFarm,
   rejectSubmission,
@@ -167,6 +168,7 @@ export function AdminPage() {
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const queryClient = useQueryClient();
   const farms = useQuery({ queryKey: ["admin-farms"], queryFn: listFarms });
+  const identities = useQuery({ queryKey: ["admin-identities"], queryFn: listIdentities });
   const submissions = useQuery({ queryKey: ["admin-submissions"], queryFn: listSubmissions });
   const tournaments = useQuery({ queryKey: ["admin-tournaments"], queryFn: listAdminTournaments });
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
@@ -192,6 +194,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     void queryClient.invalidateQueries({ queryKey: ["admin-farms"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-farm"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-submissions"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-identities"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-tournaments"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-roster"] });
@@ -268,6 +271,19 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           void queryClient.invalidateQueries({ queryKey: ["admin-roster", tournamentId] });
         }}
       />
+
+      <section className="card" style={{ marginBottom: 16 }} data-testid="admin-identities">
+        <div className="kicker">Identified farms</div>
+        <p className="meta">Farm IDs that signed in on the public site, with the sfl.world name.</p>
+        {(identities.data ?? []).length === 0 && <p className="muted">None yet.</p>}
+        {(identities.data ?? []).map((item) => (
+          <div key={item.farm_id} className="toolbar">
+            <span>
+              {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
+            </span>
+          </div>
+        ))}
+      </section>
 
       <section className="card" style={{ marginBottom: 16 }}>
         <div className="kicker">Pending joins</div>

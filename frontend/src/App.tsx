@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { FarmGate } from "./components/FarmGate";
 import { Layout } from "./components/Layout";
+import { FarmSessionProvider } from "./lib/farmSession";
 import { FarmPage } from "./pages/FarmPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { TournamentsPage } from "./pages/TournamentsPage";
@@ -12,25 +14,29 @@ const AdminPage = lazy(async () => {
 
 export default function App() {
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<LeaderboardPage />} />
-        <Route path="/tournaments" element={<TournamentsPage />} />
-        <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
-        <Route path="/tournaments/:tournamentId/farm/:farmId" element={<FarmPage />} />
-        <Route path="/records" element={<Navigate to="/tournaments" replace />} />
-        <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
-        <Route path="/farm/:farmId" element={<FarmPage />} />
-        <Route
-          path="/admin"
-          element={
-            <Suspense fallback={<p className="muted">Loading admin…</p>}>
-              <AdminPage />
-            </Suspense>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+    <FarmSessionProvider>
+      <Layout>
+        <Routes>
+          <Route
+            path="/admin"
+            element={
+              <Suspense fallback={<p className="muted">Loading admin…</p>}>
+                <AdminPage />
+              </Suspense>
+            }
+          />
+          <Route element={<FarmGate />}>
+            <Route path="/" element={<LeaderboardPage />} />
+            <Route path="/tournaments" element={<TournamentsPage />} />
+            <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
+            <Route path="/tournaments/:tournamentId/farm/:farmId" element={<FarmPage />} />
+            <Route path="/records" element={<Navigate to="/tournaments" replace />} />
+            <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
+            <Route path="/farm/:farmId" element={<FarmPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Layout>
+    </FarmSessionProvider>
   );
 }

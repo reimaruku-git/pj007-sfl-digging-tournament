@@ -501,6 +501,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /farms/{farm_id}
             Method: GET
+        PostIdentify:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /identify
+            Method: POST
         PostSubmission:
           Type: HttpApi
           Properties:
@@ -625,6 +631,14 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/tournaments/{tournament_id}/farms/{farm_id}
             Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminListIdentities:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/identities
+            Method: GET
             Auth:
               Authorizer: CognitoAuthorizer
         AdminListSubmissions:

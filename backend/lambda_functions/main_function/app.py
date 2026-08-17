@@ -48,6 +48,7 @@ from tournament.membership import (
 )
 from tournament.scoring import STATUS_COMPLETED
 from tournament.stats import player_detail, player_list_row
+from tournament.sfl_world import SflWorldError, lookup_farm_name
 from tournament.store import Store
 from tournament.sync import (
     drop_untracked_scores,
@@ -227,6 +228,34 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"farm": public_entry(match)})
 
 
+def _public_identity(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "farm_id": str(row.get("farm_id") or ""),
+        "name": str(row.get("name") or ""),
+        "nft_id": row.get("nft_id"),
+        "identified_at": row.get("identified_at"),
+    }
+
+
+def handle_identify_farm(event: dict[str, Any]) -> dict[str, Any]:
+    body = _body(event)
+    farm_id = _farm_id_from_body(body)
+    if not farm_id:
+        return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+        return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
+    try:
+        looked_up = lookup_farm_name(farm_id)
+    except SflWorldError as exc:
+        return create_error_response(exc.status_code, exc.message, exc.code)
+    stored = _get_store().put_identity(
+        farm_id,
+        looked_up["name"],
+        nft_id=looked_up.get("nft_id"),
+    )
+    return create_response(200, _public_identity(stored))
+
+
 def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
     body = _body(event)
     farm_id = _farm_id_from_body(body)
@@ -241,6 +270,9 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
         return _membership_error(exc)
     store = _get_store()
     seed_catalog(store)
+    identity = store.get_identity(farm_id)
+    if identity and identity.get("name"):
+        name = str(identity.get("name") or "").strip() or name
     try:
         submissions = request_joins(
             store, farm_id=farm_id, name=name, tournament_ids=tournament_ids
@@ -248,6 +280,11 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
     except MembershipError as exc:
         return _membership_error(exc)
     return create_response(201, {"submissions": submissions, "count": len(submissions)})
+
+
+def handle_admin_list_identities(_event: dict[str, Any]) -> dict[str, Any]:
+    identities = [_public_identity(item) for item in _get_store().list_identities()]
+    return create_response(200, {"identities": identities, "count": len(identities)})
 
 
 def handle_admin_session(_event: dict[str, Any]) -> dict[str, Any]:
@@ -654,8 +691,10 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ),
     ("GET", re.compile(r"^/tournaments/(?P<tournament_id>[^/]+)$"), handle_get_tournament),
     ("GET", re.compile(r"^/farms/(?P<farm_id>[^/]+)$"), handle_get_farm),
+    ("POST", re.compile(r"^/identify$"), handle_identify_farm),
     ("POST", re.compile(r"^/submissions$"), handle_submit_farm),
     ("GET", re.compile(r"^/admin/session$"), handle_admin_session),
+    ("GET", re.compile(r"^/admin/identities$"), handle_admin_list_identities),
     ("GET", re.compile(r"^/admin/config$"), handle_admin_get_config),
     ("PUT", re.compile(r"^/admin/config$"), handle_admin_put_config),
     ("GET", re.compile(r"^/admin/tournaments$"), handle_admin_list_tournaments),

@@ -289,6 +289,11 @@ textarea {
   grid-template-columns: 1.55fr 0.85fr;
   gap: 16px;
   margin-bottom: 18px;
+  align-items: stretch;
+}
+
+.hero > .card {
+  height: 100%;
 }
 
 .prize-card {
@@ -339,10 +344,11 @@ textarea {
 }
 
 .tourney-home {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   min-width: 0;
-  align-content: start;
+  min-height: 100%;
 }
 
 .admin-tourney-home {
@@ -365,8 +371,15 @@ textarea {
   background: var(--panel-2);
   border-radius: 12px;
   padding: 10px 12px;
-  max-height: 260px;
+  flex: 1 1 auto;
   overflow: auto;
+}
+
+@media (min-width: 801px) {
+  .tourney-group {
+    flex: 1 1 0;
+    min-height: 0;
+  }
 }
 
 .tourney-group .kicker {
@@ -1013,6 +1026,30 @@ tr.player-row.is-open {
 .login {
   max-width: 420px;
   margin: 40px auto;
+}
+
+.login h2 {
+  font-family: Fraunces, Georgia, serif;
+  font-size: 28px;
+  margin: 0 0 4px;
+}
+
+.join-detail {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+
+a.join-option {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+a.join-option:hover {
+  border-color: rgba(184, 154, 86, 0.45);
 }
 
 @media (max-width: 800px) {

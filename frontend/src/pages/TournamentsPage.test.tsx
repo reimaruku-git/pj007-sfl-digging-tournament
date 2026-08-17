@@ -7,12 +7,16 @@ import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../
 
 const listTournaments = vi.fn();
 const fetchTournament = vi.fn();
+const submitFarm = vi.fn();
 
 vi.mock("../api/public", () => ({
   listTournaments: (...args: unknown[]) => listTournaments(...args),
   fetchTournament: (...args: unknown[]) => fetchTournament(...args),
+  submitFarm: (...args: unknown[]) => submitFarm(...args),
 }));
 
+import { FarmSessionProvider } from "../lib/farmSession";
+import { writeFarmIdentity } from "../lib/followFarm";
 import { TournamentsPage } from "./TournamentsPage";
 
 let root: Root;
@@ -81,10 +85,12 @@ async function renderAt(path: string) {
     root.render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path="/tournaments" element={<TournamentsPage />} />
-            <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
-          </Routes>
+          <FarmSessionProvider>
+            <Routes>
+              <Route path="/tournaments" element={<TournamentsPage />} />
+              <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
+            </Routes>
+          </FarmSessionProvider>
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -98,6 +104,8 @@ async function renderAt(path: string) {
 beforeEach(() => {
   listTournaments.mockReset();
   fetchTournament.mockReset();
+  submitFarm.mockReset();
+  writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
 });
 
 afterEach(() => {
@@ -105,6 +113,7 @@ afterEach(() => {
     root.unmount();
   });
   container.remove();
+  localStorage.clear();
 });
 
 describe("TournamentsPage", () => {
@@ -153,5 +162,41 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-overall-avg"]')?.textContent).toMatch(/4\.50/);
     expect(page.textContent).toMatch(/Ada/);
     expect(page.textContent).toMatch(/Bea/);
+    expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="join-farm-id"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Display name/);
+  });
+
+  it("joins from the detail using the stored farm id and sfl.world name", async () => {
+    const next = summary({
+      tournament_id: "next",
+      name: "Creators Digging Tournament",
+      status: "scheduled",
+      start_at: "2026-08-17T00:00:00.000Z",
+      end_at: "2026-08-24T00:00:00.000Z",
+      duration_days: 7,
+    });
+    fetchTournament.mockResolvedValue(archive(next, []));
+    submitFarm.mockResolvedValue({ submissions: [], count: 0 });
+    const page = await renderAt("/tournaments/next");
+    expect(page.querySelector('[data-testid="join-detail"]')?.textContent).toMatch(/rmr/);
+    act(() => {
+      (page.querySelector('[data-testid="join-tournament"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(submitFarm).toHaveBeenCalledWith("3666918801844311", "rmr", ["next"]);
+  });
+
+  it("does not offer join on an ended tournament", async () => {
+    const past = summary({
+      tournament_id: "past",
+      name: "Old cup",
+      status: "ended",
+    });
+    fetchTournament.mockResolvedValue(archive(past, []));
+    const page = await renderAt("/tournaments/past");
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
   });
 });

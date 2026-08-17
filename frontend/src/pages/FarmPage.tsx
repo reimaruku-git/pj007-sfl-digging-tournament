@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFarm, fetchTournamentFarm } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
-import { writeFollowedFarm } from "../lib/followFarm";
 import { formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
 
 export function FarmPage() {
@@ -15,10 +14,6 @@ export function FarmPage() {
       tournamentId ? fetchTournamentFarm(tournamentId, farmId) : fetchFarm(farmId),
     enabled: Boolean(farmId),
   });
-
-  useEffect(() => {
-    if (farmId) writeFollowedFarm(farmId);
-  }, [farmId]);
 
   const farm = query.data;
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";

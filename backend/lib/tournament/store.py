@@ -21,6 +21,7 @@ CACHE_PK = "LEADERBOARD"
 TOURNAMENT_INDEX_PK = "TOURNAMENT_INDEX"
 TOURNAMENT_PK_PREFIX = "TOURNAMENT#"
 MEMBER_PK_PREFIX = "MEMBER#"
+IDENT_PK_PREFIX = "IDENT#"
 DEFAULT_PRIZE = "30"
 MIN_TOURNAMENT_DAYS = 1
 NAME_MAX_LEN = 80
@@ -232,6 +233,54 @@ class Store:
             wanted = str(farm_id)
             items = [item for item in items if str(item.get("farm_id") or "") == wanted]
         items.sort(key=lambda item: str(item.get("submitted_at") or ""), reverse=True)
+        return items
+
+    # ------------------------------------------------------------------
+    # Public farm-ID identity (sfl.world name, retrievable by admin)
+    # ------------------------------------------------------------------
+
+    def identity_pk(self, farm_id: str) -> str:
+        return f"{IDENT_PK_PREFIX}{farm_id}"
+
+    def put_identity(
+        self,
+        farm_id: str,
+        name: str,
+        *,
+        nft_id: Any = None,
+    ) -> dict[str, Any]:
+        farm_id = str(farm_id).strip()
+        if not farm_id:
+            raise ValueError("farm_id is required")
+        item = {
+            "pk": self.identity_pk(farm_id),
+            "farm_id": farm_id,
+            "name": str(name or "").strip(),
+            "nft_id": nft_id,
+            "identified_at": utc_now_iso(),
+        }
+        self.config_table.put_item(Item=_to_ddb(item))
+        return item
+
+    def get_identity(self, farm_id: str) -> dict[str, Any] | None:
+        response = self.config_table.get_item(Key={"pk": self.identity_pk(str(farm_id).strip())})
+        item = response.get("Item")
+        return _from_ddb(item) if item else None
+
+    def list_identities(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        scan_kwargs: dict[str, Any] = {
+            "FilterExpression": "begins_with(pk, :prefix)",
+            "ExpressionAttributeValues": {":prefix": IDENT_PK_PREFIX},
+        }
+        while True:
+            response = self.config_table.scan(**scan_kwargs)
+            items.extend(_from_ddb(item) for item in response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+        items.sort(key=lambda item: str(item.get("identified_at") or ""), reverse=True)
         return items
 
     # ------------------------------------------------------------------

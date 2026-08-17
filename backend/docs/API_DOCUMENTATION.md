@@ -4,7 +4,7 @@ Wire JSON is **snake_case**. The browser talks only to this API.
 
 Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no `Bearer ` prefix.
 API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
-Public routes (`/health`, `/config`, `/leaderboard`, `/farms/{farm_id}`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /submissions`) have no authorizer.
+Public routes (`/health`, `/config`, `/leaderboard`, `/farms/{farm_id}`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`) have no authorizer.
 
 Errors:
 
@@ -209,10 +209,36 @@ archive.
 }
 ```
 
+### `POST /identify`
+
+Resolve a visitor farm ID to the Sunflower Land username via sfl.world
+`GET /api/v1/land/info/farm_id/{farm_id}`. The browser never calls
+sfl.world. The resolved name is stored so admin can retrieve the farm ID
+later (`GET /admin/identities`). Identify fails when sfl.world cannot
+produce a username (new farms can lag 2–7 days).
+
+```json
+{ "farm_id": "3666918801844311" }
+```
+
+```json
+{
+  "farm_id": "3666918801844311",
+  "name": "rmr",
+  "nft_id": 220411,
+  "identified_at": "2026-08-17T12:00:00+00:00"
+}
+```
+
+`400` if `farm_id` is missing or not numeric. `404` if sfl.world has no
+username for that farm.
+
 ### `POST /submissions`
 
 Join request for one or more scheduled/live tournaments. Visitors have no
-accounts; they send a numeric farm ID. Already-tracked farms may still
+accounts; they send a numeric farm ID. The display name is the sfl.world
+username from `POST /identify` when that farm has identified; the client
+does not collect a typed display name. Already-tracked farms may still
 request another event. `tournament_id` (one) or `tournament_ids` (many)
 is required.
 
@@ -252,6 +278,25 @@ All `/admin/*` routes require a Cognito ID token. `401` if the token is missing 
 
 ```json
 { "ok": true }
+```
+
+### `GET /admin/identities`
+
+Farms that identified on the public site. `name` is the sfl.world
+username stored at identify time.
+
+```json
+{
+  "identities": [
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "nft_id": 220411,
+      "identified_at": "2026-08-17T12:00:00+00:00"
+    }
+  ],
+  "count": 1
+}
 ```
 
 ### `GET /admin/farms`

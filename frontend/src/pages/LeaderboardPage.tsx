@@ -1,27 +1,30 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTournament,
   listTournaments,
-  submitFarm,
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { SyncCountdown } from "../components/SyncCountdown";
-import { liveTournamentsSoonestFirst, upcomingTournaments, visibleBoardEntries, type ScoreSortDir } from "../lib/board";
-import { readFollowedFarm, writeFollowedFarm } from "../lib/followFarm";
+import {
+  homeTourneyPreview,
+  joinableTournaments,
+  liveTournamentsSoonestFirst,
+  upcomingTournaments,
+  visibleBoardEntries,
+  type ScoreSortDir,
+} from "../lib/board";
+import { useFarmSession } from "../lib/farmSession";
 import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
 
 export function LeaderboardPage() {
-  const [farmId, setFarmId] = useState(() => readFollowedFarm());
-  const [name, setName] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [mine, setMine] = useState(() => readFollowedFarm());
+  const { identity } = useFarmSession();
+  const mine = identity?.farm_id ?? "";
   const [sortById, setSortById] = useState<Record<string, ScoreSortDir>>({});
 
   const catalog = useQuery({
@@ -49,18 +52,7 @@ export function LeaderboardPage() {
     })),
   });
 
-  const joinable = useMemo(() => [...live, ...upcoming], [live, upcoming]);
-
-  const submit = useMutation({
-    mutationFn: () => submitFarm(farmId.trim(), name.trim(), picked),
-    onSuccess: () => {
-      writeFollowedFarm(farmId.trim());
-      setMine(farmId.trim());
-      setNotice("Join request sent. An admin will approve each tournament you picked.");
-      setName("");
-    },
-    onError: (error: Error) => setNotice(error.message),
-  });
+  const joinable = useMemo(() => joinableTournaments(items), [items]);
 
   const featured = live[0];
   const featuredEntries = boards[0]?.data?.entries ?? [];
@@ -68,19 +60,13 @@ export function LeaderboardPage() {
     .flatMap((query) => query.data?.entries ?? [])
     .find((row) => row.farm_id === mine);
 
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setNotice(null);
-    submit.mutate();
-  }
-
   function sortFor(id: string): ScoreSortDir {
     return sortById[id] ?? "asc";
   }
 
   return (
     <>
-      <section className="hero">
+      <section className="hero" data-testid="home-hero">
         <div className="card prize-card" id="rules">
           <div className="kicker">{featured?.name || "Prize pool"}</div>
           <div className="prize">{featured?.prize_amount ?? "30"} Flower</div>
@@ -134,14 +120,14 @@ export function LeaderboardPage() {
           <TourneyGroup
             title="Ongoing"
             empty="No ongoing tournament."
-            items={live}
+            items={homeTourneyPreview(live)}
             testId="ongoing-group"
             live
           />
           <TourneyGroup
             title="Upcoming"
             empty="No upcoming tournaments."
-            items={upcoming}
+            items={homeTourneyPreview(upcoming)}
             testId="upcoming-group"
           />
         </div>
@@ -181,56 +167,24 @@ export function LeaderboardPage() {
       <section className="card" id="join">
         <div className="kicker">Join a tournament</div>
         <p className="meta">
-          Enter your Farm ID — the browser remembers it. Pick one or more scheduled or live events.
-          An admin approves each join.
+          Open an upcoming or ongoing event to see the prize and join from there. You are{" "}
+          <strong>{identity?.name || "signed in"}</strong>.
         </p>
-        {notice && <div className={`flash ${submit.isSuccess ? "ok" : "err"}`}>{notice}</div>}
-        <form className="form-grid" onSubmit={onSubmit} data-testid="join-form">
-          <label>
-            Farm ID
-            <input
-              className="search"
-              placeholder="Farm ID"
-              value={farmId}
-              onChange={(event) => setFarmId(event.target.value)}
-              required
-              data-testid="join-farm-id"
-            />
-          </label>
-          <label>
-            Display name (optional)
-            <input
-              placeholder="Display name (optional)"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <div data-testid="join-tournaments">
-            <div className="kicker">Tournaments</div>
-            {joinable.length === 0 && <p className="muted">No scheduled or live events to join yet.</p>}
-            {joinable.map((row) => (
-              <label key={row.tournament_id} className="join-option">
-                <input
-                  type="checkbox"
-                  checked={picked.includes(row.tournament_id)}
-                  onChange={() =>
-                    setPicked((current) =>
-                      current.includes(row.tournament_id)
-                        ? current.filter((id) => id !== row.tournament_id)
-                        : [...current, row.tournament_id],
-                    )
-                  }
-                />
-                <span>
-                  {row.name || "Untitled"} · {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
-                </span>
-              </label>
-            ))}
-          </div>
-          <button className="btn primary" type="submit" disabled={submit.isPending || picked.length === 0}>
-            Request join
-          </button>
-        </form>
+        <div data-testid="join-tournaments">
+          {joinable.length === 0 && <p className="muted">No scheduled or live events to join yet.</p>}
+          {joinable.map((row) => (
+            <Link
+              key={row.tournament_id}
+              to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+              className="join-option"
+              data-testid={`join-link-${row.tournament_id}`}
+            >
+              <span>
+                {row.name || "Untitled"} · {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+              </span>
+            </Link>
+          ))}
+        </div>
       </section>
     </>
   );
