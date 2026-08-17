@@ -292,10 +292,6 @@ textarea {
   align-items: stretch;
 }
 
-.hero > .card {
-  height: 100%;
-}
-
 .prize-card {
   background:
     linear-gradient(180deg, rgba(184, 154, 86, 0.08), transparent 55%),
@@ -314,6 +310,11 @@ textarea {
 .you-banner + .toolbar,
 .table-wrap + .card {
   margin-top: 16px;
+}
+
+.hero > .card {
+  height: 100%;
+  margin-top: 0;
 }
 
 .kicker {

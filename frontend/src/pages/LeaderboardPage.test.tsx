@@ -317,8 +317,12 @@ describe("LeaderboardPage home", () => {
       "utf8",
     );
     expect(css).toMatch(/\.hero\s*\{[^}]*align-items:\s*stretch/s);
-    expect(css).toMatch(/\.hero\s*>\s*\.card\s*\{[^}]*height:\s*100%/s);
+    expect(css).toMatch(/\.hero\s*>\s*\.card\s*\{[^}]*height:\s*100%[^}]*margin-top:\s*0/s);
     expect(css).toMatch(/\.tourney-home\s*\{[^}]*min-height:\s*100%/s);
     expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*align-content:\s*start/s);
+    const siblingMargin = css.indexOf(".card + .card");
+    const heroCardReset = css.indexOf(".hero > .card");
+    expect(siblingMargin).toBeGreaterThan(-1);
+    expect(heroCardReset).toBeGreaterThan(siblingMargin);
   });
 });
