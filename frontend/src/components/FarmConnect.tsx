@@ -8,15 +8,7 @@ export function FarmConnect() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (identity) {
-    return (
-      <div className="farm-connected" data-testid="farm-connected">
-        <span className="farm-connected-kicker">Connected as</span>
-        <span className="farm-connected-name">{identity.name}</span>
-        <span className="farm-connected-id">{identity.farm_id}</span>
-      </div>
-    );
-  }
+  if (identity) return null;
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();

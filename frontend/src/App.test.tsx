@@ -163,10 +163,9 @@ describe("routes", () => {
     expect(mockIdentify).toHaveBeenCalledWith("3666918801844311");
     expect(home.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(home.querySelector('[data-testid="farm-connect"]')).toBeNull();
-    const connected = home.querySelector('[data-testid="farm-connected"]');
-    expect(connected).not.toBeNull();
-    expect(connected?.querySelector(".farm-connected-name")?.textContent).toBe("rmr");
-    expect(connected?.querySelector(".farm-connected-id")?.textContent).toBe("3666918801844311");
+    expect(home.querySelector('[data-testid="farm-connected"]')).toBeNull();
+    expect(home.querySelector(".topbar-tools")?.textContent).not.toMatch(/rmr/);
+    expect(home.querySelector(".topbar-tools")?.textContent).not.toMatch(/3666918801844311/);
     expect(home.textContent).toMatch(/Prize pool/);
     expect(home.textContent).toMatch(/Join a tournament/);
     expect(home.textContent).toMatch(/Ongoing/);
@@ -194,8 +193,18 @@ describe("routes", () => {
     act(() => {
       burger.click();
     });
+    const connected = home.querySelector('[data-testid="farm-connected"]');
+    const options = home.querySelector('[data-testid="menu-options"]');
+    expect(connected).not.toBeNull();
+    expect(connected?.closest('[data-testid="menu-options"]')).toBeNull();
+    expect(connected?.querySelector(".farm-connected-name")?.textContent).toBe("rmr");
+    expect(connected?.querySelector(".farm-connected-id")?.textContent).toBe("3666918801844311");
+    expect(options?.textContent).toMatch(/Rules/);
+    expect(options?.textContent).toMatch(/Join a tournament/);
+    expect(options?.textContent).toMatch(/Tournaments/);
     const disconnect = home.querySelector('[data-testid="disconnect-farm"]') as HTMLButtonElement;
     expect(disconnect).not.toBeNull();
+    expect(options?.contains(disconnect)).toBe(true);
     expect(disconnect.textContent).toMatch(/Disconnect rmr/);
     act(() => {
       disconnect.click();

@@ -109,7 +109,7 @@ export function AdminTournaments({
         </button>
       </div>
 
-      <div className="tourney-home admin-tourney-home">
+      <div className="admin-tourney-home">
         <AdminGroup
           title="Ongoing"
           empty="No ongoing tournament."
@@ -148,7 +148,9 @@ export function AdminTournaments({
 
       {editor && (
         <form className="form-grid admin-tourney-form" onSubmit={(event) => void submit(event)}>
-          <div className="kicker">{editor.mode === "edit" ? "Edit tournament" : "Create new tournament"}</div>
+          <div className="kicker">
+            {editor.mode === "edit" ? "Edit tournament" : "Create new tournament"}
+          </div>
           {error && <div className="flash err">{error}</div>}
           <label>
             Name
@@ -174,7 +176,9 @@ export function AdminTournaments({
               type="number"
               min={1}
               value={draft.duration_days}
-              onChange={(event) => setDraft({ ...draft, duration_days: Number(event.target.value) })}
+              onChange={(event) =>
+                setDraft({ ...draft, duration_days: Number(event.target.value) })
+              }
               required
             />
           </label>
@@ -186,7 +190,11 @@ export function AdminTournaments({
             />
           </label>
           <div className="toolbar">
-            <button className="btn primary" type="submit" disabled={busy || !draft.name.trim() || !draft.start_at}>
+            <button
+              className="btn primary"
+              type="submit"
+              disabled={busy || !draft.name.trim() || !draft.start_at}
+            >
               {editor.mode === "edit" ? "Save changes" : "Create tournament"}
             </button>
             <button className="btn" type="button" onClick={() => setEditor(null)} disabled={busy}>
@@ -223,7 +231,11 @@ function AdminGroup({
   return (
     <div className="tourney-group" data-testid={`admin-${title.toLowerCase()}-group`}>
       <div className="kicker">{title}</div>
-      {items.length === 0 && <p className="muted tourney-empty">{empty}</p>}
+      {items.length === 0 && (
+        <p className="muted tourney-empty" data-testid={`admin-${title.toLowerCase()}-empty`}>
+          {empty}
+        </p>
+      )}
       {items.map((row) => (
         <article
           key={row.tournament_id}
@@ -238,7 +250,8 @@ function AdminGroup({
           >
             <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
             <div className="tourney-card-meta">
-              {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount} Flower
+              {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
+              Flower
             </div>
           </button>
           <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
@@ -314,7 +327,11 @@ function TournamentRoster({
           >
             Approve
           </button>
-          <button className="btn" type="button" onClick={() => void onReject?.(item.farm_id, tournamentId)}>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => void onReject?.(item.farm_id, tournamentId)}
+          >
             Reject
           </button>
         </div>
@@ -340,7 +357,9 @@ function TournamentRoster({
           </div>
         ))}
       <div className="kicker">Add existing players</div>
-      {available.length === 0 && <p className="muted">Every tracked player is already on this event.</p>}
+      {available.length === 0 && (
+        <p className="muted">Every tracked player is already on this event.</p>
+      )}
       {available.map((farm) => (
         <label key={farm.farm_id} className="join-option">
           <input

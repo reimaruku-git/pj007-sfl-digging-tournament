@@ -274,14 +274,34 @@ textarea {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 8px;
+  padding: 10px;
   display: grid;
-  gap: 4px;
+  gap: 10px;
   z-index: 20;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
 }
 
-.menu-panel > button {
+.menu-identity {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 4px 8px 2px;
+}
+
+.menu-identity .farm-connected-name {
+  max-width: 100%;
+}
+
+.menu-options {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+
+.menu-options > button {
   text-align: left;
   border: 0;
   background: transparent;
@@ -291,7 +311,7 @@ textarea {
   cursor: pointer;
 }
 
-.menu-panel > button:hover {
+.menu-options > button:hover {
   background: var(--gold-dim);
 }
 
@@ -420,13 +440,29 @@ textarea {
 }
 
 .admin-tourney-home {
+  display: grid;
+  gap: 12px;
   margin-top: 12px;
+  min-height: 0;
 }
 
 @media (min-width: 801px) {
   .admin-tourney-home {
     grid-template-columns: 1fr 1fr;
+    align-items: start;
   }
+}
+
+.admin-tourney-home .tourney-group {
+  flex: none;
+  overflow: visible;
+  min-height: auto;
+  height: auto;
+}
+
+.admin-tourney-home .tourney-empty {
+  padding: 8px 2px 6px;
+  line-height: 1.45;
 }
 
 .admin-tourney-form {
@@ -1231,6 +1267,10 @@ a.join-option:hover {
 
   .farm-connected-name {
     max-width: 110px;
+  }
+
+  .menu-identity .farm-connected-name {
+    max-width: 100%;
   }
 
   .rules-list li {

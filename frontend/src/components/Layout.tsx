@@ -86,33 +86,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <span aria-hidden />
             </button>
             {open && (
-              <div className="menu-panel" id={menuId} role="menu">
-                <button type="button" role="menuitem" onClick={goRules}>
-                  Rules
-                </button>
-                <button type="button" role="menuitem" onClick={goJoin}>
-                  Join a tournament
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setOpen(false);
-                    navigate("/tournaments");
-                  }}
-                >
-                  Tournaments
-                </button>
-                {identity && (
+              <div className="menu-panel" id={menuId}>
+                {identity && !isAdmin && (
+                  <div className="menu-identity" data-testid="farm-connected">
+                    <span className="farm-connected-kicker">Connected as</span>
+                    <span className="farm-connected-name">{identity.name}</span>
+                    <span className="farm-connected-id">{identity.farm_id}</span>
+                  </div>
+                )}
+                <div className="menu-options" role="menu" data-testid="menu-options">
+                  <button type="button" role="menuitem" onClick={goRules}>
+                    Rules
+                  </button>
+                  <button type="button" role="menuitem" onClick={goJoin}>
+                    Join a tournament
+                  </button>
                   <button
                     type="button"
                     role="menuitem"
-                    data-testid="disconnect-farm"
-                    onClick={onDisconnect}
+                    onClick={() => {
+                      setOpen(false);
+                      navigate("/tournaments");
+                    }}
                   >
-                    Disconnect {identity.name}
+                    Tournaments
                   </button>
-                )}
+                  {identity && !isAdmin && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="disconnect-farm"
+                      onClick={onDisconnect}
+                    >
+                      Disconnect {identity.name}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

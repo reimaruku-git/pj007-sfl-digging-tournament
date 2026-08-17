@@ -77,27 +77,55 @@ describe("public chrome", () => {
     ).toBeTruthy();
   });
 
-  it("replaces connect with username over farm id once identified", () => {
+  it("keeps connected name and id inside the opened burger, outside the options box", () => {
     writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
     const el = renderAt("/");
-    expect(el.querySelector('[data-testid="farm-connect"]')).toBeNull();
+    const tools = el.querySelector(".topbar-tools");
+    expect(tools?.querySelector('[data-testid="farm-connect"]')).toBeNull();
+    expect(tools?.querySelector('[data-testid="farm-connected"]')).toBeNull();
+    expect(tools?.textContent).not.toMatch(/rmr/);
+    expect(tools?.textContent).not.toMatch(/3666918801844311/);
+
+    act(() => {
+      (el.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
+    });
+
     const connected = el.querySelector('[data-testid="farm-connected"]');
+    const options = el.querySelector('[data-testid="menu-options"]');
     expect(connected).not.toBeNull();
+    expect(options).not.toBeNull();
+    expect(connected?.closest(".menu-panel")).not.toBeNull();
+    expect(connected?.closest('[data-testid="menu-options"]')).toBeNull();
+    expect(options?.contains(connected)).toBe(false);
     const name = connected?.querySelector(".farm-connected-name");
     const id = connected?.querySelector(".farm-connected-id");
     expect(name?.textContent).toBe("rmr");
     expect(id?.textContent).toBe("3666918801844311");
     expect(name!.compareDocumentPosition(id!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const timer = el.querySelector(".utc-chip");
     expect(
-      connected!.compareDocumentPosition(timer!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      connected!.compareDocumentPosition(options!) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(options?.textContent).toMatch(/Rules/);
+    expect(options?.textContent).toMatch(/Join a tournament/);
+    expect(options?.textContent).toMatch(/Tournaments/);
+    expect(options?.querySelector('[data-testid="disconnect-farm"]')?.textContent).toMatch(
+      /Disconnect rmr/,
+    );
+    expect(options?.textContent).not.toMatch(/3666918801844311/);
+    expect(el.querySelector(".utc-chip")?.contains(connected)).toBe(false);
+  });
+
+  it("opens the boxed options without a name or id when no farm is connected", () => {
+    const el = renderAt("/");
     act(() => {
       (el.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
     });
-    const disconnect = el.querySelector('[data-testid="disconnect-farm"]');
-    expect(disconnect).not.toBeNull();
-    expect(disconnect?.textContent).toMatch(/Disconnect rmr/);
+    expect(el.querySelector('[data-testid="farm-connected"]')).toBeNull();
+    const options = el.querySelector('[data-testid="menu-options"]');
+    expect(options?.textContent).toMatch(/Rules/);
+    expect(options?.textContent).toMatch(/Join a tournament/);
+    expect(options?.textContent).toMatch(/Tournaments/);
+    expect(options?.querySelector('[data-testid="disconnect-farm"]')).toBeNull();
   });
 
   it("hides connect and connected chrome on /admin", () => {
