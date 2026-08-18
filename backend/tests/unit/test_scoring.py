@@ -409,6 +409,36 @@ def test_incomplete_formula_missing_one_two_three_op():
     assert assigned["m1"]["digs_to_third_op"] == 35
     assert assigned["m2"]["digs_to_third_op"] == 40
     assert assigned["m3"]["digs_to_third_op"] == 45
+    assert assigned["m3"]["digs_to_second_op"] == 44
+    assert assigned["m3"]["digs_to_first_op"] == 43
+
+
+def test_incomplete_keeps_found_pebbles_and_fills_missing_from_penalty():
+    rows = [
+        {
+            "farm_id": "dug",
+            "status": STATUS_IN_PROGRESS,
+            "otter_count": 1,
+            "digs_to_first_op": 8,
+            "digs_to_second_op": None,
+            "digs_to_third_op": None,
+        },
+        {
+            "farm_id": "idle",
+            "status": STATUS_NOT_STARTED,
+            "otter_count": 0,
+            "digs_to_first_op": None,
+            "digs_to_second_op": None,
+            "digs_to_third_op": None,
+        },
+    ]
+    assigned = {row["farm_id"]: row for row in assign_incomplete_official_scores(rows)}
+    assert assigned["dug"]["digs_to_third_op"] == 40
+    assert assigned["dug"]["digs_to_second_op"] == 39
+    assert assigned["dug"]["digs_to_first_op"] == 8
+    assert assigned["idle"]["digs_to_third_op"] == 45
+    assert assigned["idle"]["digs_to_second_op"] == 44
+    assert assigned["idle"]["digs_to_first_op"] == 43
 
 
 def test_incomplete_floor_is_30_when_highest_completed_is_lower():
@@ -423,7 +453,11 @@ def test_no_completers_uses_floor_30():
     ]
     assigned = {row["farm_id"]: row for row in assign_incomplete_official_scores(rows)}
     assert assigned["a"]["digs_to_third_op"] == 35
+    assert assigned["a"]["digs_to_second_op"] == 34
+    assert assigned["a"]["digs_to_first_op"] == 33
     assert assigned["b"]["digs_to_third_op"] == 45
+    assert assigned["b"]["digs_to_second_op"] == 44
+    assert assigned["b"]["digs_to_first_op"] == 43
 
 
 def test_midday_clock_does_not_apply_2300_cutoff():

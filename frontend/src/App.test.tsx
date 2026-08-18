@@ -186,6 +186,7 @@ describe("routes", () => {
     );
     expect(rules?.textContent).toMatch(/worst finisher that day or 30/);
     expect(rules?.textContent).toMatch(/5 for every missing pebble/);
+    expect(rules?.textContent).toMatch(/minus 1 and minus 2/);
     expect(rules?.textContent).toMatch(/SO DIG!/);
     expect(rules?.textContent).toMatch(/do not affect your score/);
     expect(rules?.textContent).toMatch(/Average of 3rd pebble, then 2nd, then 1st/);

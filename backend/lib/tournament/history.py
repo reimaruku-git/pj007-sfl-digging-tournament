@@ -510,6 +510,8 @@ def _finalize_roster(
                 "status": record.get("status"),
                 "otter_count": record.get("otter_count"),
                 "digs_to_third_op": record.get("digs_to_third_op"),
+                "digs_to_first_op": record.get("digs_to_first_op"),
+                "digs_to_second_op": record.get("digs_to_second_op"),
                 "invalidated": bool(prior.get("invalidated")),
             }
             for farm_id, _name, record, prior in prepared
@@ -528,6 +530,8 @@ def _finalize_roster(
             if score is not None:
                 highest = score if highest is None else max(highest, score)
         record["digs_to_third_op"] = updated.get("digs_to_third_op")
+        record["digs_to_first_op"] = updated.get("digs_to_first_op")
+        record["digs_to_second_op"] = updated.get("digs_to_second_op")
         record["status"] = updated.get("status") or record.get("status")
         record["finalized"] = True
         if write_shared_day:
@@ -555,6 +559,8 @@ def _finalize_roster(
             for item in days:
                 if str(item.get("day") or "") == today:
                     item["digs_to_third_op"] = record.get("digs_to_third_op")
+                    item["digs_to_first_op"] = record.get("digs_to_first_op")
+                    item["digs_to_second_op"] = record.get("digs_to_second_op")
                     item["status"] = record.get("status")
                     item["finalized"] = True
                     item["otter_count"] = record.get("otter_count")

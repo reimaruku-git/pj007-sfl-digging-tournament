@@ -239,6 +239,11 @@ def test_finalize_2300_assigns_incomplete_and_is_idempotent(aws_env):
     assert short["digs_to_third_op"] == 35
     assert none["otter_count"] == 0
     assert none["digs_to_third_op"] == 45
+    assert none["digs_to_second_op"] == 44
+    assert none["digs_to_first_op"] == 43
+    none_today = next(item for item in none["days"] if item["day"] == "2026-08-14")
+    assert none_today["digs_to_second_op"] == 44
+    assert none_today["digs_to_first_op"] == 43
     assert store.get_score("1")["digs_to_third_op"] == done["digs_to_third_op"]
     assert store.get_score("2")["digs_to_third_op"] == short["digs_to_third_op"]
     assert store.get_score("3")["digs_to_third_op"] == none["digs_to_third_op"]

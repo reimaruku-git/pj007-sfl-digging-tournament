@@ -202,7 +202,9 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - At 23:00 UTC (and later that UTC day): tiles with `dugAt` after 23:00
   are not counted. Completers keep their 3rd-OP score. Incompletes get
   `max(highest completed 3rd-OP among that event's roster today, 30) + 5 × (3 − otter_count)`.
-  No completers → floor 30. Mid-day syncs do **not** assign that penalty.
+  Missing 2nd pebble that day is that penalty minus 1; missing 1st is
+  minus 2. Found 1st/2nd digs stay. No completers → floor 30. Mid-day
+  syncs do **not** assign that penalty.
   The 23:00 floor is per event; overlapping boards do not share it.
 - Lower score ranks higher.
 - Public join on an **active** event closes at **22:30 UTC on that

@@ -19,6 +19,8 @@ Rules
   clipped to that day's 23:00 — tiles with ``dugAt`` after 23:00 UTC are
   not counted. Farms that still do not have 3 Otter Pebbles receive
   ``max(highest completed 3rd-OP that day, 30) + 5 * missing``.
+  A missing 2nd pebble becomes that penalty minus 1; a missing 1st
+  becomes penalty minus 2. Found 1st/2nd digs stay as recorded.
   Mid-day syncs (14/16/18/20 UTC) do not assign that penalty.
 """
 
@@ -340,10 +342,34 @@ def incomplete_official_score(otter_count: int, highest_completed: int | None) -
     return base + INCOMPLETE_SCORE_PER_MISSING_OP * missing
 
 
-def assign_incomplete_official_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Copy rows and fill ``digs_to_third_op`` for farms that are not completed.
+def _recorded_digs(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
 
-    Completers keep their 3rd-OP score. Invalidated rows are left alone.
+
+def fill_incomplete_pebble_digs(row: dict[str, Any], penalty: int) -> dict[str, Any]:
+    """Keep found 1st/2nd digs; invent harsh placeholders for missing ones.
+
+    No 2nd pebble → ``penalty - 1``. No 1st pebble → ``penalty - 2``.
+    """
+    updated = dict(row)
+    updated["digs_to_third_op"] = int(penalty)
+    if _recorded_digs(updated.get("digs_to_second_op")) is None:
+        updated["digs_to_second_op"] = int(penalty) - 1
+    if _recorded_digs(updated.get("digs_to_first_op")) is None:
+        updated["digs_to_first_op"] = int(penalty) - 2
+    return updated
+
+
+def assign_incomplete_official_scores(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Copy rows and fill unfinished 3rd/2nd/1st pebble digs.
+
+    Completers keep their scores. Invalidated rows are left alone.
     """
     completed_scores: list[int] = []
     for row in rows:
@@ -366,8 +392,8 @@ def assign_incomplete_official_scores(rows: list[dict[str, Any]]) -> list[dict[s
             assigned.append(updated)
             continue
         otter = int(updated.get("otter_count") or 0)
-        updated["digs_to_third_op"] = incomplete_official_score(otter, highest)
-        assigned.append(updated)
+        penalty = incomplete_official_score(otter, highest)
+        assigned.append(fill_incomplete_pebble_digs(updated, penalty))
     return assigned
 
 

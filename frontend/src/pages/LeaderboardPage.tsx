@@ -108,7 +108,9 @@ export function LeaderboardPage() {
               <span>Unfinished</span>
               <span>
                 Score = (worst finisher that day or 30, whichever is higher) + 5 for every missing
-                pebble. This number is permanent and still goes into your average. SO DIG!
+                pebble. Missing 2nd and 1st pebbles become that score minus 1 and minus 2 unless
+                you already found them. This number is permanent and still goes into your average.
+                SO DIG!
               </span>
             </li>
             <li>

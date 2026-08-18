@@ -120,8 +120,10 @@ count instead of `null`:
 
 `max(highest digs_to_third_op among farms that found all 3, 30) + 5 × (3 − otter_count)`
 
-If nobody finished, the floor is 30. Mid-day syncs (14:00 / 16:00 / 18:00 /
-20:00 UTC) leave incompletes as `null`. Tiles with `dugAt` after 23:00 UTC
+If that day has no recorded 2nd pebble, `days[].digs_to_second_op` is
+that penalty minus 1. No 1st pebble → penalty minus 2. Found 1st/2nd
+digs stay. If nobody finished, the floor is 30. Mid-day syncs (14:00 /
+16:00 / 18:00 / 20:00 UTC) leave incompletes as `null`. Tiles with `dugAt` after 23:00 UTC
 that day are not counted. Admin `POST /admin/sync` still starts a full
 sweep; the worker applies finalize when the clock is 23:00 UTC or later.
 
