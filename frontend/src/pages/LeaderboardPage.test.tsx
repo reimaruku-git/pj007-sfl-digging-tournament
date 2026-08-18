@@ -212,7 +212,7 @@ describe("LeaderboardPage home", () => {
     expect(page.textContent).not.toMatch(/Finished \/ tracked/);
   });
 
-  it("caps each live board at 10 rows and only reverses that board when avg/day is toggled", async () => {
+  it("defaults to API rank, cycles avg/day three times, and isolates boards", async () => {
     const first = summary({
       tournament_id: "one",
       name: "First board",
@@ -225,44 +225,72 @@ describe("LeaderboardPage home", () => {
       status: "active",
       end_at: "2026-08-22T00:00:00.000Z",
     });
-    const many = Array.from({ length: 12 }, (_, index) =>
-      entry({
-        farm_id: `p${index + 1}`,
-        rank: index + 1,
-        score: (index + 1) * 0.25,
-        name: `Player ${index + 1}`,
-      }),
-    );
+    const laterScores = [11, 12, 13, 14, 15, 16, 17, 19, 21, 22];
+    const many = [
+      entry({ farm_id: "dug", rank: 1, score: 18, name: "Dug today" }),
+      entry({ farm_id: "idle", rank: 2, score: 10, name: "Idle best" }),
+      ...laterScores.map((score, index) =>
+        entry({
+          farm_id: `p${index + 3}`,
+          rank: index + 3,
+          score,
+          name: index === 9 ? "Worst avg" : `Player ${index + 3}`,
+        }),
+      ),
+    ];
     listTournaments.mockResolvedValue({ tournaments: [first, second], count: 2 });
     fetchTournament.mockImplementation(async (id: string) => {
       if (id === "one") return archive(first, many);
       return archive(second, [
         entry({ farm_id: "keep", rank: 1, score: 0.8, name: "Keep me first" }),
-        entry({ farm_id: "other", rank: 2, score: 1.1, name: "Keep me second" }),
+        entry({ farm_id: "other", rank: 2, score: 0.4, name: "Better unused avg" }),
       ]);
     });
 
     const page = await renderHome();
     const firstBoard = page.querySelector('[data-testid="live-board-one"]');
     const secondBoard = page.querySelector('[data-testid="live-board-two"]');
+    const sort = page.querySelector('[data-testid="sort-score-one"]') as HTMLButtonElement;
     expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
     expect(firstBoard?.textContent).toMatch(/Total/);
     expect(firstBoard?.textContent).toMatch(/Avg \/ day/);
     expect(firstBoard?.textContent).toMatch(/Today/);
-    expect(firstBoard?.textContent).toMatch(/Player 1/);
-    expect(firstBoard?.textContent).toMatch(/Player 10/);
+    expect(firstBoard?.textContent).toMatch(/Dug today/);
+    expect(firstBoard?.textContent).not.toMatch(/Worst avg/);
     expect(firstBoard?.textContent).not.toMatch(/Player 11/);
-    expect(secondBoard?.textContent).toMatch(/Keep me first/);
+    expect(sort.getAttribute("data-sort")).toBe("none");
+    expect(sort.getAttribute("aria-pressed")).toBe("false");
+    expect(sort.textContent).toBe("Avg / day");
+    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Dug today/);
+    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
 
-    const sort = page.querySelector('[data-testid="sort-score-one"]') as HTMLButtonElement;
-    expect(sort).not.toBeNull();
     act(() => {
       sort.click();
     });
-    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Player 12/);
+    expect(sort.getAttribute("data-sort")).toBe("asc");
+    expect(sort.textContent).toBe("Avg / day ↑");
+    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Idle best/);
     expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
     expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
-    expect(secondBoard?.querySelector("tbody tr")?.textContent).not.toMatch(/Player 12/);
+
+    act(() => {
+      sort.click();
+    });
+    expect(sort.getAttribute("data-sort")).toBe("desc");
+    expect(sort.textContent).toBe("Avg / day ↓");
+    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Worst avg/);
+    expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
+    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
+    expect(secondBoard?.querySelector("tbody tr")?.textContent).not.toMatch(/Worst avg/);
+
+    act(() => {
+      sort.click();
+    });
+    expect(sort.getAttribute("data-sort")).toBe("none");
+    expect(sort.getAttribute("aria-pressed")).toBe("false");
+    expect(sort.textContent).toBe("Avg / day");
+    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Dug today/);
+    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
   });
 
   it("lists upcoming and ongoing as Tailwind cards with badges and no farm fields", async () => {

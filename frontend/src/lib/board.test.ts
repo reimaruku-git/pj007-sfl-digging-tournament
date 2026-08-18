@@ -5,6 +5,7 @@ import {
   joinListTournaments,
   joinableTournaments,
   liveTournamentsSoonestFirst,
+  nextScoreSort,
   upcomingTournaments,
   visibleBoardEntries,
 } from "./board";
@@ -26,39 +27,58 @@ function entry(
 }
 
 describe("visibleBoardEntries", () => {
-  const rows = Array.from({ length: 12 }, (_, index) =>
-    entry({
-      rank: index + 1,
-      farm_id: String(index + 1),
-      score: (index + 1) * 0.5,
-    }),
-  );
+  // API rank 1 already dug today with a worse average than rank 2.
+  const rows = [
+    entry({ rank: 1, farm_id: "dug", score: 18, name: "Dug today" }),
+    entry({ rank: 2, farm_id: "idle", score: 10, name: "Better unused avg" }),
+    ...[11, 12, 13, 14, 15, 16, 17, 19, 21, 22].map((score, index) =>
+      entry({
+        rank: index + 3,
+        farm_id: `p${index + 3}`,
+        score,
+      }),
+    ),
+  ];
 
-  it("keeps official order for asc and caps at 10", () => {
-    const shown = visibleBoardEntries(rows, "asc");
+  it("keeps incoming API rank order when no sort is set and caps at 10", () => {
+    const shown = visibleBoardEntries(rows, null);
     expect(shown).toHaveLength(10);
     expect(shown.map((row) => row.farm_id)).toEqual([
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
-      "9",
-      "10",
+      "dug",
+      "idle",
+      "p3",
+      "p4",
+      "p5",
+      "p6",
+      "p7",
+      "p8",
+      "p9",
+      "p10",
     ]);
-    expect(shown.map((row) => row.score)).toEqual([0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]);
+    expect(shown[0]?.score).toBe(18);
+    expect(shown[1]?.score).toBe(10);
   });
 
-  it("reverses by official score for desc without leaking past the top 10", () => {
+  it("orders by numeric avg/day ascending with nulls last", () => {
+    const shown = visibleBoardEntries(rows, "asc");
+    expect(shown).toHaveLength(10);
+    expect(shown[0]?.farm_id).toBe("idle");
+    expect(shown[0]?.score).toBe(10);
+    expect(shown.map((row) => row.score)).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+  });
+
+  it("orders by numeric avg/day descending and may surface rows past the original top 10", () => {
     const shown = visibleBoardEntries(rows, "desc");
     expect(shown).toHaveLength(10);
-    expect(shown[0]?.farm_id).toBe("12");
-    expect(shown[0]?.score).toBe(6);
-    expect(shown[shown.length - 1]?.farm_id).toBe("3");
-    expect(shown.map((row) => row.score)).toEqual([6, 5.5, 5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5]);
+    expect(shown[0]?.farm_id).toBe("p12");
+    expect(shown[0]?.score).toBe(22);
+    expect(shown.map((row) => row.score)).toEqual([22, 21, 19, 18, 17, 16, 15, 14, 13, 12]);
+  });
+
+  it("cycles none → asc → desc → none", () => {
+    expect(nextScoreSort(null)).toBe("asc");
+    expect(nextScoreSort("asc")).toBe("desc");
+    expect(nextScoreSort("desc")).toBeNull();
   });
 });
 

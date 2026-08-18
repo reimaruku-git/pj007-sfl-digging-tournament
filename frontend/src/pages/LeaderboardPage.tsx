@@ -14,6 +14,7 @@ import { SyncCountdown } from "../components/SyncCountdown";
 import {
   homeTourneyPreview,
   liveTournamentsSoonestFirst,
+  nextScoreSort,
   upcomingTournaments,
   visibleBoardEntries,
   type ScoreSortDir,
@@ -62,7 +63,7 @@ export function LeaderboardPage() {
     .find((row) => row.farm_id === mine);
 
   function sortFor(id: string): ScoreSortDir {
-    return sortById[id] ?? "asc";
+    return sortById[id] ?? null;
   }
 
   return (
@@ -159,7 +160,7 @@ export function LeaderboardPage() {
           onToggleSort={() =>
             setSortById((current) => ({
               ...current,
-              [row.tournament_id]: sortFor(row.tournament_id) === "asc" ? "desc" : "asc",
+              [row.tournament_id]: nextScoreSort(sortFor(row.tournament_id)),
             }))
           }
         />
@@ -226,7 +227,7 @@ function LiveBoard({
   onToggleSort: () => void;
 }) {
   const rows = visibleBoardEntries(entries, sort, 10);
-  const sortLabel = sort === "asc" ? "↑" : "↓";
+  const sortLabel = sort === "asc" ? " ↑" : sort === "desc" ? " ↓" : "";
   return (
     <section
       className="card table-wrap live-board"
@@ -255,11 +256,13 @@ function LiveBoard({
                 <th>
                   <button
                     type="button"
-                    className="sort-btn"
+                    className={["sort-btn", sort ? "is-sorted" : ""].filter(Boolean).join(" ")}
                     data-testid={`sort-score-${tournament.tournament_id}`}
+                    data-sort={sort ?? "none"}
+                    aria-pressed={sort != null}
                     onClick={onToggleSort}
                   >
-                    Avg / day {sortLabel}
+                    Avg / day{sortLabel}
                   </button>
                 </th>
                 <th>Today</th>

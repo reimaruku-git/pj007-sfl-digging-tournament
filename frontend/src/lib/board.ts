@@ -1,6 +1,12 @@
 import type { LeaderboardEntry, TournamentSummary } from "../api/public";
 
-export type ScoreSortDir = "asc" | "desc";
+export type ScoreSortDir = "asc" | "desc" | null;
+
+export function nextScoreSort(current: ScoreSortDir): ScoreSortDir {
+  if (current == null) return "asc";
+  if (current === "asc") return "desc";
+  return null;
+}
 
 export function visibleBoardEntries(
   entries: LeaderboardEntry[],
@@ -8,18 +14,20 @@ export function visibleBoardEntries(
   limit = 10,
 ): LeaderboardEntry[] {
   const rows = [...entries];
-  rows.sort((a, b) => {
-    const aNum = a.score == null || Number.isNaN(Number(a.score)) ? null : Number(a.score);
-    const bNum = b.score == null || Number.isNaN(Number(b.score)) ? null : Number(b.score);
-    if (aNum == null && bNum == null) {
+  if (sort != null) {
+    rows.sort((a, b) => {
+      const aNum = a.score == null || Number.isNaN(Number(a.score)) ? null : Number(a.score);
+      const bNum = b.score == null || Number.isNaN(Number(b.score)) ? null : Number(b.score);
+      if (aNum == null && bNum == null) {
+        return (a.rank ?? 9999) - (b.rank ?? 9999);
+      }
+      if (aNum == null) return 1;
+      if (bNum == null) return -1;
+      const cmp = aNum - bNum;
+      if (cmp !== 0) return sort === "asc" ? cmp : -cmp;
       return (a.rank ?? 9999) - (b.rank ?? 9999);
-    }
-    if (aNum == null) return 1;
-    if (bNum == null) return -1;
-    const cmp = aNum - bNum;
-    if (cmp !== 0) return sort === "asc" ? cmp : -cmp;
-    return (a.rank ?? 9999) - (b.rank ?? 9999);
-  });
+    });
+  }
   return rows.slice(0, limit);
 }
 

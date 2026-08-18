@@ -668,6 +668,11 @@ a.tourney-window:hover {
   cursor: pointer;
 }
 
+.sort-btn:not(.is-sorted) {
+  color: var(--mute);
+}
+
+.sort-btn.is-sorted,
 .sort-btn:hover {
   color: var(--gold);
 }
