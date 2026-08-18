@@ -25,6 +25,7 @@ import {
   updateTournament,
 } from "../api/admin";
 import { getAuthToken } from "../auth/session";
+import { AdminPendingJoins } from "./AdminPendingJoins";
 import { AdminPlayers } from "./AdminPlayers";
 import { AdminTournaments } from "./AdminTournaments";
 
@@ -243,12 +244,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         onDelete={async (row) => {
           await deleteTournament(row.tournament_id);
           if (selectedTournamentId === row.tournament_id) setSelectedTournamentId(null);
-          note(row.status === "active" ? "Live tournament deleted." : "Scheduled tournament cancelled.");
+          note(
+            row.status === "active"
+              ? "Live tournament deleted."
+              : "Scheduled tournament cancelled.",
+          );
           invalidate();
         }}
         onAddFarms={async (id, farmIds) => {
           await addTournamentFarms(id, farmIds);
-          note(`Added ${farmIds.length} player${farmIds.length === 1 ? "" : "s"} to the tournament.`);
+          note(
+            `Added ${farmIds.length} player${farmIds.length === 1 ? "" : "s"} to the tournament.`,
+          );
           invalidate();
           void queryClient.invalidateQueries({ queryKey: ["admin-roster", id] });
         }}
@@ -285,46 +292,27 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         ))}
       </section>
 
-      <section className="card" style={{ marginBottom: 16 }}>
-        <div className="kicker">Pending joins</div>
-        {(submissions.data ?? []).length === 0 && <p className="muted">None waiting.</p>}
-        {(submissions.data ?? []).map((item) => (
-          <div key={`${item.farm_id}-${item.tournament_id}`} className="toolbar">
-            <span>
-              {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
-              <div className="meta">wants {item.tournament_id}</div>
-            </span>
-            <button
-              className="btn primary"
-              type="button"
-              onClick={() =>
-                approveSubmission(item.farm_id, item.tournament_id)
-                  .then(() => {
-                    note("Approved.");
-                    invalidate();
-                  })
-                  .catch((error: Error) => note(error.message, "err"))
-              }
-            >
-              Approve
-            </button>
-            <button
-              className="btn"
-              type="button"
-              onClick={() =>
-                rejectSubmission(item.farm_id, item.tournament_id)
-                  .then(() => {
-                    note("Rejected.");
-                    invalidate();
-                  })
-                  .catch((error: Error) => note(error.message, "err"))
-              }
-            >
-              Reject
-            </button>
-          </div>
-        ))}
-      </section>
+      <AdminPendingJoins
+        submissions={submissions.data ?? []}
+        onApprove={async (farmId, tournamentId) => {
+          try {
+            await approveSubmission(farmId, tournamentId);
+            note("Approved.");
+            invalidate();
+          } catch (error) {
+            note(error instanceof Error ? error.message : "failed to approve", "err");
+          }
+        }}
+        onReject={async (farmId, tournamentId) => {
+          try {
+            await rejectSubmission(farmId, tournamentId);
+            note("Rejected.");
+            invalidate();
+          } catch (error) {
+            note(error instanceof Error ? error.message : "failed to reject", "err");
+          }
+        }}
+      />
 
       <AdminPlayers
         farms={farms.data ?? []}
