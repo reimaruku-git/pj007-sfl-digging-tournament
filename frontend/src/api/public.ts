@@ -40,6 +40,8 @@ export type LeaderboardEntry = {
   digs_to_second_op?: number | null;
   otter_count: number;
   digs_today: number;
+  score_today?: number | null;
+  scored_days?: number;
   total_digs: number;
   tournament_days?: number;
   first_op_at?: string | null;

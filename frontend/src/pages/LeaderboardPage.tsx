@@ -91,7 +91,8 @@ export function LeaderboardPage() {
             <li>
               <span>Score</span>
               <span>
-                Your 3rd-pebble digs divided by the tournament length in days. Lower is better.
+                Average 3rd-pebble digs across days that already have a score. A missed day keeps
+                its recorded score, including the 23:00 unfinished penalty. Lower is better.
               </span>
             </li>
             <li>
@@ -101,8 +102,9 @@ export function LeaderboardPage() {
             <li>
               <span>Unfinished</span>
               <span>
-                Score of the worst finisher that day (or 30, whichever is higher) + 5 per missing
-                Otter Pebble, then divided by the tournament length
+                That day's score is the worst finisher that day (or 30, whichever is higher) + 5
+                per missing Otter Pebble. That number stays on the record and counts in the
+                average.
               </span>
             </li>
             <li>
@@ -248,7 +250,7 @@ function LiveBoard({
               <tr>
                 <th>Rank</th>
                 <th>Farm</th>
-                <th>Score</th>
+                <th>Total</th>
                 <th>
                   <button
                     type="button"
@@ -259,6 +261,7 @@ function LiveBoard({
                     Avg / day {sortLabel}
                   </button>
                 </th>
+                <th>Today</th>
                 <th>Pebbles</th>
               </tr>
             </thead>
@@ -283,6 +286,7 @@ function LiveBoard({
                   </td>
                   <td>{row.digs_to_third_op ?? "—"}</td>
                   <td>{formatScore(row.score)}</td>
+                  <td>{row.score_today ?? "—"}</td>
                   <td>
                     <Pebbles count={row.otter_count} />
                   </td>
@@ -317,8 +321,9 @@ function LiveBoard({
                 </div>
                 <div className="farm-card-score">
                   <b>{row.digs_to_third_op ?? "—"}</b>
-                  <span>score</span>
+                  <span>total</span>
                   <span className="muted">{formatScore(row.score)} avg/day</span>
+                  <span className="muted">today {row.score_today ?? "—"}</span>
                 </div>
               </Link>
             ))}

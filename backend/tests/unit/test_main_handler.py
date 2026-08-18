@@ -375,8 +375,8 @@ def test_admin_put_config_rescores_from_snapshot(aws_env, monkeypatch):
     assert payload["rescore"]["rescored"] == 1
     assert payload["rescore"]["missing_snapshots"] == 0
     row = store.get_score("99")
-    assert row["otter_count"] == 2
     assert row["digs_to_third_op"] is None
+    assert any(int(item.get("otter_count") or 0) == 2 for item in (row.get("days") or []))
 
 
 def test_admin_put_config_duration_days_sets_end_and_public_config(aws_env, monkeypatch):

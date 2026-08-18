@@ -248,6 +248,10 @@ describe("TournamentsPage", () => {
     );
     expect(page.textContent).toMatch(/Ada/);
     expect(page.textContent).toMatch(/Bea/);
+    expect(page.textContent).toMatch(/Total/);
+    expect(page.textContent).toMatch(/Avg \/ day/);
+    expect(page.textContent).toMatch(/Today/);
+    expect(page.textContent).toMatch(/Pebbles/);
     expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="join-farm-id"]')).toBeNull();
     expect(page.textContent).not.toMatch(/Display name/);

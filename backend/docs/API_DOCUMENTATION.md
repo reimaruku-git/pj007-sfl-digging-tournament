@@ -51,12 +51,14 @@ Cached snapshot. Frontend never calls the SFL API.
       "rank": 1,
       "farm_id": "3666918801844311",
       "name": "rmr",
-      "score": 6.0,
+      "score": 21.0,
       "digs_to_third_op": 42,
       "digs_to_first_op": 10,
       "digs_to_second_op": 24,
       "otter_count": 3,
       "digs_today": 8,
+      "score_today": 20,
+      "scored_days": 2,
       "total_digs": 42,
       "tournament_days": 7,
       "first_op_at": "2026-08-14T12:10:00+00:00",
@@ -85,14 +87,22 @@ Cached snapshot. Frontend never calls the SFL API.
 
 `status` is `not_started` | `in_progress` | `completed` | `invalidated`.
 
-`score` is the official board number: `digs_to_third_op / duration_days`
-(configured length, not days so far). Digs after the 3rd pebble do not
-enter `score`. `total_digs` is window activity for debug and is not ranked.
+`digs_to_third_op` is the **total score**: the sum of each stored day's
+3rd-pebble digs that already have a number. `score` is that total divided
+only by those scored days (yesterday 14 + today 20 → 17; yesterday 14 +
+today still `null` → 14). It is **not** divided by the configured
+tournament length while some days have no score yet. A missed day that
+already has a recorded 3rd-OP (including the 23:00 incomplete penalty)
+still enters both total and average.
 
-Sunflower Land's desert grid resets every UTC day. `digs_to_third_op` is
-the **sum** of each stored tournament day's 3rd-pebble digs. Each day is
-kept under `days` (and on S3 as `snapshots/history/{farm_id}/{day}.json`).
-A later fetch must not replace an earlier day.
+`score_today` is that UTC day's 3rd-OP (`null` until it has a number).
+`otter_count` is pebbles dug today. `total_digs` is window activity for
+debug and is not ranked.
+
+Sunflower Land's desert grid resets every UTC day. Each day is kept
+under `days` (and on S3 as `snapshots/history/{farm_id}/{day}.json`).
+The live DynamoDB score row is derived from those days. A later fetch
+must not replace an earlier day.
 
 `days[].digs_to_third_op` is that UTC day's flattened dig number of the
 3rd pebble. After the **23:00 UTC finalize** (and any later full sync
@@ -120,12 +130,14 @@ Shareable personal result.
     "rank": 1,
     "farm_id": "3666918801844311",
     "name": "rmr",
-    "score": 6.0,
+    "score": 21.0,
     "digs_to_third_op": 42,
     "digs_to_first_op": 10,
     "digs_to_second_op": 24,
     "otter_count": 3,
     "digs_today": 8,
+    "score_today": 20,
+    "scored_days": 2,
     "total_digs": 42,
     "tournament_days": 7,
     "first_op_at": "2026-08-14T12:10:00+00:00",
@@ -223,8 +235,9 @@ archive.
     "rank": 1,
     "farm_id": "3666918801844311",
     "name": "rmr",
-    "score": 6.0,
+    "score": 21.0,
     "digs_to_third_op": 42,
+    "score_today": 20,
     "otter_count": 3,
     "status": "completed"
   }

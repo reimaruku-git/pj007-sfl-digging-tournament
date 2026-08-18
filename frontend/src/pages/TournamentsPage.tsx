@@ -175,8 +175,9 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 <tr>
                   <th>Rank</th>
                   <th>Farm</th>
-                  <th>Score</th>
-                  <th>3rd pebble</th>
+                  <th>Total</th>
+                  <th>Avg / day</th>
+                  <th>Today</th>
                   <th>Pebbles</th>
                   <th>Status</th>
                 </tr>
@@ -193,8 +194,9 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                         <div className="farm-id">{row.farm_id}</div>
                       </Link>
                     </td>
-                    <td>{formatScore(row.score)}</td>
                     <td>{row.digs_to_third_op ?? "—"}</td>
+                    <td>{formatScore(row.score)}</td>
+                    <td>{row.score_today ?? "—"}</td>
                     <td>
                       <Pebbles count={row.otter_count} />
                     </td>

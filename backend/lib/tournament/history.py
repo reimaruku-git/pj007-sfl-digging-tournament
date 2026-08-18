@@ -1,8 +1,9 @@
 """Per-day farm records for a live tournament.
 
-Sunflower Land's desert grid resets every UTC day. Official score is the
-sum of each stored day's 3rd-OP digs, divided by the configured length.
-Yesterday is never replaced by today's fetch.
+Sunflower Land's desert grid resets every UTC day. S3 keeps each day.
+The live DynamoDB score row is derived from those days: total is the
+sum of numeric daily 3rd-OP values, average is that sum divided only
+by days that already have a number. Yesterday is never replaced.
 """
 
 from __future__ import annotations
@@ -134,19 +135,67 @@ def days_in_window(store: Store, farm_id: str, *, start, end) -> list[dict[str, 
     return rows
 
 
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _sum_optional(days: list[dict[str, Any]], field: str) -> int | None:
     total = 0
     found = False
     for row in days:
-        raw = row.get(field)
-        if raw is None:
+        parsed = _optional_int(row.get(field))
+        if parsed is None:
             continue
-        try:
-            total += int(raw)
-        except (TypeError, ValueError):
-            continue
+        total += parsed
         found = True
     return total if found else None
+
+
+def average_scored_days(days: list[dict[str, Any]]) -> dict[str, Any]:
+    """Total and mean over days that already have a numeric 3rd-OP.
+
+    Mid-day today with ``null`` is omitted. A missed day that already
+    has a recorded score (including the 23:00 incomplete penalty) is
+    included. Does not divide by the configured tournament length.
+    """
+    values: list[int] = []
+    for row in days:
+        if not isinstance(row, dict):
+            continue
+        parsed = _optional_int(row.get("digs_to_third_op"))
+        if parsed is None:
+            continue
+        values.append(parsed)
+    if not values:
+        return {"total": None, "average": None, "scored_days": 0}
+    total = sum(values)
+    return {
+        "total": total,
+        "average": round(total / len(values), 2),
+        "scored_days": len(values),
+    }
+
+
+def today_live_fields(days: list[dict[str, Any]], today: str | None) -> dict[str, Any]:
+    """Today's 3rd-OP and pebble count. Missing today is unscored, not zero."""
+    if not today:
+        return {"score_today": None, "otter_count": 0, "digs_today": 0}
+    record = next(
+        (row for row in days if isinstance(row, dict) and str(row.get("day") or "") == today),
+        None,
+    )
+    if record is None:
+        return {"score_today": None, "otter_count": 0, "digs_today": 0}
+    return {
+        "score_today": _optional_int(record.get("digs_to_third_op")),
+        "otter_count": int(record.get("otter_count") or 0),
+        "digs_today": int(record.get("digs_today") or 0),
+    }
 
 
 def _earliest(days: list[dict[str, Any]], field: str) -> str | None:
@@ -166,16 +215,20 @@ def aggregate_days(
 ) -> dict[str, Any]:
     prior = previous or {}
     latest = days[-1] if days else {}
-    latest_is_today = bool(today and str(latest.get("day") or "") == today)
+    derived = average_scored_days(days)
+    live = today_live_fields(days, today)
     return {
         "farm_id": str(farm_id),
         "name": name,
-        "digs_to_third_op": _sum_optional(days, "digs_to_third_op"),
+        "digs_to_third_op": derived["total"],
         "digs_to_first_op": _sum_optional(days, "digs_to_first_op"),
         "digs_to_second_op": _sum_optional(days, "digs_to_second_op"),
-        "otter_count": int(latest.get("otter_count") or 0),
+        "otter_count": live["otter_count"],
         "total_digs": sum(int(row.get("total_digs") or 0) for row in days),
-        "digs_today": int(latest.get("digs_today") or 0) if latest_is_today else 0,
+        "digs_today": live["digs_today"],
+        "score": derived["average"],
+        "score_today": live["score_today"],
+        "scored_days": derived["scored_days"],
         "status": latest.get("status") or "not_started",
         "first_op_at": _earliest(days, "first_op_at"),
         "second_op_at": _earliest(days, "second_op_at"),

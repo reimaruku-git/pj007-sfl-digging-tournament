@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from tournament.history import average_scored_days
 from tournament.scoring import STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_NOT_STARTED
 from tournament.window import official_score_average
 
@@ -74,12 +75,29 @@ def _tie_break(row: dict[str, Any]) -> tuple:
 
 def annotate_score(row: dict[str, Any], tournament_days: int) -> dict[str, Any]:
     out = dict(row)
-    days = max(int(tournament_days), 1)
+    configured = max(int(tournament_days), 1)
     out["total_digs"] = int(out.get("total_digs") or 0)
-    out["tournament_days"] = days
+    out["tournament_days"] = configured
+    day_rows = [item for item in (out.get("days") or []) if isinstance(item, dict)]
+    if day_rows:
+        derived = average_scored_days(day_rows)
+        if out.get("override_digs_to_third_op") is not None:
+            official = official_score(out)
+            out["digs_to_third_op"] = official
+            out["score"] = official_score_average(
+                official, max(int(derived["scored_days"] or 0), 1)
+            )
+            out["scored_days"] = derived["scored_days"]
+        else:
+            out["digs_to_third_op"] = derived["total"]
+            out["score"] = derived["average"]
+            out["scored_days"] = derived["scored_days"]
+        return out
     official = official_score(out)
     out["digs_to_third_op"] = official
-    out["score"] = official_score_average(official, days)
+    out["score"] = official_score_average(official, configured)
+    if out.get("scored_days") is None:
+        out["scored_days"] = 1 if official is not None else 0
     return out
 
 
@@ -133,6 +151,17 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
     days = max(int(row.get("tournament_days") or 1), 1)
     official = official_score(row)
     score = _as_public_score(row, official, days)
+    score_today = row.get("score_today")
+    if score_today is not None:
+        try:
+            score_today = int(score_today)
+        except (TypeError, ValueError):
+            score_today = None
+    scored_days = row.get("scored_days")
+    try:
+        scored_days = int(scored_days) if scored_days is not None else 0
+    except (TypeError, ValueError):
+        scored_days = 0
     return {
         "rank": row.get("rank"),
         "farm_id": row.get("farm_id"),
@@ -143,6 +172,8 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
         "digs_to_second_op": row.get("digs_to_second_op"),
         "otter_count": int(row.get("otter_count") or 0),
         "digs_today": int(row.get("digs_today") or 0),
+        "score_today": score_today,
+        "scored_days": scored_days,
         "total_digs": int(row.get("total_digs") or 0),
         "tournament_days": days,
         "first_op_at": row.get("first_op_at"),

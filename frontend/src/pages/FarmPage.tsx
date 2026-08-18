@@ -51,15 +51,24 @@ export function FarmPage() {
               <p className="farm-id">{farm.farm_id}</p>
             </div>
             <div className="farm-hero-score">
-              <span className="muted">Official score</span>
-              <b>{formatScore(farm.score)}</b>
-              <span className="muted">
-                {farm.digs_to_third_op ?? "—"} digs / {farm.tournament_days ?? "—"} days
-              </span>
+              <span className="muted">Total score</span>
+              <b data-testid="farm-total">{farm.digs_to_third_op ?? "—"}</b>
             </div>
           </div>
           <Pebbles count={farm.otter_count} size="md" />
-          <div className="stats farm-stats">
+          <div className="stats farm-stats" data-testid="farm-score-facts">
+            <div className="stat">
+              <span className="muted">Average per day</span>
+              <b data-testid="farm-average">{formatScore(farm.score)}</b>
+            </div>
+            <div className="stat">
+              <span className="muted">Score today</span>
+              <b data-testid="farm-score-today">{farm.score_today ?? "—"}</b>
+            </div>
+            <div className="stat">
+              <span className="muted">Pebbles today</span>
+              <b data-testid="farm-pebbles-today">{farm.otter_count}</b>
+            </div>
             <div className="stat">
               <span className="muted">Rank</span>
               <b>{farm.rank ?? "—"}</b>
@@ -69,10 +78,6 @@ export function FarmPage() {
               <b>
                 <span className={`badge ${farm.status}`}>{statusLabel(farm.status)}</span>
               </b>
-            </div>
-            <div className="stat">
-              <span className="muted">Digs today</span>
-              <b>{farm.digs_today}</b>
             </div>
             <div className="stat">
               <span className="muted">Updated</span>

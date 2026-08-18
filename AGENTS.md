@@ -181,10 +181,15 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Four sibling `Sand Drill` tiles that share the same `dugAt` are one
   drill the API numbered once (e.g. “5th dig” on all 4 holes → 5–8).
 - Every other top-level tile (Sand Shovel / unknown) costs **1**.
-- Official displayed score = **sum of each tournament day's 3rd-pebble
-  digs ÷ configured duration days**. Digs after that day's 3rd pebble
-  do not enter that day. SFL's desert grid resets every UTC day — store
-  each day under `snapshots/history/{farm_id}/{day}.json`. Never overwrite
+- Official **average** (`score`) = **sum of days that already have a
+  numeric 3rd-OP ÷ that day count**. Yesterday 14 + today 20 → 17;
+  yesterday 14 + today still null → 14. A missed day that already has
+  a recorded score (including the 23:00 penalty) still counts. Do not
+  divide by the configured length while some days have no score yet.
+  `digs_to_third_op` is that sum (total). `score_today` / `otter_count`
+  are today's 3rd-OP and pebbles. SFL's desert grid resets every UTC
+  day — store each day under `snapshots/history/{farm_id}/{day}.json`.
+  Derive the live DynamoDB score row from those days. Never overwrite
   yesterday's file or score with today's fetch.
 - Once a day's 3rd-pebble dig count is set, later tiles that day do not
   change it. A finalized day is not rewritten by a later sync.

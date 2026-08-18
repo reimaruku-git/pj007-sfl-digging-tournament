@@ -153,9 +153,9 @@ def test_rescore_from_snapshots_applies_new_window(aws_env):
     assert result["rescored"] == 1
     assert result["missing_snapshots"] == 0
     row = store.get_score("99")
-    assert row["otter_count"] == 2
     assert row["digs_to_third_op"] is None
     assert row["status"] == "in_progress"
+    assert any(int(item.get("otter_count") or 0) == 2 for item in row["days"])
 
 
 def _store(aws_env):
@@ -313,13 +313,18 @@ def test_next_day_empty_grid_keeps_yesterday_and_sums_completed_days(aws_env):
     registry.upsert("99", name="rmr")
     client = FakeClient({"99": _grid_payload(done)})
     sync_all_farms(store, registry, client, now=day1)
-    assert store.get_score("99")["digs_to_third_op"] == 3
-    assert [row["day"] for row in store.get_score("99")["days"]] == ["2026-08-17"]
+    first = store.get_score("99")
+    assert first["digs_to_third_op"] == 3
+    assert first["score"] == 3.0
+    assert first["score_today"] == 3
+    assert [row["day"] for row in first["days"]] == ["2026-08-17"]
 
     client = FakeClient({"99": _grid_payload([])})
     sync_all_farms(store, registry, client, now=day2)
     row = store.get_score("99")
     assert row["digs_to_third_op"] == 3
+    assert row["score"] == 3.0
+    assert row["score_today"] is None
     assert [item["day"] for item in row["days"]] == ["2026-08-17", "2026-08-18"]
     assert row["days"][0]["digs_to_third_op"] == 3
     assert row["days"][1]["digs_to_third_op"] is None
@@ -338,6 +343,8 @@ def test_next_day_empty_grid_keeps_yesterday_and_sums_completed_days(aws_env):
     assert row["days"][0]["digs_to_third_op"] == 3
     assert row["days"][1]["digs_to_third_op"] == 3
     assert row["digs_to_third_op"] == 6
+    assert row["score"] == 3.0
+    assert row["score_today"] == 3
 
 
 def test_recover_yesterday_from_daily_leaderboard(aws_env):
@@ -380,6 +387,8 @@ def test_recover_yesterday_from_daily_leaderboard(aws_env):
     assert recover_daily_history(store, now=clock) == 1
     row = store.get_score("99")
     assert row["digs_to_third_op"] == 14
+    assert row["score"] == 14.0
+    assert row["score_today"] is None
     assert row["days"][0]["day"] == "2026-08-17"
     assert row["days"][0]["finalized"] is True
     assert recover_daily_history(store, now=clock) == 0
@@ -433,3 +442,5 @@ def test_finalize_penalizes_today_only(aws_env):
     assert by_day["2026-08-18"]["digs_to_third_op"] == 40
     assert by_day["2026-08-18"]["finalized"] is True
     assert row["digs_to_third_op"] == 43
+    assert row["score"] == 21.5
+    assert row["score_today"] == 40

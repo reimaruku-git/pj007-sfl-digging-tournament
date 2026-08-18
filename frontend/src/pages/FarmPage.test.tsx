@@ -23,8 +23,9 @@ function farm(partial: Partial<LeaderboardEntry> = {}): LeaderboardEntry {
     rank: 1,
     farm_id: "3666918801844311",
     name: "rmr",
-    score: 2.0,
+    score: 14.0,
     digs_to_third_op: 14,
+    score_today: null,
     otter_count: 0,
     digs_today: 0,
     total_digs: 29,
@@ -89,6 +90,18 @@ describe("FarmPage days", () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it("shows total, scored-days average, score today, and pebbles today", async () => {
+    await renderFarm();
+    const facts = container.querySelector("[data-testid='farm-score-facts']");
+    expect(container.querySelector("[data-testid='farm-total']")?.textContent).toBe("14");
+    expect(facts?.textContent).toMatch(/Average per day/);
+    expect(container.querySelector("[data-testid='farm-average']")?.textContent).toBe("14.00");
+    expect(facts?.textContent).toMatch(/Score today/);
+    expect(container.querySelector("[data-testid='farm-score-today']")?.textContent).toBe("—");
+    expect(facts?.textContent).toMatch(/Pebbles today/);
+    expect(container.querySelector("[data-testid='farm-pebbles-today']")?.textContent).toBe("0");
   });
 
   it("lists each stored tournament day instead of only today", async () => {

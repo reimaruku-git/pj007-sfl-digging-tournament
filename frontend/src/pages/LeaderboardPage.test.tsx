@@ -52,6 +52,7 @@ function entry(
     digs_to_third_op: 10,
     otter_count: 3,
     digs_today: 0,
+    score_today: 10,
     total_digs: 10,
     last_updated_at: null,
     status: "completed",
@@ -203,6 +204,10 @@ describe("LeaderboardPage home", () => {
     expect(boards).toHaveLength(2);
     expect(boards[0]?.getAttribute("data-testid")).toBe("live-board-soon");
     expect(boards[1]?.getAttribute("data-testid")).toBe("live-board-later");
+    expect(boards[0]?.textContent).toMatch(/Total/);
+    expect(boards[0]?.textContent).toMatch(/Avg \/ day/);
+    expect(boards[0]?.textContent).toMatch(/Today/);
+    expect(boards[0]?.textContent).toMatch(/Pebbles/);
     expect(page.textContent).not.toMatch(/Finished \/ tracked/);
   });
 
@@ -240,8 +245,9 @@ describe("LeaderboardPage home", () => {
     const firstBoard = page.querySelector('[data-testid="live-board-one"]');
     const secondBoard = page.querySelector('[data-testid="live-board-two"]');
     expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
-    expect(firstBoard?.textContent).toMatch(/Score/);
+    expect(firstBoard?.textContent).toMatch(/Total/);
     expect(firstBoard?.textContent).toMatch(/Avg \/ day/);
+    expect(firstBoard?.textContent).toMatch(/Today/);
     expect(firstBoard?.textContent).toMatch(/Player 1/);
     expect(firstBoard?.textContent).toMatch(/Player 10/);
     expect(firstBoard?.textContent).not.toMatch(/Player 11/);

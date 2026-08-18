@@ -179,11 +179,12 @@ describe("routes", () => {
     expect(rules?.textContent).toMatch(/After 5 shovel digs/);
     expect(rules?.textContent).toMatch(/6, 7, 8 and 9/);
     expect(rules?.textContent).toMatch(/dig #9/);
-    expect(rules?.textContent).toMatch(/divided by the tournament length/);
+    expect(rules?.textContent).toMatch(/days that already have a score/);
     expect(rules?.textContent).toMatch(/14:00, 16:00, 18:00, 20:00, 23:00 UTC/);
     expect(rules?.textContent).toMatch(/Digs after 23:00 UTC do not count/);
     expect(rules?.textContent).toMatch(/worst finisher that day/);
     expect(rules?.textContent).toMatch(/5 per missing Otter Pebble/);
+    expect(rules?.textContent).toMatch(/counts in the average/);
     expect(rules?.textContent).toMatch(/do not affect your score/);
     expect(rules?.textContent).toMatch(/fewer digs to the 3rd pebble/);
     expect(rules?.textContent).toMatch(/earlier time on the 3rd pebble/);

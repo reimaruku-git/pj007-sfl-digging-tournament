@@ -17,8 +17,9 @@ function Slot({ entry, place }: { entry?: LeaderboardEntry; place: 1 | 2 | 3 }) 
       <div className="podium-medal">{place}</div>
       <div className="podium-name">{entry.name || "Unnamed farm"}</div>
       <div className="podium-score">
-        {formatScore(entry.score)}
-        <span>score</span>
+        {entry.digs_to_third_op ?? "—"}
+        <span>total</span>
+        <span className="muted">{formatScore(entry.score)} avg</span>
       </div>
       <Pebbles count={entry.otter_count} />
     </Link>
