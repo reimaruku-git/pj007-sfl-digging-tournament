@@ -102,7 +102,8 @@ describe("AdminPlayers", () => {
     expect(detail?.textContent).toMatch(/July cup/);
     expect(detail?.textContent).toMatch(/Streak 4/);
     expect(detail?.textContent).toMatch(/avg\/day 3.00/);
-    const actions = container.querySelector('[data-testid="player-detail-actions"]')?.textContent ?? "";
+    const actions =
+      container.querySelector('[data-testid="player-detail-actions"]')?.textContent ?? "";
     expect(actions).toMatch(/Disable/);
     expect(actions).toMatch(/Refresh/);
     expect(actions).toMatch(/Snapshot/);
@@ -116,5 +117,53 @@ describe("AdminPlayers", () => {
       (container.querySelector('[data-testid="player-row-99"]') as HTMLTableRowElement).click();
     });
     expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  it("asks before removing a tracked farm and skips when no is chosen", () => {
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    const onSnapshot = vi.fn().mockResolvedValue(undefined);
+    const { container } = render({
+      selectedId: "99",
+      onRemove,
+      onRefresh,
+      onSnapshot,
+    });
+    act(() => {
+      (container.querySelector('[data-testid="player-remove"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="confirm-dialog"]')).not.toBeNull();
+    act(() => {
+      (container.querySelector('[data-testid="confirm-no"]') as HTMLButtonElement).click();
+    });
+    expect(onRemove).not.toHaveBeenCalled();
+    act(() => {
+      const refresh = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Refresh",
+      );
+      refresh?.click();
+    });
+    act(() => {
+      const snap = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Snapshot",
+      );
+      snap?.click();
+    });
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onSnapshot).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="confirm-dialog"]')).toBeNull();
+  });
+
+  it("removes a tracked farm only after yes", async () => {
+    const onRemove = vi.fn().mockResolvedValue(undefined);
+    const { container } = render({ selectedId: "99", onRemove });
+    act(() => {
+      (container.querySelector('[data-testid="player-remove"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
+    });
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    expect(onRemove).toHaveBeenCalledWith(expect.objectContaining({ farm_id: "99" }));
   });
 });

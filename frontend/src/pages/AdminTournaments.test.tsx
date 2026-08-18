@@ -232,6 +232,118 @@ describe("AdminTournaments", () => {
     expect(container.querySelector('[data-testid^="admin-card-"]')).toBeNull();
   });
 
+  it("asks before deleting a tournament and skips when no is chosen", () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [row({ tournament_id: "live", name: "Live cup", status: "active" })],
+      { onDelete },
+    );
+    act(() => {
+      (container.querySelector('[data-testid="admin-delete-live"]') as HTMLButtonElement).click();
+    });
+    const dialog = container.querySelector('[data-testid="confirm-dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toMatch(/Are you sure to do this/);
+    expect(dialog?.textContent).toMatch(/Delete Live cup/);
+    act(() => {
+      (container.querySelector('[data-testid="confirm-no"]') as HTMLButtonElement).click();
+    });
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="confirm-dialog"]')).toBeNull();
+  });
+
+  it("deletes a tournament only after yes", async () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [row({ tournament_id: "live", name: "Live cup", status: "active" })],
+      { onDelete },
+    );
+    act(() => {
+      (container.querySelector('[data-testid="admin-delete-live"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
+    });
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ tournament_id: "live" }));
+  });
+
+  it("asks before reject and remove-from-roster; approve still fires immediately", async () => {
+    const onReject = vi.fn().mockResolvedValue(undefined);
+    const onRemoveFarm = vi.fn().mockResolvedValue(undefined);
+    const onApprove = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [row({ tournament_id: "live", name: "Live cup", status: "active" })],
+      {
+        selectedId: "live",
+        roster: [
+          {
+            farm_id: "11",
+            name: "pending",
+            tournament_id: "live",
+            status: "pending",
+            submitted_at: "2026-08-14T13:00:00+00:00",
+          },
+          {
+            farm_id: "22",
+            name: "enrolled",
+            tournament_id: "live",
+            status: "enrolled",
+            submitted_at: "2026-08-14T12:00:00+00:00",
+          },
+        ],
+        onReject,
+        onRemoveFarm,
+        onApprove,
+      },
+    );
+    act(() => {
+      (container.querySelector('[data-testid="admin-reject-11"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="confirm-dialog"]')).not.toBeNull();
+    act(() => {
+      (container.querySelector('[data-testid="confirm-no"]') as HTMLButtonElement).click();
+    });
+    expect(onReject).not.toHaveBeenCalled();
+
+    act(() => {
+      (container.querySelector('[data-testid="admin-reject-11"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
+    });
+    expect(onReject).toHaveBeenCalledWith("11", "live");
+
+    act(() => {
+      (
+        container.querySelector('[data-testid="admin-remove-roster-22"]') as HTMLButtonElement
+      ).click();
+    });
+    expect(container.querySelector('[data-testid="confirm-dialog"]')).not.toBeNull();
+    act(() => {
+      (container.querySelector('[data-testid="confirm-no"]') as HTMLButtonElement).click();
+    });
+    expect(onRemoveFarm).not.toHaveBeenCalled();
+    act(() => {
+      (
+        container.querySelector('[data-testid="admin-remove-roster-22"]') as HTMLButtonElement
+      ).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
+    });
+    expect(onRemoveFarm).toHaveBeenCalledWith("live", "22");
+
+    act(() => {
+      const approve = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Approve",
+      );
+      approve?.click();
+    });
+    expect(onApprove).toHaveBeenCalledWith("11", "live");
+    expect(container.querySelector('[data-testid="confirm-dialog"]')).toBeNull();
+  });
+
   it("lets admin groups size to their content in the shipped stylesheet", () => {
     const css = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),

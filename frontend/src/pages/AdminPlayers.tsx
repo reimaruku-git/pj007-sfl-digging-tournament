@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import type { PlayerDetail, TrackedFarm } from "../api/admin";
+import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
 import { formatScore } from "../lib/format";
 
 export function AdminPlayers({
@@ -28,6 +29,15 @@ export function AdminPlayers({
   const [farmId, setFarmId] = useState("");
   const [farmName, setFarmName] = useState("");
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
+
+  function requestRemove(farm: TrackedFarm) {
+    confirm.ask(
+      "Are you sure to do this?",
+      `Remove ${farm.name || farm.farm_id} from tracked farms? Scores and enrollments go with it.`,
+      () => onRemove(farm),
+    );
+  }
 
   async function add(event: FormEvent) {
     event.preventDefault();
@@ -52,7 +62,11 @@ export function AdminPlayers({
           onChange={(event) => setFarmId(event.target.value)}
           required
         />
-        <input placeholder="Name" value={farmName} onChange={(event) => setFarmName(event.target.value)} />
+        <input
+          placeholder="Name"
+          value={farmName}
+          onChange={(event) => setFarmName(event.target.value)}
+        />
         <button className="btn primary" type="submit" disabled={busy}>
           Add farm
         </button>
@@ -100,9 +114,14 @@ export function AdminPlayers({
           onToggleActive={onToggleActive}
           onRefresh={onRefresh}
           onSnapshot={onSnapshot}
-          onRemove={onRemove}
+          onRemove={requestRemove}
         />
       )}
+      <ConfirmDialog
+        pending={confirm.pending}
+        onYes={() => void confirm.accept()}
+        onNo={confirm.cancel}
+      />
     </section>
   );
 }
@@ -122,7 +141,7 @@ function PlayerDetailPanel({
   onToggleActive: (farm: TrackedFarm) => Promise<void>;
   onRefresh: (farm: TrackedFarm) => Promise<void>;
   onSnapshot: (farm: TrackedFarm) => Promise<void>;
-  onRemove: (farm: TrackedFarm) => Promise<void>;
+  onRemove: (farm: TrackedFarm) => void | Promise<void>;
 }) {
   if (!farm) return null;
   const score = detail?.score ?? null;
@@ -148,21 +167,30 @@ function PlayerDetailPanel({
           <button className="btn" type="button" onClick={() => void onSnapshot(farm)}>
             Snapshot
           </button>
-          <button className="btn" type="button" onClick={() => void onRemove(farm)}>
+          <button
+            className="btn"
+            type="button"
+            data-testid="player-remove"
+            onClick={() => void onRemove(farm)}
+          >
             Remove
           </button>
         </div>
       </div>
       {score && (
         <p className="meta">
-          Live record: {String(score.digs_to_third_op ?? "—")} digs · {String(score.otter_count ?? 0)}{" "}
-          pebbles · {String(score.status ?? "—")}
+          Live record: {String(score.digs_to_third_op ?? "—")} digs ·{" "}
+          {String(score.otter_count ?? 0)} pebbles · {String(score.status ?? "—")}
         </p>
       )}
       <div className="kicker">History</div>
       {(detail?.history ?? []).length === 0 && <p className="muted">No ended-event records yet.</p>}
       {(detail?.history ?? []).map((row) => (
-        <div key={row.tournament_id} className="meta" data-testid={`player-history-${row.tournament_id}`}>
+        <div
+          key={row.tournament_id}
+          className="meta"
+          data-testid={`player-history-${row.tournament_id}`}
+        >
           {row.name || row.tournament_id}: rank {row.rank ?? "—"} · {formatScore(row.score)} ·{" "}
           {row.digs_to_third_op ?? "—"} digs
         </div>
@@ -170,7 +198,9 @@ function PlayerDetailPanel({
       <div className="kicker" style={{ marginTop: 12 }}>
         Enrollments
       </div>
-      {(detail?.enrollments ?? []).length === 0 && <p className="muted">Not enrolled in any event.</p>}
+      {(detail?.enrollments ?? []).length === 0 && (
+        <p className="muted">Not enrolled in any event.</p>
+      )}
       {(detail?.enrollments ?? []).map((row) => (
         <div key={`${row.tournament_id}-${row.farm_id}`} className="meta">
           {row.tournament_name || row.tournament_id} · {row.status}

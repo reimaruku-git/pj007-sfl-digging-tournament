@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
 import type { TournamentSummary } from "../api/public";
+import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
 import { liveTournamentsSoonestFirst, upcomingTournaments } from "../lib/board";
 import { formatDateRangeUtc, isoToDateInput } from "../lib/format";
 
@@ -48,6 +49,26 @@ export function AdminTournaments({
   const [draft, setDraft] = useState<TournamentDraft>(emptyDraft());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const confirm = useConfirm();
+
+  function requestDelete(row: TournamentSummary) {
+    const label = row.name || "this tournament";
+    confirm.ask("Are you sure to do this?", `Delete ${label}? This cannot be undone.`, () =>
+      onDelete(row),
+    );
+  }
+
+  function requestReject(farmId: string, tournamentId: string, name: string) {
+    confirm.ask("Are you sure to do this?", `Reject the join request from ${name || farmId}?`, () =>
+      onReject?.(farmId, tournamentId),
+    );
+  }
+
+  function requestRemoveFarm(tournamentId: string, farmId: string, name: string) {
+    confirm.ask("Are you sure to do this?", `Remove ${name || farmId} from this tournament?`, () =>
+      onRemoveFarm?.(tournamentId, farmId),
+    );
+  }
 
   function openCreate() {
     setDraft(emptyDraft());
@@ -117,7 +138,7 @@ export function AdminTournaments({
           selectedId={selectedId}
           onOpen={onSelect}
           onEdit={openEdit}
-          onDelete={onDelete}
+          onDelete={requestDelete}
         />
         <AdminGroup
           title="Upcoming"
@@ -126,7 +147,7 @@ export function AdminTournaments({
           selectedId={selectedId}
           onOpen={onSelect}
           onEdit={openEdit}
-          onDelete={onDelete}
+          onDelete={requestDelete}
         />
       </div>
 
@@ -137,12 +158,18 @@ export function AdminTournaments({
           players={players}
           roster={roster}
           onAddFarms={onAddFarms}
-          onRemoveFarm={onRemoveFarm}
+          onRemoveFarm={requestRemoveFarm}
           onApprove={onApprove}
-          onReject={onReject}
+          onReject={requestReject}
           onClose={() => onSelect?.(null)}
         />
       )}
+
+      <ConfirmDialog
+        pending={confirm.pending}
+        onYes={() => void confirm.accept()}
+        onNo={confirm.cancel}
+      />
 
       {loading && <p className="muted">Loading tournaments…</p>}
 
@@ -226,7 +253,7 @@ function AdminGroup({
   selectedId?: string | null;
   onOpen?: (id: string | null) => void;
   onEdit: (row: TournamentSummary) => void;
-  onDelete: (row: TournamentSummary) => Promise<void>;
+  onDelete: (row: TournamentSummary) => void | Promise<void>;
 }) {
   return (
     <div className="tourney-group" data-testid={`admin-${title.toLowerCase()}-group`}>
@@ -258,7 +285,12 @@ function AdminGroup({
             <button className="btn" type="button" onClick={() => onEdit(row)}>
               Edit
             </button>
-            <button className="btn" type="button" onClick={() => void onDelete(row)}>
+            <button
+              className="btn"
+              type="button"
+              data-testid={`admin-delete-${row.tournament_id}`}
+              onClick={() => void onDelete(row)}
+            >
               Delete
             </button>
           </div>
@@ -284,9 +316,9 @@ function TournamentRoster({
   players: TrackedFarm[];
   roster: RosterMember[];
   onAddFarms?: (id: string, farmIds: string[]) => Promise<void>;
-  onRemoveFarm?: (id: string, farmId: string) => Promise<void>;
+  onRemoveFarm?: (id: string, farmId: string, name: string) => void;
   onApprove?: (farmId: string, tournamentId: string) => Promise<void>;
-  onReject?: (farmId: string, tournamentId: string) => Promise<void>;
+  onReject?: (farmId: string, tournamentId: string, name: string) => void;
   onClose: () => void;
 }) {
   const enrolled = new Set(
@@ -330,7 +362,8 @@ function TournamentRoster({
           <button
             className="btn"
             type="button"
-            onClick={() => void onReject?.(item.farm_id, tournamentId)}
+            data-testid={`admin-reject-${item.farm_id}`}
+            onClick={() => onReject?.(item.farm_id, tournamentId, item.name || "")}
           >
             Reject
           </button>
@@ -350,7 +383,8 @@ function TournamentRoster({
             <button
               className="btn"
               type="button"
-              onClick={() => void onRemoveFarm?.(tournamentId, item.farm_id)}
+              data-testid={`admin-remove-roster-${item.farm_id}`}
+              onClick={() => onRemoveFarm?.(tournamentId, item.farm_id, item.name || "")}
             >
               Remove from event
             </button>
