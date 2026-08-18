@@ -218,18 +218,13 @@ def _sum_optional(days: list[dict[str, Any]], field: str) -> int | None:
     return total if found else None
 
 
-def average_scored_days(days: list[dict[str, Any]]) -> dict[str, Any]:
-    """Total and mean over days that already have a numeric 3rd-OP.
-
-    Mid-day today with ``null`` is omitted. A missed day that already
-    has a recorded score (including the 23:00 incomplete penalty) is
-    included. Does not divide by the configured tournament length.
-    """
+def average_field_days(days: list[dict[str, Any]], field: str) -> dict[str, Any]:
+    """Total and mean over days that already have a numeric value for ``field``."""
     values: list[int] = []
     for row in days:
         if not isinstance(row, dict):
             continue
-        parsed = _optional_int(row.get("digs_to_third_op"))
+        parsed = _optional_int(row.get(field))
         if parsed is None:
             continue
         values.append(parsed)
@@ -241,6 +236,16 @@ def average_scored_days(days: list[dict[str, Any]]) -> dict[str, Any]:
         "average": round(total / len(values), 2),
         "scored_days": len(values),
     }
+
+
+def average_scored_days(days: list[dict[str, Any]]) -> dict[str, Any]:
+    """Total and mean over days that already have a numeric 3rd-OP.
+
+    Mid-day today with ``null`` is omitted. A missed day that already
+    has a recorded score (including the 23:00 incomplete penalty) is
+    included. Does not divide by the configured tournament length.
+    """
+    return average_field_days(days, "digs_to_third_op")
 
 
 def today_live_fields(days: list[dict[str, Any]], today: str | None) -> dict[str, Any]:

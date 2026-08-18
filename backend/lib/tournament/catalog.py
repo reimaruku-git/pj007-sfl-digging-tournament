@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from tournament.cleanup import purge_archived_event_live_cache
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard, public_entry
 from tournament.membership import (
@@ -262,6 +263,7 @@ def freeze_tournament(
     updated["status"] = STATUS_ENDED
     updated["archived_at"] = frozen.get("archived_at") or utc_now_iso()
     store.put_tournament(updated)
+    purge_archived_event_live_cache(store, tid)
     return frozen
 
 

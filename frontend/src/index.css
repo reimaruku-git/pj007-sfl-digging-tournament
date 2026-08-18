@@ -1081,6 +1081,26 @@ tr.is-you,
   grid-template-columns: 1fr 1fr;
 }
 
+.farm-avg-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 10px;
+  min-width: 0;
+}
+
+.farm-avg-row .stat-pebble {
+  padding: 8px 10px;
+}
+
+.farm-avg-row .stat-pebble .muted {
+  font-size: 11px;
+}
+
+.farm-avg-row .stat-pebble b {
+  font-size: 14px;
+}
+
 .farm-days {
   margin-top: 20px;
 }

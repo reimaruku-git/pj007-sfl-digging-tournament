@@ -107,6 +107,65 @@ def test_rank_scores_uses_scored_days_average_not_duration():
     assert entry["scored_days"] == 2
 
 
+def test_public_entry_first_and_second_pebble_averages_omit_null_days():
+    ranked = rank_scores(
+        [
+            {
+                "farm_id": "99",
+                "name": "rmr",
+                "status": "completed",
+                "days": [
+                    {
+                        "day": "2026-08-17",
+                        "digs_to_first_op": 4,
+                        "digs_to_second_op": 8,
+                        "digs_to_third_op": 14,
+                    },
+                    {
+                        "day": "2026-08-18",
+                        "digs_to_first_op": 6,
+                        "digs_to_second_op": None,
+                        "digs_to_third_op": 20,
+                    },
+                    {
+                        "day": "2026-08-19",
+                        "digs_to_first_op": None,
+                        "digs_to_second_op": None,
+                        "digs_to_third_op": None,
+                    },
+                ],
+            }
+        ],
+        tournament_days=7,
+    )
+    entry = public_entry(ranked[0])
+    assert entry["score"] == 17.0
+    assert entry["score_first_op"] == 5.0
+    assert entry["score_second_op"] == 8.0
+
+    empty = public_entry(
+        rank_scores(
+            [
+                {
+                    "farm_id": "99",
+                    "name": "rmr",
+                    "status": "not_started",
+                    "days": [
+                        {
+                            "day": "2026-08-17",
+                            "digs_to_first_op": None,
+                            "digs_to_second_op": None,
+                        },
+                    ],
+                }
+            ],
+            tournament_days=7,
+        )[0]
+    )
+    assert empty["score_first_op"] is None
+    assert empty["score_second_op"] is None
+
+
 def test_first_day_score_still_counts_after_later_empty_day(aws_env):
     """Farms that already dug on day one keep that 3rd-OP in total and average."""
     store = Store(

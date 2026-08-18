@@ -54,6 +54,8 @@ calls the SFL API.
       "farm_id": "3666918801844311",
       "name": "rmr",
       "score": 21.0,
+      "score_first_op": 5.0,
+      "score_second_op": 12.0,
       "digs_to_third_op": 42,
       "digs_to_first_op": 10,
       "digs_to_second_op": 24,
@@ -97,6 +99,11 @@ tournament length while some days have no score yet. A missed day that
 already has a recorded 3rd-OP (including the 23:00 incomplete penalty)
 still enters both total and average.
 
+`score_first_op` and `score_second_op` use the same day-mean rule as
+`score`, against `days[].digs_to_first_op` and `days[].digs_to_second_op`.
+Days still `null` for that pebble are omitted. `null` when no day has a
+number.
+
 `score_today` is that UTC day's 3rd-OP (`null` until it has a number).
 `otter_count` is pebbles dug today. `total_digs` is window activity for
 debug and is not ranked.
@@ -133,6 +140,8 @@ Shareable personal result.
     "farm_id": "3666918801844311",
     "name": "rmr",
     "score": 21.0,
+    "score_first_op": 5.0,
+    "score_second_op": 12.0,
     "digs_to_third_op": 42,
     "digs_to_first_op": 10,
     "digs_to_second_op": 24,
@@ -245,6 +254,8 @@ archive.
     "farm_id": "3666918801844311",
     "name": "rmr",
     "score": 21.0,
+    "score_first_op": 5.0,
+    "score_second_op": 12.0,
     "digs_to_third_op": 42,
     "score_today": 20,
     "otter_count": 3,

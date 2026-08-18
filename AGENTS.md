@@ -221,7 +221,9 @@ Canonical: `backend/lib/tournament/scoring.py` +
   and `LEADERBOARD#{id}` on the config table. `GET /config` and
   `GET /leaderboard` follow the soonest-ending live event. Ended events
   freeze to S3 `archives/{id}/` (meta + standings + farm snapshots).
-  Public `GET /tournaments` lists upcoming, live, and past. A scheduled
+  After a complete standings archive exists, that event's `SCORE#` and
+  `LEADERBOARD#{id}` live-cache rows are deleted. Catalog and membership
+  rows stay. Public `GET /tournaments` lists upcoming, live, and past. A scheduled
   or live public board lists only farms enrolled in that event that are
   still tracked and **active**. `DELETE /admin/farms/{id}` also deletes
   that farm’s score row, event scores, and every membership.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tournament.history import average_scored_days
+from tournament.history import average_field_days, average_scored_days
 from tournament.scoring import STATUS_COMPLETED, STATUS_IN_PROGRESS, STATUS_NOT_STARTED
 from tournament.window import official_score_average
 
@@ -162,11 +162,16 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
         scored_days = int(scored_days) if scored_days is not None else 0
     except (TypeError, ValueError):
         scored_days = 0
+    day_rows = [item for item in (row.get("days") or []) if isinstance(item, dict)]
+    score_first_op = average_field_days(day_rows, "digs_to_first_op")["average"]
+    score_second_op = average_field_days(day_rows, "digs_to_second_op")["average"]
     return {
         "rank": row.get("rank"),
         "farm_id": row.get("farm_id"),
         "name": row.get("name") or "",
         "score": score,
+        "score_first_op": score_first_op,
+        "score_second_op": score_second_op,
         "digs_to_third_op": official,
         "digs_to_first_op": row.get("digs_to_first_op"),
         "digs_to_second_op": row.get("digs_to_second_op"),
@@ -182,7 +187,7 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
         "last_updated_at": row.get("last_updated_at"),
         "status": row.get("status") or STATUS_NOT_STARTED,
         "invalidated": bool(row.get("invalidated")),
-        "days": [item for item in (row.get("days") or []) if isinstance(item, dict)],
+        "days": day_rows,
     }
 
 

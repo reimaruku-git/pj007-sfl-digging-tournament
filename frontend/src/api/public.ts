@@ -35,6 +35,8 @@ export type LeaderboardEntry = {
   farm_id: string;
   name: string;
   score?: number | null;
+  score_first_op?: number | null;
+  score_second_op?: number | null;
   digs_to_third_op: number | null;
   digs_to_first_op?: number | null;
   digs_to_second_op?: number | null;

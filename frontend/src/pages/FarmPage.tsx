@@ -59,9 +59,19 @@ export function FarmPage() {
           </div>
           <Pebbles count={farm.otter_count} size="md" />
           <div className="stats farm-stats" data-testid="farm-score-facts">
-            <div className="stat">
-              <span className="muted">Average per day</span>
-              <b data-testid="farm-average">{formatScore(farm.score)}</b>
+            <div className="farm-avg-row" data-testid="farm-pebble-averages">
+              <div className="stat">
+                <span className="muted">Average per day</span>
+                <b data-testid="farm-average">{formatScore(farm.score)}</b>
+              </div>
+              <div className="stat stat-pebble">
+                <span className="muted">1st pebble avg</span>
+                <b data-testid="farm-first-average">{formatScore(farm.score_first_op)}</b>
+              </div>
+              <div className="stat stat-pebble">
+                <span className="muted">2nd pebble avg</span>
+                <b data-testid="farm-second-average">{formatScore(farm.score_second_op)}</b>
+              </div>
             </div>
             <div className="stat">
               <span className="muted">Score today</span>
