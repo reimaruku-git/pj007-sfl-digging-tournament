@@ -1,14 +1,31 @@
 import os
+from datetime import datetime, timezone
 
 import boto3
 import pytest
 from moto import mock_aws
+from tournament.window import parse_iso
 
 os.environ.setdefault("AWS_DEFAULT_REGION", "ap-southeast-1")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "testing")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "testing")
 os.environ.setdefault("AWS_SECURITY_TOKEN", "testing")
 os.environ.setdefault("AWS_SESSION_TOKEN", "testing")
+
+
+@pytest.fixture
+def live_join_open(monkeypatch):
+    """Freeze public join clock to 16:00 UTC on an event's first day."""
+
+    def _freeze(start: str = "2026-08-10T00:00:00+00:00") -> datetime:
+        start_at = parse_iso(start)
+        assert start_at is not None
+        clock = start_at.replace(hour=16, minute=0, second=0, microsecond=0)
+        monkeypatch.setattr("tournament.membership.utc_clock", lambda now=None: clock)
+        return clock
+
+    return _freeze
+
 
 BUCKET = "pj007-test-digging-tournament"
 CONFIG_TABLE = "pj007-test-config"

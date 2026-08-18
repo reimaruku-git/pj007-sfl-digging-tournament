@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   fetchTournament,
@@ -8,6 +8,7 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
+import { tournamentBackTarget } from "../lib/backTarget";
 import { joinableTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
 import { catalogStatusLabel, formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
@@ -49,7 +50,10 @@ function TournamentList() {
               <li key={row.tournament_id}>
                 <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
                 <span>
-                  <Link to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}>
+                  <Link
+                    to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+                    state={{ from: "tournaments" }}
+                  >
                     {row.name || `${row.duration_days}d event`}
                   </Link>
                   <div className="meta">
@@ -72,6 +76,7 @@ function CatalogWindow({ row }: { row: TournamentSummary }) {
   return (
     <Link
       to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+      state={{ from: "tournaments" }}
       className={`tourney-window is-${tone}`}
       data-testid={`tourney-window-${row.tournament_id}`}
     >
@@ -89,6 +94,9 @@ function CatalogWindow({ row }: { row: TournamentSummary }) {
 
 function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const { identity } = useFarmSession();
+  const location = useLocation();
+  const from = (location.state as { from?: string } | null)?.from;
+  const back = tournamentBackTarget(from);
   const [notice, setNotice] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
@@ -103,13 +111,13 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
     onError: (error: Error) => setNotice(error.message),
   });
   const data = query.data;
-  const joinable = data?.config.status === "scheduled" || data?.config.status === "active";
+  const joinable = Boolean(data?.accepts_joins);
   return (
     <section className="card table-wrap" data-testid="tournament-detail">
       <p className="meta">
-        <Link to="/">← Home</Link>
-        {" · "}
-        <Link to="/tournaments">All tournaments</Link>
+        <Link to={back.to} data-testid="back-link">
+          ← {back.label}
+        </Link>
       </p>
       {query.isLoading && <p className="muted">Loading tournament…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}

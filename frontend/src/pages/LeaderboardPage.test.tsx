@@ -79,6 +79,7 @@ function archive(row: TournamentSummary, entries: LeaderboardEntry[]): Tournamen
     count: entries.length,
     leader_farm_id: entries[0]?.farm_id ?? null,
     overall_average_per_day: entries.length ? entries[0].score : null,
+    accepts_joins: true,
   };
 }
 

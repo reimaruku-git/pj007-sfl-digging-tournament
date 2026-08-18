@@ -75,10 +75,11 @@ function archive(row: TournamentSummary, entries: LeaderboardEntry[]): Tournamen
     count: entries.length,
     leader_farm_id: entries[0]?.farm_id ?? null,
     overall_average_per_day: 4.5,
+    accepts_joins: row.status === "scheduled" || row.status === "active",
   };
 }
 
-async function renderAt(path: string) {
+async function renderAt(path: string, state?: { from?: string }) {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -88,7 +89,7 @@ async function renderAt(path: string) {
   act(() => {
     root.render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[path]}>
+        <MemoryRouter initialEntries={[{ pathname: path, state }]}>
           <FarmSessionProvider>
             <Routes>
               <Route path="/tournaments" element={<TournamentsPage />} />
@@ -255,6 +256,39 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="join-farm-id"]')).toBeNull();
     expect(page.textContent).not.toMatch(/Display name/);
+    expect(page.querySelector('[data-testid="back-link"]')?.textContent).toMatch(/Back to home/);
+    expect(page.querySelector('[data-testid="back-link"]')?.getAttribute("href")).toBe("/");
+    expect(page.textContent).not.toMatch(/All tournaments/);
+  });
+
+  it("hides the join button when accepts_joins is false", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Creators Digging Tournament",
+      status: "active",
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(live, [entry({ farm_id: "1", rank: 1, score: 14, name: "rmr" })]),
+      accepts_joins: false,
+    });
+    const page = await renderAt("/tournaments/live", { from: "home" });
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
+  });
+
+  it("returns to the catalog when the tournament was opened from there", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Creators Digging Tournament",
+      status: "active",
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderAt("/tournaments/live", { from: "tournaments" });
+    const back = page.querySelector('[data-testid="back-link"]');
+    expect(back?.textContent).toMatch(/Back to tournaments/);
+    expect(back?.getAttribute("href")).toBe("/tournaments");
+    expect(page.textContent).not.toMatch(/← Home/);
   });
 
   it("joins from the detail using the stored farm id and sfl.world name", async () => {

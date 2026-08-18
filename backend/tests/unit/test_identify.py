@@ -103,7 +103,8 @@ def test_identify_rejects_non_numeric_farm_id(aws_env, monkeypatch):
 
 
 @responses.activate
-def test_join_uses_identified_sfl_world_name(aws_env, monkeypatch):
+def test_join_uses_identified_sfl_world_name(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-01T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     _stub_sfl_world(username="rmr")
     identified = app.lambda_handler(

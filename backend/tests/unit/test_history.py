@@ -107,6 +107,71 @@ def test_rank_scores_uses_scored_days_average_not_duration():
     assert entry["scored_days"] == 2
 
 
+def test_first_day_score_still_counts_after_later_empty_day(aws_env):
+    """Farms that already dug on day one keep that 3rd-OP in total and average."""
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-17T00:00:00+00:00",
+            "end_at": "2026-08-24T00:00:00+00:00",
+            "duration_days": 7,
+        }
+    )
+    from tournament.history import put_farm_day, rebuild_score_from_days
+    from tournament.membership import is_joinable
+
+    put_farm_day(
+        store,
+        "3666918801844311",
+        "2026-08-17",
+        {
+            "day": "2026-08-17",
+            "digs_to_third_op": 14,
+            "otter_count": 3,
+            "total_digs": 14,
+            "status": "completed",
+            "finalized": True,
+        },
+        overwrite_finalized=True,
+    )
+    put_farm_day(
+        store,
+        "3666918801844311",
+        "2026-08-18",
+        {
+            "day": "2026-08-18",
+            "digs_to_third_op": None,
+            "otter_count": 0,
+            "total_digs": 0,
+            "status": "in_progress",
+        },
+    )
+    assert (
+        is_joinable(
+            {
+                "status": "active",
+                "start_at": "2026-08-17T00:00:00+00:00",
+            },
+            now=datetime(2026, 8, 18, 16, tzinfo=timezone.utc),
+        )
+        is False
+    )
+    row = rebuild_score_from_days(
+        store,
+        "3666918801844311",
+        name="rmr",
+        now=datetime(2026, 8, 18, 16, tzinfo=timezone.utc),
+    )
+    assert row["digs_to_third_op"] == 14
+    assert row["score"] == 14.0
+    assert row["days"][0]["digs_to_third_op"] == 14
+
+
 def test_empty_grid_day_does_not_erase_yesterday(aws_env):
     store = Store(
         config_table=aws_env["config_table"],

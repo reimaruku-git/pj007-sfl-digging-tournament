@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFarm, fetchTournamentFarm } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
+import { farmBackTarget } from "../lib/backTarget";
 import { formatDateUtc, formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
 
 export function FarmPage() {
@@ -16,6 +17,7 @@ export function FarmPage() {
   });
 
   const farm = query.data;
+  const back = farmBackTarget(tournamentId);
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
 
   async function copyLink() {
@@ -32,8 +34,8 @@ export function FarmPage() {
     <div className="card farm-sheet">
       <div className="kicker">Personal result</div>
       <p className="meta">
-        <Link to={tournamentId ? `/tournaments/${encodeURIComponent(tournamentId)}` : "/"}>
-          ← Back to {tournamentId ? "tournament" : "leaderboard"}
+        <Link to={back.to} data-testid="back-link">
+          ← {back.label}
         </Link>
       </p>
       {query.isLoading && (

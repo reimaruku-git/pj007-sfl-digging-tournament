@@ -3,7 +3,10 @@
 import importlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+
+from tournament.membership import first_day_join_cutoff, is_joinable
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda_functions" / "main_function"))
@@ -75,7 +78,8 @@ def test_submit_without_tournament_id_is_invalid(aws_env, monkeypatch):
     assert "tournament_id" in body["message"]
 
 
-def test_submit_one_or_many_joinable_creates_pending(aws_env, monkeypatch):
+def test_submit_one_or_many_joinable_creates_pending(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
@@ -128,7 +132,8 @@ def test_submit_one_or_many_joinable_creates_pending(aws_env, monkeypatch):
     assert ids == {live["tournament_id"], later["tournament_id"]}
 
 
-def test_tracked_farm_can_request_another_tournament(aws_env, monkeypatch):
+def test_tracked_farm_can_request_another_tournament(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
@@ -177,7 +182,8 @@ def test_tracked_farm_can_request_another_tournament(aws_env, monkeypatch):
     assert also_live["statusCode"] == 201
 
 
-def test_duplicate_pending_or_enrolled_pair_is_409(aws_env, monkeypatch):
+def test_duplicate_pending_or_enrolled_pair_is_409(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
@@ -223,3 +229,151 @@ def test_duplicate_pending_or_enrolled_pair_is_409(aws_env, monkeypatch):
     )
     assert enrolled_dup["statusCode"] == 409
     assert _json(enrolled_dup)["error"] == "CONFLICT"
+
+
+def test_first_day_join_cutoff_is_2230_utc_on_start_date():
+    row = {
+        "status": "active",
+        "start_at": "2026-08-17T00:00:00+00:00",
+    }
+    cutoff = first_day_join_cutoff(row)
+    assert cutoff == datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc)
+    assert is_joinable(row, now=datetime(2026, 8, 17, 22, 29, 59, tzinfo=timezone.utc)) is True
+    assert is_joinable(row, now=datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc)) is False
+    assert is_joinable(row, now=datetime(2026, 8, 18, 10, 0, tzinfo=timezone.utc)) is False
+    scheduled = {
+        "status": "scheduled",
+        "start_at": "2026-08-24T00:00:00+00:00",
+    }
+    assert is_joinable(scheduled, now=datetime(2026, 8, 18, 23, 0, tzinfo=timezone.utc)) is True
+
+
+def test_submit_rejects_active_event_at_first_day_2230(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Creators Digging Tournament",
+        start="2026-08-17T00:00:00+00:00",
+        end="2026-08-24T00:00:00+00:00",
+    )
+    later = _create_joinable(
+        app,
+        name="Test Tournament 3",
+        start="2026-08-24T00:00:00+00:00",
+        end="2026-08-31T00:00:00+00:00",
+    )
+    monkeypatch.setattr(
+        "tournament.membership.utc_clock",
+        lambda now=None: datetime(2026, 8, 17, 22, 29, tzinfo=timezone.utc),
+    )
+    before = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "1111111111111111",
+                "name": "early",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert before["statusCode"] == 201
+
+    monkeypatch.setattr(
+        "tournament.membership.utc_clock",
+        lambda now=None: datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc),
+    )
+    closed = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "2222222222222222", "name": "late", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert closed["statusCode"] == 400
+    assert _json(closed)["error"] == "VALIDATION_ERROR"
+    assert "22:30" in _json(closed)["message"]
+
+    scheduled = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3333333333333333",
+                "name": "soon",
+                "tournament_id": later["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert scheduled["statusCode"] == 201
+
+    listed = app.lambda_handler(
+        _event("GET", f"/admin/tournaments/{live['tournament_id']}/roster"),
+        None,
+    )
+    members = _json(listed)["members"]
+    assert any(row["farm_id"] == "1111111111111111" for row in members)
+
+
+def test_already_enrolled_farm_stays_after_join_closes(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-17T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Creators Digging Tournament",
+        start="2026-08-17T00:00:00+00:00",
+        end="2026-08-24T00:00:00+00:00",
+    )
+    submitted = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "3666918801844311", "name": "rmr", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert submitted["statusCode"] == 201
+    approved = app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/submissions/3666918801844311/{live['tournament_id']}/approve",
+        ),
+        None,
+    )
+    assert approved["statusCode"] == 200
+    monkeypatch.setattr(
+        "tournament.membership.utc_clock",
+        lambda now=None: datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc),
+    )
+    roster = _json(
+        app.lambda_handler(
+            _event("GET", f"/admin/tournaments/{live['tournament_id']}/roster"),
+            None,
+        )
+    )
+    assert roster["members"][0]["farm_id"] == "3666918801844311"
+    assert roster["members"][0]["status"] == "enrolled"
+
+
+def test_public_tournament_hides_joins_after_first_day_2230(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Creators Digging Tournament",
+        start="2026-08-17T00:00:00+00:00",
+        end="2026-08-24T00:00:00+00:00",
+    )
+    from tournament.catalog import get_public_tournament
+
+    store = app._get_store()
+    open_payload = get_public_tournament(
+        store, live["tournament_id"], now=datetime(2026, 8, 17, 16, 0, tzinfo=timezone.utc)
+    )
+    assert open_payload["accepts_joins"] is True
+    closed_payload = get_public_tournament(
+        store, live["tournament_id"], now=datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc)
+    )
+    assert closed_payload["accepts_joins"] is False

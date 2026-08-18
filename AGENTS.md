@@ -203,6 +203,10 @@ Canonical: `backend/lib/tournament/scoring.py` +
   `max(highest completed 3rd-OP, 30) + 5 × (3 − otter_count)`.
   No completers → floor 30. Mid-day syncs do **not** assign that penalty.
 - Lower score ranks higher.
+- Public join on an **active** event closes at **22:30 UTC on that
+  event's first UTC day** (30 minutes before the 23:00 recording).
+  `POST /submissions` rejects after that instant. Scheduled events stay
+  joinable. Already-enrolled farms and stored day scores stay.
 - Default prize is `"30"` Flower (JSON **string**). Min period **1 day**.
   Admin creates named tournaments (`POST /admin/tournaments`) with from/to
   or start + `duration_days`. Empty catalog is valid — do not invent a

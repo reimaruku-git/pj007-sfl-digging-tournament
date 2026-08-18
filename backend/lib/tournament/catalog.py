@@ -7,7 +7,12 @@ from typing import Any
 
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard, public_entry
-from tournament.membership import drop_tournament_members, enrolled_farm_ids, migrate_members
+from tournament.membership import (
+    drop_tournament_members,
+    enrolled_farm_ids,
+    is_joinable,
+    migrate_members,
+)
 from tournament.stats import overall_average_per_day
 from tournament.store import MIN_TOURNAMENT_DAYS, NAME_MAX_LEN, Store
 from tournament.sync import (
@@ -537,6 +542,7 @@ def _public_tournament_payload(
     entries: list[dict[str, Any]],
     count: int,
     leader_farm_id: Any,
+    accepts_joins: bool = False,
 ) -> dict[str, Any]:
     return {
         "tournament_id": tournament_id_value,
@@ -546,6 +552,7 @@ def _public_tournament_payload(
         "count": count,
         "leader_farm_id": leader_farm_id,
         "overall_average_per_day": overall_average_per_day(entries),
+        "accepts_joins": bool(accepts_joins),
     }
 
 
@@ -573,6 +580,7 @@ def get_public_tournament(
             entries=entries,
             count=len(entries),
             leader_farm_id=archive.get("leader_farm_id"),
+            accepts_joins=False,
         )
     if row and row.get("status") == STATUS_ACTIVE:
         board = live_board_payload(store, now=clock)
@@ -583,6 +591,7 @@ def get_public_tournament(
             entries=board.get("entries") or [],
             count=int(board.get("count") or 0),
             leader_farm_id=board.get("leader_farm_id"),
+            accepts_joins=is_joinable(row, now=clock),
         )
     if row:
         board = enrollment_board(
@@ -597,6 +606,7 @@ def get_public_tournament(
             entries=board.get("entries") or [],
             count=int(board.get("count") or 0),
             leader_farm_id=board.get("leader_farm_id"),
+            accepts_joins=is_joinable(row, now=clock),
         )
     if archive:
         entries = [
@@ -610,6 +620,7 @@ def get_public_tournament(
             entries=entries,
             count=int(archive.get("count") or 0),
             leader_farm_id=archive.get("leader_farm_id"),
+            accepts_joins=False,
         )
     return None
 

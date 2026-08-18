@@ -202,6 +202,12 @@ Scheduled entries are roster identity only (`not_started`, scores
 (3rd-OP digs ÷ that event's duration days), or `null` when none have a
 score yet.
 
+`accepts_joins` is true while the public join button should show.
+Scheduled events stay joinable. An **active** event accepts new joins
+only until **22:30 UTC on its first UTC day** (30 minutes before that
+day's 23:00 final recording). At 22:30 and later that first day it is
+false. Already-enrolled farms stay on the board.
+
 ```json
 {
   "tournament": {
@@ -219,7 +225,8 @@ score yet.
     "entries": [],
     "count": 0,
     "leader_farm_id": null,
-    "overall_average_per_day": null
+    "overall_average_per_day": null,
+    "accepts_joins": false
   }
 }
 ```
@@ -301,9 +308,13 @@ is required.
 }
 ```
 
-`400` if no joinable `tournament_id` is sent. `409` if that
-`(farm_id, tournament_id)` pair is already pending or enrolled.
-Approving tournament A does not enroll the farm in tournament B.
+`400` if no joinable `tournament_id` is sent, or if the event is
+**active** and the clock is 22:30 UTC or later on that event's first
+UTC day (`join closed after 22:30 UTC on the first day`). Scheduled
+events stay joinable. `409` if that `(farm_id, tournament_id)` pair is
+already pending or enrolled. Approving tournament A does not enroll
+the farm in tournament B. Already-enrolled farms are not dropped when
+the join window closes.
 
 ## Admin
 

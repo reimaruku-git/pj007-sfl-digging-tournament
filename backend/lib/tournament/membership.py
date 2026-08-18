@@ -6,14 +6,21 @@ The S3 registry stays the global player directory; membership is separate.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.store import Store
+from tournament.window import parse_iso
 
 STATUS_PENDING = "pending"
 STATUS_ENROLLED = "enrolled"
-JOINABLE_STATUSES = {"scheduled", "active"}
+STATUS_SCHEDULED = "scheduled"
+STATUS_ACTIVE = "active"
+JOINABLE_STATUSES = {STATUS_SCHEDULED, STATUS_ACTIVE}
+FIRST_DAY_JOIN_CLOSE_HOUR_UTC = 22
+FIRST_DAY_JOIN_CLOSE_MINUTE_UTC = 30
+JOIN_CLOSED_MESSAGE = "join closed after 22:30 UTC on the first day"
 
 
 class MembershipError(Exception):
@@ -87,8 +94,46 @@ def enrolled_farm_ids(store: Store, tournament_id: str) -> set[str]:
     }
 
 
-def is_joinable(row: dict[str, Any] | None) -> bool:
+def utc_clock(now: datetime | None = None) -> datetime:
+    clock = now or datetime.now(timezone.utc)
+    if clock.tzinfo is None:
+        return clock.replace(tzinfo=timezone.utc)
+    return clock.astimezone(timezone.utc)
+
+
+def first_day_join_cutoff(row: dict[str, Any] | None) -> datetime | None:
+    """22:30 UTC on the tournament's first UTC calendar day."""
+    if not row:
+        return None
+    start = parse_iso(row.get("start_at"))
+    if start is None:
+        return None
+    day = start.date()
+    return datetime(
+        day.year,
+        day.month,
+        day.day,
+        FIRST_DAY_JOIN_CLOSE_HOUR_UTC,
+        FIRST_DAY_JOIN_CLOSE_MINUTE_UTC,
+        tzinfo=timezone.utc,
+    )
+
+
+def is_open_event(row: dict[str, Any] | None) -> bool:
+    """Scheduled or live — admin enroll/approve still allowed after the join cutoff."""
     return bool(row) and row.get("status") in JOINABLE_STATUSES
+
+
+def is_joinable(row: dict[str, Any] | None, *, now: datetime | None = None) -> bool:
+    """Public join: scheduled always; live only before 22:30 UTC on day one."""
+    if not is_open_event(row):
+        return False
+    if row.get("status") == STATUS_SCHEDULED:
+        return True
+    cutoff = first_day_join_cutoff(row)
+    if cutoff is None:
+        return True
+    return utc_clock(now) < cutoff
 
 
 def request_joins(
@@ -97,10 +142,14 @@ def request_joins(
     farm_id: str,
     name: str,
     tournament_ids: list[str],
+    now: datetime | None = None,
 ) -> list[dict[str, Any]]:
+    clock = utc_clock(now)
     for tid in tournament_ids:
         row = store.get_tournament(tid)
-        if not is_joinable(row):
+        if not is_joinable(row, now=clock):
+            if is_open_event(row) and row.get("status") == STATUS_ACTIVE:
+                raise MembershipError(JOIN_CLOSED_MESSAGE)
             raise MembershipError("tournament is not joinable")
         existing = store.get_member(tid, farm_id)
         if existing and existing.get("status") in {STATUS_PENDING, STATUS_ENROLLED}:
@@ -136,7 +185,7 @@ def approve_join(
     member = store.get_member(tournament_id, farm_id)
     if not member or member.get("status") != STATUS_PENDING:
         raise MembershipError("submission not found", code="NOT_FOUND", status=404)
-    if not is_joinable(store.get_tournament(tournament_id)):
+    if not is_open_event(store.get_tournament(tournament_id)):
         raise MembershipError("tournament is not joinable")
     tracked = registry.get(farm_id)
     join_name = str(member.get("name") or "").strip()
@@ -170,7 +219,7 @@ def add_farms_to_tournament(
     tournament_id: str,
     farm_ids: list[str],
 ) -> list[dict[str, Any]]:
-    if not is_joinable(store.get_tournament(tournament_id)):
+    if not is_open_event(store.get_tournament(tournament_id)):
         row = store.get_tournament(tournament_id)
         if not row:
             raise MembershipError("tournament not found", code="NOT_FOUND", status=404)

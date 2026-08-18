@@ -58,7 +58,8 @@ def _create(app, name, start, end):
     return _json(created)["tournament"]
 
 
-def test_approve_enrolls_only_named_tournament(aws_env, monkeypatch):
+def test_approve_enrolls_only_named_tournament(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
@@ -106,7 +107,8 @@ def test_approve_enrolls_only_named_tournament(aws_env, monkeypatch):
     assert pending["submissions"][0]["tournament_id"] == later["tournament_id"]
 
 
-def test_reject_leaves_other_pending_and_enrolled_rows(aws_env, monkeypatch):
+def test_reject_leaves_other_pending_and_enrolled_rows(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")

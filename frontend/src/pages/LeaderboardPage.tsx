@@ -191,6 +191,7 @@ function TourneyGroup({
         <Link
           key={row.tournament_id}
           to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+          state={{ from: "home" }}
           className="tourney-card tourney-card-link"
           data-testid={`tourney-card-${row.tournament_id}`}
         >

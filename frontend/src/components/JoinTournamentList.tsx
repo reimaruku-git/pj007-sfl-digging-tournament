@@ -43,6 +43,7 @@ export function JoinTournamentList({
             <Link
               key={row.tournament_id}
               to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
+              state={{ from: "home" }}
               className={JOIN_CARD_CLASS}
               data-testid={`join-link-${row.tournament_id}`}
             >

@@ -112,7 +112,8 @@ def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
     assert score == 0.4
 
 
-def test_submit_then_admin_approve(aws_env, monkeypatch):
+def test_submit_then_admin_approve(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     opened = _open_live_cup(app)
     created = app.lambda_handler(

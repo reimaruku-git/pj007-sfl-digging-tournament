@@ -55,7 +55,7 @@ function farm(partial: Partial<LeaderboardEntry> = {}): LeaderboardEntry {
   };
 }
 
-async function renderFarm() {
+async function renderFarm(path = "/farm/3666918801844311") {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -65,9 +65,13 @@ async function renderFarm() {
   act(() => {
     root.render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/farm/3666918801844311"]}>
+        <MemoryRouter initialEntries={[path]}>
           <Routes>
             <Route path="/farm/:farmId" element={<FarmPage />} />
+            <Route
+              path="/tournaments/:tournamentId/farm/:farmId"
+              element={<FarmPage />}
+            />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
@@ -102,6 +106,24 @@ describe("FarmPage days", () => {
     expect(container.querySelector("[data-testid='farm-score-today']")?.textContent).toBe("—");
     expect(facts?.textContent).toMatch(/Pebbles today/);
     expect(container.querySelector("[data-testid='farm-pebbles-today']")?.textContent).toBe("0");
+  });
+
+  it("returns home from a home-board farm and the tournament from a tournament farm", async () => {
+    await renderFarm("/farm/3666918801844311");
+    const homeBack = container.querySelector("[data-testid='back-link']");
+    expect(homeBack?.textContent).toMatch(/Back to home/);
+    expect(homeBack?.getAttribute("href")).toBe("/");
+    expect(container.textContent).not.toMatch(/leaderboard/);
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    fetchTournamentFarm.mockResolvedValue(farm());
+    await renderFarm("/tournaments/20260817T000000Z_7d/farm/3666918801844311");
+    const eventBack = container.querySelector("[data-testid='back-link']");
+    expect(eventBack?.textContent).toMatch(/Back to tournament/);
+    expect(eventBack?.getAttribute("href")).toBe("/tournaments/20260817T000000Z_7d");
+    expect(container.textContent).not.toMatch(/All tournaments/);
   });
 
   it("lists each stored tournament day instead of only today", async () => {
