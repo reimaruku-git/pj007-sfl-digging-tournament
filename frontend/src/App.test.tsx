@@ -175,18 +175,20 @@ describe("routes", () => {
     expect(rules?.className).toMatch(/prize-card/);
     expect(rules?.textContent).toMatch(/Counts as 1 dig/);
     expect(rules?.textContent).toMatch(/Counts as 4 digs/);
-    expect(rules?.textContent).toMatch(/exact dig number within those 4/);
+    expect(rules?.textContent).toMatch(/last dig of those 4/);
     expect(rules?.textContent).toMatch(/After 5 shovel digs/);
-    expect(rules?.textContent).toMatch(/6, 7, 8 and 9/);
-    expect(rules?.textContent).toMatch(/dig #9/);
-    expect(rules?.textContent).toMatch(/days that already have a score/);
+    expect(rules?.textContent).toMatch(/6-7-8-9/);
+    expect(rules?.textContent).toMatch(/pebble is found on dig 9/);
+    expect(rules?.textContent).toMatch(/only on days that already have a recorded score/);
     expect(rules?.textContent).toMatch(/14:00, 16:00, 18:00, 20:00, 23:00 UTC/);
-    expect(rules?.textContent).toMatch(/Digs after 23:00 UTC do not count/);
-    expect(rules?.textContent).toMatch(/worst finisher that day/);
-    expect(rules?.textContent).toMatch(/5 per missing Otter Pebble/);
-    expect(rules?.textContent).toMatch(/counts in the average/);
+    expect(rules?.querySelector("strong")?.textContent).toBe(
+      "Digs after 23:00 UTC do not count",
+    );
+    expect(rules?.textContent).toMatch(/worst finisher that day or 30/);
+    expect(rules?.textContent).toMatch(/5 for every missing pebble/);
+    expect(rules?.textContent).toMatch(/SO DIG!/);
     expect(rules?.textContent).toMatch(/do not affect your score/);
-    expect(rules?.textContent).toMatch(/fewer digs to the 3rd pebble/);
+    expect(rules?.textContent).toMatch(/Average of 3rd pebble, then 2nd, then 1st/);
     expect(rules?.textContent).toMatch(/earlier time on the 3rd pebble/);
     expect(home.querySelectorAll("#rules").length).toBe(1);
 

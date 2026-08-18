@@ -1050,6 +1050,11 @@ tr.is-you,
   padding-top: 2px;
 }
 
+.rules-list strong {
+  color: var(--sand);
+  font-weight: 700;
+}
+
 .farm-sheet h2 {
   font-family: Fraunces, Georgia, serif;
   font-size: 28px;

@@ -84,35 +84,38 @@ export function LeaderboardPage() {
             <li>
               <span>Drill</span>
               <span>
-                Counts as 4 digs. An Otter Pebble found with a Drill is counted as the exact dig
-                number within those 4. Example: After 5 shovel digs, the next Drill becomes digs 6,
-                7, 8 and 9. A pebble in the last tile is dig #9.
+                Counts as 4 digs. If you find an Otter Pebble with a Drill, it counts as the last
+                dig of those 4. Example: After 5 shovel digs, using a Drill makes digs 6-7-8-9. The
+                pebble is found on dig 9.
               </span>
             </li>
             <li>
               <span>Score</span>
               <span>
-                Average 3rd-pebble digs across days that already have a score. A missed day keeps
-                its recorded score, including the 23:00 unfinished penalty. Lower is better.
+                Your score is the average number of digs it took to find the 3rd Otter Pebble, only
+                on days that already have a recorded score. Missed days keep whatever score was
+                recorded (including the unfinished penalty). Lower average is better.
               </span>
             </li>
             <li>
               <span>Refresh</span>
-              <span>14:00, 16:00, 18:00, 20:00, 23:00 UTC. Digs after 23:00 UTC do not count</span>
+              <span>
+                14:00, 16:00, 18:00, 20:00, 23:00 UTC.{" "}
+                <strong>Digs after 23:00 UTC do not count</strong>
+              </span>
             </li>
             <li>
               <span>Unfinished</span>
               <span>
-                That day's score is the worst finisher that day (or 30, whichever is higher) + 5
-                per missing Otter Pebble. That number stays on the record and counts in the
-                average.
+                Score = (worst finisher that day or 30, whichever is higher) + 5 for every missing
+                pebble. This number is permanent and still goes into your average. SO DIG!
               </span>
             </li>
             <li>
               <span>Ties</span>
               <span>
-                Same score: fewer digs to the 3rd pebble, then the 2nd, then the 1st. Still tied:
-                earlier time on the 3rd pebble, then the 2nd, then the 1st.
+                Average of 3rd pebble, then 2nd, then 1st. If still tied → earlier time on the 3rd
+                pebble, then 2nd, then 1st.
               </span>
             </li>
           </ul>
