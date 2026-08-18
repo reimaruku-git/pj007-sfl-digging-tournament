@@ -89,9 +89,15 @@ Cached snapshot. Frontend never calls the SFL API.
 (configured length, not days so far). Digs after the 3rd pebble do not
 enter `score`. `total_digs` is window activity for debug and is not ranked.
 
-`digs_to_third_op` is the flattened dig number of the 3rd pebble. After the
-**23:00 UTC finalize** (and any later full sync that day), farms that did
-not find all 3 get a numeric dig count instead of `null`:
+Sunflower Land's desert grid resets every UTC day. `digs_to_third_op` is
+the **sum** of each stored tournament day's 3rd-pebble digs. Each day is
+kept under `days` (and on S3 as `snapshots/history/{farm_id}/{day}.json`).
+A later fetch must not replace an earlier day.
+
+`days[].digs_to_third_op` is that UTC day's flattened dig number of the
+3rd pebble. After the **23:00 UTC finalize** (and any later full sync
+that day), farms that did not find all 3 **that day** get a numeric dig
+count instead of `null`:
 
 `max(highest digs_to_third_op among farms that found all 3, 30) + 5 × (3 − otter_count)`
 
@@ -127,7 +133,23 @@ Shareable personal result.
     "third_op_at": "2026-08-14T12:42:00+00:00",
     "last_updated_at": "2026-08-14T13:00:00+00:00",
     "status": "completed",
-    "invalidated": false
+    "invalidated": false,
+    "days": [
+      {
+        "day": "2026-08-14",
+        "digs_to_third_op": 42,
+        "digs_to_first_op": 10,
+        "digs_to_second_op": 24,
+        "otter_count": 3,
+        "total_digs": 42,
+        "digs_today": 42,
+        "status": "completed",
+        "finalized": true,
+        "first_op_at": "2026-08-14T12:10:00+00:00",
+        "second_op_at": "2026-08-14T12:24:00+00:00",
+        "third_op_at": "2026-08-14T12:42:00+00:00"
+      }
+    ]
   }
 }
 ```

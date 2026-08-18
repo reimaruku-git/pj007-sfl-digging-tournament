@@ -108,7 +108,9 @@ S3 layout:
 pj007-dev-digging-tournament/
 ├── frontend/                 ← CloudFront origin
 ├── config/tracked-farms.json ← Farm ID source of truth
-├── snapshots/{farm_id}.json  ← live latest grid
+├── snapshots/{farm_id}.json  ← live latest grid (today only)
+├── snapshots/daily/{day}.json ← that UTC day's leaderboard dump
+├── snapshots/history/{farm_id}/{day}.json ← each tournament day
 └── archives/{tournament_id}/ ← meta + standings + farm copies
 ```
 
@@ -179,9 +181,13 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Four sibling `Sand Drill` tiles that share the same `dugAt` are one
   drill the API numbered once (e.g. “5th dig” on all 4 holes → 5–8).
 - Every other top-level tile (Sand Shovel / unknown) costs **1**.
-- Official displayed score = **3rd-pebble digs ÷ configured duration days**.
-  Digs after the 3rd pebble do not enter the score.
-- Once the 3rd-pebble dig count is set, later tiles do not change it.
+- Official displayed score = **sum of each tournament day's 3rd-pebble
+  digs ÷ configured duration days**. Digs after that day's 3rd pebble
+  do not enter that day. SFL's desert grid resets every UTC day — store
+  each day under `snapshots/history/{farm_id}/{day}.json`. Never overwrite
+  yesterday's file or score with today's fetch.
+- Once a day's 3rd-pebble dig count is set, later tiles that day do not
+  change it. A finalized day is not rewritten by a later sync.
 - Tie-break: fewer digs to 3rd OP, then 2nd, then 1st; then earlier
   `third_op_at`, `second_op_at`, `first_op_at`.
 - Tiles outside the tournament window (by `dugAt`) are ignored.

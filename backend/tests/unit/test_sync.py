@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from tournament.farms import FarmRegistry
 from tournament.sfl_client import SFLApiError
 from tournament.store import Store
 from tournament.scoring import score_grid
+from tournament.history import put_farm_day
 from tournament.sync import (
     apply_computed_score,
     apply_day_finalize,
@@ -137,7 +138,7 @@ def test_rescore_from_snapshots_applies_new_window(aws_env):
         window_start=datetime(2026, 8, 1, tzinfo=timezone.utc),
         window_end=datetime(2026, 8, 20, tzinfo=timezone.utc),
     )
-    apply_computed_score(store, farm_id="99", name="rmr", computed=computed)
+    apply_computed_score(store, farm_id="99", name="rmr", computed=computed, now=NOW, grid=grid)
     store.write_snapshot("99", {"farm_id": "99", "grid": grid, "score": computed.to_dict()})
     assert store.get_score("99")["digs_to_third_op"] == 3
 
@@ -213,7 +214,9 @@ def test_finalize_2300_assigns_incomplete_and_is_idempotent(aws_env):
         ("3", "none", none_grid),
     ):
         computed = score_grid(grid, now=NOW)
-        apply_computed_score(store, farm_id=farm_id, name=name, computed=computed)
+        apply_computed_score(
+            store, farm_id=farm_id, name=name, computed=computed, now=NOW, grid=grid
+        )
         store.write_snapshot(
             farm_id, {"farm_id": farm_id, "grid": grid, "score": computed.to_dict()}
         )
@@ -287,3 +290,146 @@ def test_2300_sync_applies_cutoff_and_incomplete_penalty(aws_env):
     assert store.get_score("1")["digs_to_third_op"] == 3
     assert store.get_score("2")["otter_count"] == 1
     assert store.get_score("2")["digs_to_third_op"] == 40
+
+
+def test_next_day_empty_grid_keeps_yesterday_and_sums_completed_days(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    store.put_config(
+        {
+            "start_at": "2026-08-17T00:00:00+00:00",
+            "end_at": "2026-08-24T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        }
+    )
+    day1 = datetime(2026, 8, 17, 16, 0, tzinfo=timezone.utc)
+    day2 = datetime(2026, 8, 18, 16, 0, tzinfo=timezone.utc)
+    done = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+    ]
+    registry.upsert("99", name="rmr")
+    client = FakeClient({"99": _grid_payload(done)})
+    sync_all_farms(store, registry, client, now=day1)
+    assert store.get_score("99")["digs_to_third_op"] == 3
+    assert [row["day"] for row in store.get_score("99")["days"]] == ["2026-08-17"]
+
+    client = FakeClient({"99": _grid_payload([])})
+    sync_all_farms(store, registry, client, now=day2)
+    row = store.get_score("99")
+    assert row["digs_to_third_op"] == 3
+    assert [item["day"] for item in row["days"]] == ["2026-08-17", "2026-08-18"]
+    assert row["days"][0]["digs_to_third_op"] == 3
+    assert row["days"][1]["digs_to_third_op"] is None
+    assert store.read_farm_day("99", "2026-08-17")["digs_to_third_op"] == 3
+    assert store.read_snapshot("99")["grid"] == []
+
+    later = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day2)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day2)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day2 + timedelta(minutes=1))),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day2 + timedelta(minutes=2))),
+    ]
+    client = FakeClient({"99": _grid_payload(later)})
+    sync_all_farms(store, registry, client, now=day2)
+    row = store.get_score("99")
+    assert row["days"][0]["digs_to_third_op"] == 3
+    assert row["days"][1]["digs_to_third_op"] == 3
+    assert row["digs_to_third_op"] == 6
+
+
+def test_recover_yesterday_from_daily_leaderboard(aws_env):
+    store = _store(aws_env)
+    store.put_config(
+        {
+            "start_at": "2026-08-17T00:00:00+00:00",
+            "end_at": "2026-08-24T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        }
+    )
+    store.write_daily_snapshot(
+        "2026-08-17",
+        {
+            "captured_at": "2026-08-17T23:01:59+00:00",
+            "leaderboard": [
+                {
+                    "farm_id": "99",
+                    "name": "rmr",
+                    "digs_to_third_op": 14,
+                    "digs_to_first_op": 4,
+                    "digs_to_second_op": 5,
+                    "otter_count": 3,
+                    "total_digs": 29,
+                    "digs_today": 29,
+                    "status": "completed",
+                    "first_op_at": "2026-08-17T13:49:30+00:00",
+                    "second_op_at": "2026-08-17T13:49:33+00:00",
+                    "third_op_at": "2026-08-17T13:50:06+00:00",
+                }
+            ],
+            "count": 1,
+        },
+    )
+    store.put_score(store.empty_score("99", "rmr"))
+    from tournament.history import recover_daily_history
+
+    clock = datetime(2026, 8, 18, 16, 0, tzinfo=timezone.utc)
+    assert recover_daily_history(store, now=clock) == 1
+    row = store.get_score("99")
+    assert row["digs_to_third_op"] == 14
+    assert row["days"][0]["day"] == "2026-08-17"
+    assert row["days"][0]["finalized"] is True
+    assert recover_daily_history(store, now=clock) == 0
+
+
+def test_finalize_penalizes_today_only(aws_env):
+    store = _store(aws_env)
+    store.put_config(
+        {
+            "start_at": "2026-08-17T00:00:00+00:00",
+            "end_at": "2026-08-24T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        }
+    )
+    day1 = datetime(2026, 8, 17, 16, 0, tzinfo=timezone.utc)
+    done = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+    ]
+    apply_computed_score(
+        store,
+        farm_id="99",
+        name="rmr",
+        computed=score_grid(done, now=day1),
+        now=day1,
+        grid=done,
+    )
+    yesterday = store.read_farm_day("99", "2026-08-17")
+    yesterday["finalized"] = True
+    put_farm_day(store, "99", "2026-08-17", yesterday, overwrite_finalized=True)
+
+    short = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(datetime(2026, 8, 18, 20, tzinfo=timezone.utc)))
+    ]
+    apply_computed_score(
+        store,
+        farm_id="99",
+        name="rmr",
+        computed=score_grid(short, now=datetime(2026, 8, 18, 20, tzinfo=timezone.utc)),
+        now=datetime(2026, 8, 18, 20, tzinfo=timezone.utc),
+        grid=short,
+    )
+    clock = datetime(2026, 8, 18, 23, 0, tzinfo=timezone.utc)
+    result = apply_day_finalize(store, now=clock)
+    assert result["finalized"] is True
+    row = store.get_score("99")
+    by_day = {item["day"]: item for item in row["days"]}
+    assert by_day["2026-08-17"]["digs_to_third_op"] == 3
+    assert by_day["2026-08-18"]["digs_to_third_op"] == 40
+    assert by_day["2026-08-18"]["finalized"] is True
+    assert row["digs_to_third_op"] == 43

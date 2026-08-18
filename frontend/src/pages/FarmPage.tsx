@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFarm, fetchTournamentFarm } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
-import { formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
+import { formatDateUtc, formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
 
 export function FarmPage() {
   const { farmId = "", tournamentId } = useParams();
@@ -82,6 +82,25 @@ export function FarmPage() {
               </b>
             </div>
           </div>
+          {(farm.days ?? []).length > 0 && (
+            <section className="farm-days" data-testid="farm-days">
+              <h3>Tournament days</h3>
+              <ul>
+                {(farm.days ?? []).map((row) => (
+                  <li key={row.day} data-testid={`farm-day-${row.day}`}>
+                    <div>
+                      <b>{formatDateUtc(`${row.day}T00:00:00+00:00`)}</b>
+                      <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                    </div>
+                    <div className="farm-day-score">
+                      <span>{row.digs_to_third_op ?? "—"} digs</span>
+                      <span className="muted">{row.otter_count}/3 pebbles</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="share-row">
             <p className="meta">Share this result</p>
             <button className="btn primary" type="button" onClick={() => void copyLink()}>

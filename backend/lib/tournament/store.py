@@ -139,6 +139,7 @@ class Store:
             "second_op_at": None,
             "third_op_at": None,
             "last_updated_at": utc_now_iso(),
+            "days": [],
         }
 
     # ------------------------------------------------------------------
@@ -482,15 +483,30 @@ class Store:
         return items
 
     def write_daily_snapshot(self, day: str, payload: dict[str, Any]) -> str:
-        key = f"snapshots/daily/{day}.json"
-        body = json.dumps(payload, default=str, separators=(",", ":"))
-        self._s3.put_object(
-            Bucket=self._bucket,
-            Key=key,
-            Body=body,
-            ContentType="application/json",
-        )
-        return key
+        return self._put_json(f"snapshots/daily/{day}.json", payload)
+
+    def read_daily_snapshot(self, day: str) -> dict[str, Any] | None:
+        return self._get_json(f"snapshots/daily/{day}.json")
+
+    def write_farm_day(self, farm_id: str, day: str, payload: dict[str, Any]) -> str:
+        return self._put_json(f"snapshots/history/{farm_id}/{day}.json", payload)
+
+    def read_farm_day(self, farm_id: str, day: str) -> dict[str, Any] | None:
+        return self._get_json(f"snapshots/history/{farm_id}/{day}.json")
+
+    def list_farm_days(self, farm_id: str) -> list[dict[str, Any]]:
+        prefix = f"snapshots/history/{farm_id}/"
+        rows: list[dict[str, Any]] = []
+        for key in self._list_keys(prefix):
+            if not key.endswith(".json"):
+                continue
+            payload = self._get_json(key)
+            if not payload:
+                continue
+            payload.setdefault("day", key.rsplit("/", 1)[-1][: -len(".json")])
+            rows.append(payload)
+        rows.sort(key=lambda row: str(row.get("day") or ""))
+        return rows
 
 
 def archive_summary(payload: dict[str, Any]) -> dict[str, Any]:

@@ -9,10 +9,18 @@ from typing import Any
 from urllib import error, request
 
 from tournament.farms import FarmRegistry, utc_now_iso
+from tournament.history import (
+    recover_daily_history,
+    finalize_today,
+    write_today_from_computed,
+    put_farm_day,
+    day_record_from_computed,
+    rebuild_score_from_days,
+    days_in_window,
+)
 from tournament.leaderboard import build_leaderboard
 from tournament.membership import enrolled_farm_ids, seed_legacy_roster
 from tournament.scoring import (
-    assign_incomplete_official_scores,
     extract_grid,
     extract_streak,
     is_finalize_clock,
@@ -110,7 +118,7 @@ def drop_untracked_scores(store: Store, registry) -> list[str]:
 def refresh_leaderboard(
     store: Store, *, now: datetime | None = None, registry=None
 ) -> dict[str, Any]:
-    _ = now
+    recover_daily_history(store, now=now)
     config = store.get_config()
     days = configured_duration_days(config)
     rows = store.list_scores()
@@ -141,41 +149,31 @@ def resolve_scoring_windows(
     return window_start, window_end
 
 
-def _apply_incomplete_penalties(store: Store) -> int | None:
-    rows = store.list_scores()
-    assigned = assign_incomplete_official_scores(rows)
-    highest: int | None = None
-    for row, updated in zip(rows, assigned):
-        if updated.get("status") == "completed" and updated.get("digs_to_third_op") is not None:
-            try:
-                score = int(updated["digs_to_third_op"])
-            except (TypeError, ValueError):
-                score = None
-            if score is not None:
-                highest = score if highest is None else max(highest, score)
-        if updated.get("digs_to_third_op") != row.get("digs_to_third_op"):
-            store.put_score(updated)
-    return highest
-
-
 def rescore_from_snapshots(
     store: Store,
     *,
     now: datetime | None = None,
     finalize: bool | None = None,
 ) -> dict[str, Any]:
-    """Re-run score_grid on stored snapshots using the current tournament window.
+    """Re-run score_grid on stored per-day grids using the current window.
 
-    Farms with no snapshot are counted in ``missing_snapshots`` and left as-is
-    until the next live SFL fetch.
+    Farms with no snapshot and no day history are counted in
+    ``missing_snapshots`` and left as-is until the next live SFL fetch.
 
-    When ``finalize`` is true (or the clock is 23:00 UTC or later), tiles after
-    that day's 23:00 are dropped and incompletes get the official penalty score.
+    When ``finalize`` is true (or the clock is 23:00 UTC or later), only
+    **today's** day is cut off at 23:00 and incompletes get that day's
+    penalty. Earlier finalized days are left alone.
     """
     clock = now or datetime.now(timezone.utc)
     do_finalize = is_finalize_clock(clock) if finalize is None else finalize
+    recover_daily_history(store, now=clock)
     config = ensure_default_config(store, now=clock)
-    window_start, window_end = resolve_scoring_windows(config, clock, finalize=do_finalize)
+    window_start, window_end = resolve_scoring_windows(config, clock, finalize=False)
+    today = (
+        clock.date().isoformat()
+        if clock.tzinfo
+        else clock.replace(tzinfo=timezone.utc).date().isoformat()
+    )
     rescored = 0
     missing = 0
     for row in store.list_scores():
@@ -183,29 +181,75 @@ def rescore_from_snapshots(
         if not farm_id:
             continue
         snapshot = store.read_snapshot(farm_id)
-        grid = snapshot.get("grid") if isinstance(snapshot, dict) else None
-        if not isinstance(grid, list):
-            missing += 1
+        history = days_in_window(store, farm_id, start=window_start, end=window_end)
+        if not history:
+            grid = snapshot.get("grid") if isinstance(snapshot, dict) else None
+            if not isinstance(grid, list):
+                missing += 1
+                continue
+            computed = score_grid(
+                grid,
+                now=clock,
+                window_start=window_start,
+                window_end=window_end,
+            )
+            write_today_from_computed(
+                store,
+                farm_id=farm_id,
+                name=str(row.get("name") or ""),
+                computed=computed,
+                previous=row,
+                now=clock,
+                grid=grid,
+            )
+            updated = dict(snapshot)
+            updated["score"] = computed.to_dict()
+            store.write_snapshot(farm_id, updated)
+            rescored += 1
             continue
-        computed = score_grid(
-            grid,
-            now=clock,
-            window_start=window_start,
-            window_end=window_end,
+        changed = False
+        for record in history:
+            day_key = str(record.get("day") or "")
+            if record.get("finalized") and day_key != today:
+                continue
+            grid = record.get("grid")
+            if not isinstance(grid, list) and len(history) == 1:
+                grid = snapshot.get("grid") if isinstance(snapshot, dict) else None
+            if not isinstance(grid, list):
+                continue
+            computed = score_grid(
+                grid,
+                now=clock,
+                window_start=window_start,
+                window_end=window_end,
+            )
+            put_farm_day(
+                store,
+                farm_id,
+                day_key or today,
+                day_record_from_computed(day_key or today, computed, grid=grid),
+                overwrite_finalized=False,
+            )
+            changed = True
+        if changed:
+            rebuild_score_from_days(
+                store,
+                farm_id,
+                name=str(row.get("name") or ""),
+                previous=row,
+                now=clock,
+            )
+            rescored += 1
+        else:
+            missing += 1
+    highest = None
+    if do_finalize:
+        window_start, cutoff_end = resolve_scoring_windows(config, clock, finalize=True)
+        finalized = finalize_today(
+            store, now=clock, window_start=window_start, window_end=cutoff_end
         )
-        apply_computed_score(
-            store,
-            farm_id=farm_id,
-            name=str(row.get("name") or ""),
-            computed=computed,
-            previous=row,
-        )
-        updated = dict(snapshot)
-        updated["score"] = computed.to_dict()
-        store.write_snapshot(farm_id, updated)
-        rescored += 1
-    highest = _apply_incomplete_penalties(store) if do_finalize else None
-    refresh_leaderboard(store)
+        highest = finalized.get("highest_completed")
+    refresh_leaderboard(store, now=clock)
     return {
         "rescored": rescored,
         "missing_snapshots": missing,
@@ -215,9 +259,10 @@ def rescore_from_snapshots(
 
 
 def apply_day_finalize(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
-    """Re-score snapshots with the 23:00 cutoff and assign incomplete penalties.
+    """Re-score today's day with the 23:00 cutoff and assign that day's penalties.
 
-    Safe to run twice on the same snapshots — scores stay the same.
+    Safe to run twice on the same day — scores stay the same. Earlier days
+    are not rewritten.
     """
     return rescore_from_snapshots(store, now=now, finalize=True)
 
@@ -230,27 +275,21 @@ def apply_computed_score(
     computed,
     previous: dict[str, Any] | None = None,
     error: str | None = None,
+    now: datetime | None = None,
+    grid: Any = None,
 ) -> dict[str, Any]:
+    clock = now or datetime.now(timezone.utc)
     prior = previous or store.get_score(farm_id) or {}
-    row = {
-        "farm_id": farm_id,
-        "name": name,
-        "digs_to_third_op": computed.digs_to_third_op,
-        "digs_to_first_op": computed.digs_to_first_op,
-        "digs_to_second_op": computed.digs_to_second_op,
-        "otter_count": computed.otter_count,
-        "total_digs": computed.total_digs,
-        "digs_today": computed.digs_today,
-        "status": computed.status,
-        "first_op_at": computed.first_op_at,
-        "second_op_at": computed.second_op_at,
-        "third_op_at": computed.third_op_at,
-        "invalidated": bool(prior.get("invalidated")),
-        "override_digs_to_third_op": prior.get("override_digs_to_third_op"),
-        "override_reason": prior.get("override_reason"),
-        "error": error,
-    }
-    return store.put_score(row)
+    return write_today_from_computed(
+        store,
+        farm_id=farm_id,
+        name=name,
+        computed=computed,
+        previous=prior,
+        now=clock,
+        grid=grid,
+        error=error,
+    )
 
 
 def sync_one_farm(
@@ -295,9 +334,20 @@ def sync_one_farm(
             name=name,
             computed=computed,
             previous=previous,
+            now=clock,
+            grid=grid,
         )
     except SFLApiError as exc:
         logger.error("Failed to fetch farm %s: %s", farm_id, exc)
+        if store.list_farm_days(farm_id):
+            return rebuild_score_from_days(
+                store,
+                farm_id,
+                name=name,
+                previous=previous,
+                error=str(exc),
+                now=clock,
+            )
         row = previous or store.empty_score(farm_id, name)
         row["name"] = name
         row["error"] = str(exc)
@@ -339,6 +389,7 @@ def sync_all_farms(
 ) -> dict[str, Any]:
     clock = now or datetime.now(timezone.utc)
     ensure_default_config(store, now=clock)
+    recover_daily_history(store, now=clock)
     previous_cache = store.get_leaderboard_cache() or {}
     previous_leader = previous_cache.get("leader_farm_id")
     finalize = is_finalize_clock(clock)

@@ -347,7 +347,14 @@ def test_admin_put_config_rescores_from_snapshot(aws_env, monkeypatch):
         window_start=datetime(2026, 8, 1, tzinfo=timezone.utc),
         window_end=datetime(2026, 8, 20, tzinfo=timezone.utc),
     )
-    apply_computed_score(store, farm_id="99", name="rmr", computed=computed)
+    apply_computed_score(
+        store,
+        farm_id="99",
+        name="rmr",
+        computed=computed,
+        now=datetime(2026, 8, 16, tzinfo=timezone.utc),
+        grid=grid,
+    )
     store.write_snapshot("99", {"farm_id": "99", "grid": grid, "score": computed.to_dict()})
 
     updated = app.lambda_handler(

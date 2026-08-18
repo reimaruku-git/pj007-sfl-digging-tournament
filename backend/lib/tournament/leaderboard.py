@@ -151,6 +151,7 @@ def public_entry(row: dict[str, Any]) -> dict[str, Any]:
         "last_updated_at": row.get("last_updated_at"),
         "status": row.get("status") or STATUS_NOT_STARTED,
         "invalidated": bool(row.get("invalidated")),
+        "days": [item for item in (row.get("days") or []) if isinstance(item, dict)],
     }
 
 

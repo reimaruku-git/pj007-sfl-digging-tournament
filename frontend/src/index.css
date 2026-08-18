@@ -1076,6 +1076,50 @@ tr.is-you,
   grid-template-columns: 1fr 1fr;
 }
 
+.farm-days {
+  margin-top: 20px;
+}
+
+.farm-days h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.farm-days ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.farm-days li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-2);
+}
+
+.farm-days li > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.farm-day-score {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
 .share-row {
   display: flex;
   align-items: center;

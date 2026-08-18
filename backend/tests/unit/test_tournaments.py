@@ -183,7 +183,7 @@ def test_rollover_archives_then_promotes_next(aws_env):
         window_start=start_live,
         window_end=datetime(2026, 8, 8, tzinfo=timezone.utc),
     )
-    apply_computed_score(store, farm_id="99", name="rmr", computed=computed)
+    apply_computed_score(store, farm_id="99", name="rmr", computed=computed, now=start_live)
     store.write_snapshot("99", {"grid": [{"items": {"Otter Pebble": 3}, "tool": "Sand Shovel"}]})
     refresh_leaderboard(store)
 
@@ -350,7 +350,9 @@ def test_admin_http_create_and_cancel(aws_env, monkeypatch):
             "rawPath": "/tournaments",
             "requestContext": {"http": {"method": "POST"}, "stage": "dev"},
             "headers": {},
-            "body": json.dumps({"name": "nope", "start_at": "2026-10-01T00:00:00+00:00", "duration_days": 7}),
+            "body": json.dumps(
+                {"name": "nope", "start_at": "2026-10-01T00:00:00+00:00", "duration_days": 7}
+            ),
             "pathParameters": {},
         },
         None,
