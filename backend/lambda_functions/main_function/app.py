@@ -38,6 +38,7 @@ from tournament.membership import (
     approve_join,
     drop_farm_members,
     enrolled_farm_ids,
+    farm_live_tournament_ids,
     parse_farm_ids,
     parse_tournament_ids,
     public_member,
@@ -510,6 +511,7 @@ def handle_admin_delete_farm(event: dict[str, Any]) -> dict[str, Any]:
         return create_error_response(404, "farm not found", "NOT_FOUND")
     store = _get_store()
     store.delete_score(farm_id)
+    store.drop_farm_event_scores(farm_id)
     drop_farm_members(store, farm_id)
     _refresh_public_board(store)
     return create_response(200, {"farms": saved["farms"], "count": len(saved["farms"])})
@@ -616,6 +618,11 @@ def handle_admin_refresh_farm(event: dict[str, Any]) -> dict[str, Any]:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
     if not _get_registry().get(farm_id):
         return create_error_response(404, "farm is not tracked", "NOT_FOUND")
+    store = _get_store()
+    live = [item for item in store.list_tournament_items() if item.get("status") == "active"]
+    seeded_live = [item for item in live if item.get("roster_seeded")]
+    if seeded_live and not farm_live_tournament_ids(store, farm_id):
+        return create_error_response(404, "farm is not enrolled in a live event", "NOT_FOUND")
     if not FARM_SYNC_FUNCTION:
         return create_error_response(500, "sync function is not configured", "CONFIG_ERROR")
     if not _kick_farm_sync("admin-refresh", farm_id):

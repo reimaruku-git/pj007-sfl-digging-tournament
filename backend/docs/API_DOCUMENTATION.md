@@ -42,7 +42,9 @@ is `scheduled`.
 
 ### `GET /leaderboard`
 
-Cached snapshot. Frontend never calls the SFL API.
+Cached snapshot of the **featured** live event (soonest `end_at`).
+Each live event's own board is `GET /tournaments/{id}`. Frontend never
+calls the SFL API.
 
 ```json
 {
@@ -521,9 +523,9 @@ Same list shape as `GET /tournaments`.
 
 ### `POST /admin/tournaments`
 
-Create a named event. `201` `{ "tournament": { … } }`. Windows may not
-overlap a scheduled or live event. Minimum 1 day. `name` is required
-(1–80 chars). `end_at` or `duration_days` is required.
+Create a named event. `201` `{ "tournament": { … } }`. Windows may
+overlap; several events can be `active` at once. Minimum 1 day. `name`
+is required (1–80 chars). `end_at` or `duration_days` is required.
 
 ```json
 {
@@ -534,8 +536,10 @@ overlap a scheduled or live event. Minimum 1 day. `name` is required
 }
 ```
 
-A window that has already started becomes `active` if nothing else is
-live. Otherwise it is `scheduled`.
+A window that contains `now` becomes `active` even if another event is
+already live. A future start is `scheduled`. `GET /config` and
+`GET /leaderboard` follow the soonest-ending live event. Each live
+event has its own board at `GET /tournaments/{id}`.
 
 ### `PUT /admin/tournaments/{tournament_id}`
 
@@ -545,9 +549,9 @@ prize. Changing the live window re-scores farms from snapshots. Ended:
 
 ### `DELETE /admin/tournaments/{tournament_id}`
 
-Cancel a scheduled or live event. Ended → `409`. Deleting the live
-event clears the current window; the catalog stays empty until an
-admin creates another.
+Cancel a scheduled or live event. Ended → `409`. Deleting one live
+event leaves the others. The featured window (`GET /config`) moves to
+the soonest-ending remaining live event, or clears if none remain.
 
 ```json
 { "ok": true }

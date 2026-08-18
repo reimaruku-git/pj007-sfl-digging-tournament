@@ -86,7 +86,7 @@ Browser  ──public──►  HTTP API  ──►  Main Lambda (router)
                           ├── S3: config/tracked-farms.json + snapshots/
                           └── SFL Community API (server-side, rate-limited)
 
-EventBridge (14/16/18/20/23 UTC) ──► FarmSync Lambda (full sweep or one farm)
+EventBridge (14/16/18/20/23 UTC) ──► FarmSync Lambda (live enrollments only)
 Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke FarmSync
 HTTP never calls the SFL Community API.
 ```
@@ -96,7 +96,8 @@ HTTP never calls the SFL Community API.
 | Config table | `pj007-dev-digging-tournament-config` (`pk`) |
 | Scores table | `pj007-dev-digging-tournament-scores` (`farm_id`) |
 | Submissions | `pj007-dev-digging-tournament-submissions` (`farm_id`) |
-| Leaderboard cache | config table item `pk=LEADERBOARD` |
+| Leaderboard cache | config table `pk=LEADERBOARD` (featured) and `LEADERBOARD#{id}` |
+| Event scores | config table `pk=SCORE#{tournament_id}#{farm_id}` |
 | Farm registry | `s3://pj007-dev-digging-tournament/config/tracked-farms.json` |
 | Frontend origin | bucket prefix `frontend/` (CloudFront OriginPath) |
 | Snapshots | `s3://…/snapshots/` |
@@ -200,8 +201,9 @@ Canonical: `backend/lib/tournament/scoring.py` +
   23:00 is the day’s final sync. Admin `POST /admin/sync` is on-demand.
 - At 23:00 UTC (and later that UTC day): tiles with `dugAt` after 23:00
   are not counted. Completers keep their 3rd-OP score. Incompletes get
-  `max(highest completed 3rd-OP, 30) + 5 × (3 − otter_count)`.
+  `max(highest completed 3rd-OP among that event's roster today, 30) + 5 × (3 − otter_count)`.
   No completers → floor 30. Mid-day syncs do **not** assign that penalty.
+  The 23:00 floor is per event; overlapping boards do not share it.
 - Lower score ranks higher.
 - Public join on an **active** event closes at **22:30 UTC on that
   event's first UTC day** (30 minutes before the 23:00 recording).
@@ -212,12 +214,17 @@ Canonical: `backend/lib/tournament/scoring.py` +
   or start + `duration_days`. Empty catalog is valid — do not invent a
   default Active window. Admin can create, edit (including live duration),
   and delete scheduled and live events.
-  One live event; others are scheduled or ended. Ended events freeze to
-  S3 `archives/{id}/` (meta + standings + farm snapshots). Public
-  `GET /tournaments` lists upcoming, live, and past. A scheduled or live
-  public board lists only farms enrolled in that event that are still
-  tracked and **active**. `DELETE /admin/farms/{id}` also deletes that
-  farm’s score row and every membership.
+  Windows may overlap; several events can be live at once. FarmSync
+  fetches a farm at most once, and only if it is enrolled in at least
+  one **active** event and still tracked + `active`. The same UTC-day
+  grid can count on two boards. Each event stores `SCORE#{id}#{farm}`
+  and `LEADERBOARD#{id}` on the config table. `GET /config` and
+  `GET /leaderboard` follow the soonest-ending live event. Ended events
+  freeze to S3 `archives/{id}/` (meta + standings + farm snapshots).
+  Public `GET /tournaments` lists upcoming, live, and past. A scheduled
+  or live public board lists only farms enrolled in that event that are
+  still tracked and **active**. `DELETE /admin/farms/{id}` also deletes
+  that farm’s score row, event scores, and every membership.
 - `PUT /admin/config` re-scores farms from S3 snapshots against the new
   window, then kicks FarmSync for farms that have no snapshot. Do not only
   refresh the cached board.

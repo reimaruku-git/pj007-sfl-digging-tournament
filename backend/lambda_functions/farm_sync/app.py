@@ -1,7 +1,8 @@
 """Scheduled / on-demand farm sync.
 
-Reads Farm IDs from the S3 JSON registry, walks them with a 10–15s delay
-between Community API calls, writes scores + the leaderboard cache.
+Walks farms that are enrolled in at least one live event (and still
+active in the S3 registry), 10–15s apart, writes shared day grids plus
+per-event scores and leaderboard caches.
 """
 
 from __future__ import annotations
@@ -16,7 +17,14 @@ from tournament.catalog import rollover
 from tournament.farms import FarmRegistry
 from tournament.sfl_client import RateLimitedSFLClient
 from tournament.store import Store
-from tournament.sync import drop_untracked_scores, parse_iso, refresh_leaderboard, sync_all_farms, sync_one_farm
+from tournament.membership import farm_live_tournament_ids
+from tournament.sync import (
+    drop_untracked_scores,
+    parse_iso,
+    refresh_leaderboard,
+    sync_all_farms,
+    sync_one_farm,
+)
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -69,6 +77,11 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         if not farm:
             logger.info("farm_sync skip: farm %s is not tracked", farm_id)
             return {"synced": 0, "failures": 0, "skipped": "not_tracked", "farm_id": farm_id}
+        live = [item for item in store.list_tournament_items() if item.get("status") == "active"]
+        seeded_live = [item for item in live if item.get("roster_seeded")]
+        if seeded_live and not farm_live_tournament_ids(store, farm_id):
+            logger.info("farm_sync skip: farm %s is not enrolled in a live event", farm_id)
+            return {"synced": 0, "failures": 0, "skipped": "not_enrolled", "farm_id": farm_id}
         row = sync_one_farm(store, client, farm, now=clock, finalize=False)
         refresh_leaderboard(store, registry=registry)
         failed = bool(row.get("error"))

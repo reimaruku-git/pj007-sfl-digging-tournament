@@ -94,6 +94,42 @@ def enrolled_farm_ids(store: Store, tournament_id: str) -> set[str]:
     }
 
 
+def live_enrolled_farm_ids(store: Store) -> set[str]:
+    """Farms enrolled in at least one currently active event."""
+    due: set[str] = set()
+    for row in store.list_tournament_items():
+        if row.get("status") != STATUS_ACTIVE:
+            continue
+        tid = str(row.get("tournament_id") or "").strip()
+        if tid:
+            due.update(enrolled_farm_ids(store, tid))
+    due.discard("")
+    return due
+
+
+def farm_live_tournament_ids(store: Store, farm_id: str) -> list[str]:
+    wanted = str(farm_id or "").strip()
+    if not wanted:
+        return []
+    ids: list[str] = []
+    for row in store.list_tournament_items():
+        if row.get("status") != STATUS_ACTIVE:
+            continue
+        tid = str(row.get("tournament_id") or "").strip()
+        if not tid:
+            continue
+        member = store.get_member(tid, wanted)
+        if member and member.get("status") == STATUS_ENROLLED:
+            ids.append(tid)
+    return ids
+
+
+def farms_due_for_sync(store: Store, registry: FarmRegistry) -> list[dict[str, Any]]:
+    """Active tracked farms enrolled in at least one live event."""
+    due = live_enrolled_farm_ids(store)
+    return [farm for farm in registry.list_farms(active_only=True) if farm["farm_id"] in due]
+
+
 def utc_clock(now: datetime | None = None) -> datetime:
     clock = now or datetime.now(timezone.utc)
     if clock.tzinfo is None:

@@ -19,7 +19,12 @@ from tournament.history import (
     days_in_window,
 )
 from tournament.leaderboard import build_leaderboard
-from tournament.membership import enrolled_farm_ids, seed_legacy_roster
+from tournament.membership import (
+    enrolled_farm_ids,
+    farm_live_tournament_ids,
+    farms_due_for_sync,
+    seed_legacy_roster,
+)
 from tournament.scoring import (
     extract_grid,
     extract_streak,
@@ -115,15 +120,96 @@ def drop_untracked_scores(store: Store, registry) -> list[str]:
     return dropped
 
 
+def _event_board_rows(
+    store: Store,
+    event: dict[str, Any],
+    *,
+    registry=None,
+    now: datetime | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    tid = str(event.get("tournament_id") or "").strip()
+    days = int(event.get("duration_days") or 0) or configured_duration_days(event)
+    window_start = parse_iso(event.get("start_at"))
+    window_end = parse_iso(event.get("end_at"))
+    enrolled = enrolled_farm_ids(store, tid) if event.get("roster_seeded") else None
+    tracked = registry.farm_ids(active_only=True) if registry is not None else None
+    scores = {str(row.get("farm_id") or ""): row for row in store.list_event_scores(tid)}
+    if not scores:
+        scores = {str(row.get("farm_id") or ""): row for row in store.list_scores()}
+    farm_ids = set(enrolled) if enrolled is not None else set(scores)
+    if tracked is not None:
+        farm_ids = {fid for fid in farm_ids if fid in tracked}
+    farm_ids.discard("")
+    rows: list[dict[str, Any]] = []
+    for farm_id in farm_ids:
+        row = scores.get(farm_id)
+        if row is None:
+            from tournament.history import rebuild_score_from_days
+
+            name = ""
+            if registry is not None:
+                tracked_row = registry.get(farm_id) or {}
+                name = str(tracked_row.get("name") or "")
+            row = rebuild_score_from_days(
+                store,
+                farm_id,
+                name=name,
+                now=now,
+                window_start=window_start,
+                window_end=window_end,
+                tournament_id=tid,
+                allow_stored_fallback=False,
+                persist_featured=False,
+            )
+        rows.append(row)
+    return rows, days
+
+
 def refresh_leaderboard(
-    store: Store, *, now: datetime | None = None, registry=None
+    store: Store,
+    *,
+    now: datetime | None = None,
+    registry=None,
+    tournament_id: str | None = None,
 ) -> dict[str, Any]:
     recover_daily_history(store, now=now)
+    if registry is not None:
+        seed_legacy_roster(store, registry)
     config = store.get_config()
+    wanted = str(tournament_id or "").strip()
+    live = [item for item in store.list_tournament_items() if item.get("status") == "active"]
+    if wanted:
+        event = store.get_tournament(wanted)
+        if event:
+            rows, days = _event_board_rows(store, event, registry=registry, now=now)
+            board = build_leaderboard(rows, tournament_days=days)
+            stored = store.put_event_leaderboard(wanted, board)
+            featured_id = str(config.get("current_tournament_id") or "").strip()
+            if wanted == featured_id:
+                store.put_leaderboard_cache(board)
+            return stored
+
+    if live:
+        featured_board: dict[str, Any] | None = None
+        featured_id = str(config.get("current_tournament_id") or "").strip()
+        if not featured_id and live:
+            featured_id = str(
+                sorted(live, key=lambda item: str(item.get("end_at") or ""))[0].get("tournament_id")
+                or ""
+            )
+        for event in live:
+            tid = str(event.get("tournament_id") or "").strip()
+            rows, days = _event_board_rows(store, event, registry=registry, now=now)
+            board = build_leaderboard(rows, tournament_days=days)
+            store.put_event_leaderboard(tid, board)
+            if tid == featured_id:
+                featured_board = store.put_leaderboard_cache(board)
+        if featured_board is not None:
+            return featured_board
+
     days = configured_duration_days(config)
     rows = store.list_scores()
     if registry is not None:
-        seed_legacy_roster(store, registry)
         allowed = registry.farm_ids(active_only=True)
         rows = [row for row in rows if str(row.get("farm_id") or "") in allowed]
     tid = str(config.get("current_tournament_id") or "").strip()
@@ -132,6 +218,8 @@ def refresh_leaderboard(
         enrolled = enrolled_farm_ids(store, tid)
         rows = [row for row in rows if str(row.get("farm_id") or "") in enrolled]
     board = build_leaderboard(rows, tournament_days=days)
+    if tid:
+        store.put_event_leaderboard(tid, board)
     cached = store.put_leaderboard_cache(board)
     return cached
 
@@ -267,6 +355,34 @@ def apply_day_finalize(store: Store, *, now: datetime | None = None) -> dict[str
     return rescore_from_snapshots(store, now=now, finalize=True)
 
 
+def apply_live_event_scores(
+    store: Store,
+    *,
+    farm_id: str,
+    name: str,
+    now: datetime | None = None,
+    error: str | None = None,
+) -> None:
+    clock = now or datetime.now(timezone.utc)
+    featured_id = str(store.get_config().get("current_tournament_id") or "").strip()
+    for tid in farm_live_tournament_ids(store, farm_id):
+        event = store.get_tournament(tid)
+        if not event:
+            continue
+        rebuild_score_from_days(
+            store,
+            farm_id,
+            name=name,
+            error=error,
+            now=clock,
+            window_start=parse_iso(event.get("start_at")),
+            window_end=parse_iso(event.get("end_at")),
+            tournament_id=tid,
+            allow_stored_fallback=tid == featured_id,
+            persist_featured=tid == featured_id,
+        )
+
+
 def apply_computed_score(
     store: Store,
     *,
@@ -280,7 +396,7 @@ def apply_computed_score(
 ) -> dict[str, Any]:
     clock = now or datetime.now(timezone.utc)
     prior = previous or store.get_score(farm_id) or {}
-    return write_today_from_computed(
+    row = write_today_from_computed(
         store,
         farm_id=farm_id,
         name=name,
@@ -290,6 +406,8 @@ def apply_computed_score(
         grid=grid,
         error=error,
     )
+    apply_live_event_scores(store, farm_id=farm_id, name=name, now=clock, error=error)
+    return row
 
 
 def sync_one_farm(
@@ -328,7 +446,7 @@ def sync_one_farm(
                 "score": computed.to_dict(),
             },
         )
-        return apply_computed_score(
+        row = apply_computed_score(
             store,
             farm_id=farm_id,
             name=name,
@@ -337,10 +455,11 @@ def sync_one_farm(
             now=clock,
             grid=grid,
         )
+        return row
     except SFLApiError as exc:
         logger.error("Failed to fetch farm %s: %s", farm_id, exc)
         if store.list_farm_days(farm_id):
-            return rebuild_score_from_days(
+            rebuilt = rebuild_score_from_days(
                 store,
                 farm_id,
                 name=name,
@@ -348,6 +467,8 @@ def sync_one_farm(
                 error=str(exc),
                 now=clock,
             )
+            apply_live_event_scores(store, farm_id=farm_id, name=name, now=clock, error=str(exc))
+            return rebuilt
         row = previous or store.empty_score(farm_id, name)
         row["name"] = name
         row["error"] = str(exc)
@@ -394,7 +515,16 @@ def sync_all_farms(
     previous_leader = previous_cache.get("leader_farm_id")
     finalize = is_finalize_clock(clock)
 
-    farms = registry.list_farms(active_only=True)
+    seed_legacy_roster(store, registry)
+    catalog = store.list_tournament_items()
+    gated = any(
+        item.get("roster_seeded") and item.get("status") in {"active", "scheduled"}
+        for item in catalog
+    )
+    if gated:
+        farms = farms_due_for_sync(store, registry)
+    else:
+        farms = registry.list_farms(active_only=True)
     results: list[dict[str, Any]] = []
     failures = 0
     for farm in farms:

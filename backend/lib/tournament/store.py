@@ -22,6 +22,7 @@ TOURNAMENT_INDEX_PK = "TOURNAMENT_INDEX"
 TOURNAMENT_PK_PREFIX = "TOURNAMENT#"
 MEMBER_PK_PREFIX = "MEMBER#"
 IDENT_PK_PREFIX = "IDENT#"
+SCORE_PK_PREFIX = "SCORE#"
 DEFAULT_PRIZE = "30"
 MIN_TOURNAMENT_DAYS = 1
 NAME_MAX_LEN = 80
@@ -302,6 +303,113 @@ class Store:
         response = self.config_table.get_item(Key={"pk": CACHE_PK})
         item = response.get("Item")
         return _from_ddb(item) if item else None
+
+    def event_leaderboard_pk(self, tournament_id: str) -> str:
+        return f"{CACHE_PK}#{str(tournament_id).strip()}"
+
+    def put_event_leaderboard(self, tournament_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        tid = str(tournament_id or "").strip()
+        if not tid:
+            raise ValueError("tournament_id is required")
+        item = dict(payload)
+        item["pk"] = self.event_leaderboard_pk(tid)
+        item["tournament_id"] = tid
+        item["generated_at"] = utc_now_iso()
+        self.config_table.put_item(Item=_to_ddb(item))
+        return item
+
+    def get_event_leaderboard(self, tournament_id: str) -> dict[str, Any] | None:
+        tid = str(tournament_id or "").strip()
+        if not tid:
+            return None
+        response = self.config_table.get_item(Key={"pk": self.event_leaderboard_pk(tid)})
+        item = response.get("Item")
+        return _from_ddb(item) if item else None
+
+    def delete_event_leaderboard(self, tournament_id: str) -> None:
+        tid = str(tournament_id or "").strip()
+        if not tid:
+            return
+        self.config_table.delete_item(Key={"pk": self.event_leaderboard_pk(tid)})
+
+    def event_score_pk(self, tournament_id: str, farm_id: str) -> str:
+        return f"{SCORE_PK_PREFIX}{str(tournament_id).strip()}#{str(farm_id).strip()}"
+
+    def put_event_score(self, tournament_id: str, score: dict[str, Any]) -> dict[str, Any]:
+        tid = str(tournament_id or "").strip()
+        farm_id = str(score.get("farm_id") or "").strip()
+        if not tid or not farm_id:
+            raise ValueError("tournament_id and farm_id are required")
+        item = dict(score)
+        item["farm_id"] = farm_id
+        item["tournament_id"] = tid
+        item["pk"] = self.event_score_pk(tid, farm_id)
+        item["last_updated_at"] = utc_now_iso()
+        self.config_table.put_item(Item=_to_ddb(item))
+        return item
+
+    def get_event_score(self, tournament_id: str, farm_id: str) -> dict[str, Any] | None:
+        response = self.config_table.get_item(
+            Key={"pk": self.event_score_pk(str(tournament_id), str(farm_id))}
+        )
+        item = response.get("Item")
+        return _from_ddb(item) if item else None
+
+    def delete_event_score(self, tournament_id: str, farm_id: str) -> None:
+        self.config_table.delete_item(
+            Key={"pk": self.event_score_pk(str(tournament_id), str(farm_id))}
+        )
+
+    def list_event_scores(self, tournament_id: str) -> list[dict[str, Any]]:
+        prefix = f"{SCORE_PK_PREFIX}{str(tournament_id).strip()}#"
+        items: list[dict[str, Any]] = []
+        scan_kwargs: dict[str, Any] = {
+            "FilterExpression": "begins_with(pk, :prefix)",
+            "ExpressionAttributeValues": {":prefix": prefix},
+        }
+        while True:
+            response = self.config_table.scan(**scan_kwargs)
+            items.extend(_from_ddb(item) for item in response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+        return items
+
+    def drop_event_scores(self, tournament_id: str) -> int:
+        removed = 0
+        for row in self.list_event_scores(tournament_id):
+            farm_id = str(row.get("farm_id") or "").strip()
+            if farm_id:
+                self.delete_event_score(tournament_id, farm_id)
+                removed += 1
+        return removed
+
+    def drop_farm_event_scores(self, farm_id: str) -> int:
+        wanted = str(farm_id or "").strip()
+        if not wanted:
+            return 0
+        items: list[dict[str, Any]] = []
+        scan_kwargs: dict[str, Any] = {
+            "FilterExpression": "begins_with(pk, :prefix)",
+            "ExpressionAttributeValues": {":prefix": SCORE_PK_PREFIX},
+        }
+        while True:
+            response = self.config_table.scan(**scan_kwargs)
+            items.extend(_from_ddb(item) for item in response.get("Items", []))
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            scan_kwargs["ExclusiveStartKey"] = last_key
+        removed = 0
+        for row in items:
+            if str(row.get("farm_id") or "") != wanted:
+                continue
+            tid = str(row.get("tournament_id") or "")
+            if tid:
+                self.delete_event_score(tid, wanted)
+                removed += 1
+        return removed
 
     # ------------------------------------------------------------------
     # Raw snapshots (S3)

@@ -1,10 +1,12 @@
 from datetime import datetime, timedelta, timezone
 
+from tournament.catalog import create_tournament, delete_tournament, rollover
 from tournament.farms import FarmRegistry
+from tournament.membership import add_farms_to_tournament
 from tournament.sfl_client import SFLApiError
 from tournament.store import Store
 from tournament.scoring import score_grid
-from tournament.history import put_farm_day
+from tournament.history import day_record_from_computed, put_farm_day
 from tournament.sync import (
     apply_computed_score,
     apply_day_finalize,
@@ -444,3 +446,226 @@ def test_finalize_penalizes_today_only(aws_env):
     assert row["digs_to_third_op"] == 43
     assert row["score"] == 21.5
     assert row["score_today"] == 40
+
+
+def test_sync_skips_farms_not_enrolled_in_a_live_event(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    clock = NOW
+    week = create_tournament(
+        store,
+        {
+            "name": "Week cup",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    registry.upsert("1", name="in")
+    registry.upsert("2", name="out")
+    add_farms_to_tournament(store, registry, tournament_id=week["tournament_id"], farm_ids=["1"])
+    client = FakeClient(
+        {
+            "1": _grid_payload([shovel({"Otter Pebble": 1})]),
+            "2": _grid_payload([shovel({"Otter Pebble": 1})]),
+        }
+    )
+    result = sync_all_farms(store, registry, client, now=clock)
+    assert result["synced"] == 1
+    assert client.called == ["1"]
+
+
+def test_scheduled_only_enrollment_is_not_fetched(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    clock = NOW
+    later = create_tournament(
+        store,
+        {
+            "name": "Later",
+            "start_at": "2026-09-01T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    registry.upsert("1", name="soon")
+    add_farms_to_tournament(store, registry, tournament_id=later["tournament_id"], farm_ids=["1"])
+    client = FakeClient({"1": _grid_payload([shovel()])})
+    result = sync_all_farms(store, registry, client, now=clock)
+    assert result["synced"] == 0
+    assert client.called == []
+
+
+def test_overlapping_events_score_the_same_farm_separately(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    clock = datetime(2026, 8, 15, 16, tzinfo=timezone.utc)
+    week = create_tournament(
+        store,
+        {
+            "name": "Week",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    month = create_tournament(
+        store,
+        {
+            "name": "Month",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "duration_days": 30,
+            "prize_amount": "45",
+        },
+        now=clock,
+    )
+    registry.upsert("99", name="rmr")
+    add_farms_to_tournament(store, registry, tournament_id=week["tournament_id"], farm_ids=["99"])
+    add_farms_to_tournament(store, registry, tournament_id=month["tournament_id"], farm_ids=["99"])
+    day1 = datetime(2026, 8, 2, 16, tzinfo=timezone.utc)
+    early = [
+        shovel({"Sand": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(day1)),
+    ]
+    put_farm_day(
+        store,
+        "99",
+        "2026-08-02",
+        day_record_from_computed("2026-08-02", score_grid(early, now=day1), grid=early),
+    )
+    today = [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(clock)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(clock)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(clock)),
+    ]
+    client = FakeClient({"99": _grid_payload(today)})
+    result = sync_all_farms(store, registry, client, now=clock)
+    assert result["synced"] == 1
+    assert client.called == ["99"]
+    week_row = store.get_event_score(week["tournament_id"], "99")
+    month_row = store.get_event_score(month["tournament_id"], "99")
+    assert week_row["digs_to_third_op"] == 3
+    assert month_row["digs_to_third_op"] == 7
+    week_board = store.get_event_leaderboard(week["tournament_id"])
+    month_board = store.get_event_leaderboard(month["tournament_id"])
+    assert week_board["entries"][0]["digs_to_third_op"] == 3
+    assert month_board["entries"][0]["digs_to_third_op"] == 7
+
+
+def test_finalize_floor_is_per_event_roster(aws_env):
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    clock = datetime(2026, 8, 14, 16, tzinfo=timezone.utc)
+    event_a = create_tournament(
+        store,
+        {
+            "name": "A",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    event_b = create_tournament(
+        store,
+        {
+            "name": "B",
+            "start_at": "2026-08-10T00:00:00+00:00",
+            "duration_days": 14,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    registry.upsert("done", name="done")
+    registry.upsert("short", name="short")
+    add_farms_to_tournament(
+        store, registry, tournament_id=event_a["tournament_id"], farm_ids=["short"]
+    )
+    add_farms_to_tournament(
+        store,
+        registry,
+        tournament_id=event_b["tournament_id"],
+        farm_ids=["done", "short"],
+    )
+    before = datetime(2026, 8, 14, 20, tzinfo=timezone.utc)
+    done_grid = [shovel({"Sand": 1}, dug_at=_ms(before)) for _ in range(35)] + [
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+        shovel({"Otter Pebble": 1}, dug_at=_ms(before)),
+    ]
+    short_grid = [shovel({"Otter Pebble": 1}, dug_at=_ms(before))]
+    client = FakeClient({"done": _grid_payload(done_grid), "short": _grid_payload(short_grid)})
+    sync_all_farms(store, registry, client, now=datetime(2026, 8, 14, 23, tzinfo=timezone.utc))
+    a_short = store.get_event_score(event_a["tournament_id"], "short")
+    b_short = store.get_event_score(event_b["tournament_id"], "short")
+    # A has no completer → floor 30 + 5*2 missing = 40
+    assert a_short["digs_to_third_op"] == 40
+    # B's completer finished in 38 → max(38, 30)+10 = 48
+    assert b_short["digs_to_third_op"] == 48
+    assert store.get_event_score(event_b["tournament_id"], "done")["digs_to_third_op"] == 38
+    assert store.get_event_score(event_a["tournament_id"], "done") is None
+
+
+def test_deleting_one_live_event_leaves_the_other(aws_env):
+    store = _store(aws_env)
+    clock = NOW
+    week = create_tournament(
+        store,
+        {
+            "name": "Week",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    month = create_tournament(
+        store,
+        {
+            "name": "Month",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "duration_days": 30,
+            "prize_amount": "45",
+        },
+        now=clock,
+    )
+    delete_tournament(store, week["tournament_id"], now=clock)
+    assert store.get_tournament(week["tournament_id"]) is None
+    assert store.get_tournament(month["tournament_id"])["status"] == "active"
+    assert store.get_config()["current_tournament_id"] == month["tournament_id"]
+
+
+def test_rollover_archives_ended_and_keeps_other_live(aws_env):
+    store = _store(aws_env)
+    early = datetime(2026, 8, 10, 12, tzinfo=timezone.utc)
+    sprint = create_tournament(
+        store,
+        {
+            "name": "Sprint",
+            "start_at": "2026-08-10T00:00:00+00:00",
+            "duration_days": 1,
+            "prize_amount": "10",
+        },
+        now=early,
+    )
+    month = create_tournament(
+        store,
+        {
+            "name": "Month",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "duration_days": 30,
+            "prize_amount": "45",
+        },
+        now=early,
+    )
+    later = datetime(2026, 8, 11, 12, tzinfo=timezone.utc)
+    result = rollover(store, now=later)
+    assert result["archived"] is True
+    assert store.get_tournament(sprint["tournament_id"])["status"] == "ended"
+    assert store.get_tournament(month["tournament_id"])["status"] == "active"
+    assert store.get_config()["current_tournament_id"] == month["tournament_id"]

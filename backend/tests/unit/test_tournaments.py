@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tournament.catalog import (
-    CatalogError,
     create_tournament,
     delete_tournament,
     list_public_tournaments,
@@ -29,10 +28,39 @@ def _store(aws_env) -> Store:
     )
 
 
-def test_create_scheduled_and_reject_overlap(aws_env):
+def test_create_overlapping_and_two_live(aws_env):
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
-    created = create_tournament(
+    week = create_tournament(
+        store,
+        {
+            "name": "Week cup",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    month = create_tournament(
+        store,
+        {
+            "name": "Month cup",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "duration_days": 30,
+            "prize_amount": "45",
+        },
+        now=clock,
+    )
+    assert week["status"] == "active"
+    assert month["status"] == "active"
+    ids = set(store.list_tournament_ids())
+    assert week["tournament_id"] in ids
+    assert month["tournament_id"] in ids
+    featured = store.get_config()["current_tournament_id"]
+    # Soonest-ending live event is the 7-day cup.
+    assert featured == week["tournament_id"]
+
+    later = create_tournament(
         store,
         {
             "name": "September cup",
@@ -42,24 +70,8 @@ def test_create_scheduled_and_reject_overlap(aws_env):
         },
         now=clock,
     )
-    assert created["status"] == "scheduled"
-    assert created["name"] == "September cup"
-    assert created["prize_amount"] == "45"
-    try:
-        create_tournament(
-            store,
-            {
-                "name": "clash",
-                "start_at": "2026-09-04T00:00:00+00:00",
-                "duration_days": 7,
-                "prize_amount": "30",
-            },
-            now=clock,
-        )
-    except CatalogError as exc:
-        assert exc.status == 409
-    else:
-        raise AssertionError("expected overlap conflict")
+    assert later["status"] == "scheduled"
+    assert later["name"] == "September cup"
 
 
 def test_one_day_tournament_is_allowed(aws_env):
