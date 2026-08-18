@@ -8,6 +8,7 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
+import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
 import { joinableTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
@@ -177,6 +178,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 : "No farms in this archive."}
             </p>
           )}
+          {data.entries.length > 0 && <Podium entries={data.entries} tournamentId={tournamentId} />}
           {data.entries.length > 0 && (
             <table className="board-table">
               <thead>

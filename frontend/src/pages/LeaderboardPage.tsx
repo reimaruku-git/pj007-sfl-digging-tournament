@@ -9,7 +9,6 @@ import {
 } from "../api/public";
 import { JoinTournamentList } from "../components/JoinTournamentList";
 import { Pebbles } from "../components/Pebbles";
-import { Podium } from "../components/Podium";
 import { SyncCountdown } from "../components/SyncCountdown";
 import {
   homeTourneyPreview,
@@ -57,7 +56,6 @@ export function LeaderboardPage() {
   });
 
   const featured = live[0];
-  const featuredEntries = boards[0]?.data?.entries ?? [];
   const followed = boards
     .flatMap((query) => query.data?.entries ?? [])
     .find((row) => row.farm_id === mine);
@@ -108,9 +106,9 @@ export function LeaderboardPage() {
               <span>Unfinished</span>
               <span>
                 Score = (worst finisher that day or 30, whichever is higher) + 5 for every missing
-                pebble. Missing 2nd and 1st pebbles become that score minus 1 and minus 2 unless
-                you already found them. This number is permanent and still goes into your average.
-                SO DIG!
+                pebble. Missing 2nd and 1st pebbles become that score minus 1 and minus 2 unless you
+                already found them. This number is permanent and still goes into your average. SO
+                DIG!
               </span>
             </li>
             <li>
@@ -139,8 +137,6 @@ export function LeaderboardPage() {
           />
         </div>
       </section>
-
-      {featuredEntries.length > 0 && <Podium entries={featuredEntries} />}
 
       {followed && (
         <Link to={`/farm/${followed.farm_id}`} className="you-banner">

@@ -210,6 +210,10 @@ describe("LeaderboardPage home", () => {
     expect(boards[0]?.textContent).toMatch(/Today/);
     expect(boards[0]?.textContent).toMatch(/Pebbles/);
     expect(page.textContent).not.toMatch(/Finished \/ tracked/);
+    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
+    expect(page.querySelector(".podium")).toBeNull();
+    expect(page.querySelector('[aria-label="Top three"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Top three/);
   });
 
   it("defaults to API rank, cycles avg/day three times, and isolates boards", async () => {

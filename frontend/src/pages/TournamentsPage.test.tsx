@@ -259,6 +259,48 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="back-link"]')?.textContent).toMatch(/Back to home/);
     expect(page.querySelector('[data-testid="back-link"]')?.getAttribute("href")).toBe("/");
     expect(page.textContent).not.toMatch(/All tournaments/);
+    const podium = page.querySelector('[data-testid="tournament-podium"]');
+    expect(podium).not.toBeNull();
+    expect(podium?.textContent).toMatch(/Ada/);
+    expect(podium?.textContent).toMatch(/Bea/);
+    expect(podium?.querySelector(".place-1")?.textContent).toMatch(/Ada/);
+    expect(podium?.querySelector(".place-2")?.textContent).toMatch(/Bea/);
+    expect(page.querySelector(".place-1")?.getAttribute("href")).toBe("/tournaments/live/farm/1");
+  });
+
+  it("shows each event's own podium from that event's standings", async () => {
+    const cupA = summary({ tournament_id: "cup-a", name: "Cup A", status: "active" });
+    const cupB = summary({ tournament_id: "cup-b", name: "Cup B", status: "active" });
+    fetchTournament.mockImplementation(async (id: string) => {
+      if (id === "cup-a") {
+        return archive(cupA, [
+          entry({ farm_id: "a1", rank: 1, score: 10, name: "AlphaLead", digs_to_third_op: 10 }),
+          entry({ farm_id: "a2", rank: 2, score: 12, name: "AlphaTwo", digs_to_third_op: 12 }),
+          entry({ farm_id: "a3", rank: 3, score: 14, name: "AlphaThree", digs_to_third_op: 14 }),
+        ]);
+      }
+      return archive(cupB, [
+        entry({ farm_id: "b1", rank: 1, score: 20, name: "BravoLead", digs_to_third_op: 20 }),
+        entry({ farm_id: "b2", rank: 2, score: 22, name: "BravoTwo", digs_to_third_op: 22 }),
+        entry({ farm_id: "b3", rank: 3, score: 24, name: "BravoThree", digs_to_third_op: 24 }),
+      ]);
+    });
+    const first = await renderAt("/tournaments/cup-a");
+    const podiumA = first.querySelector('[data-testid="tournament-podium"]');
+    expect(podiumA?.querySelector(".place-1")?.textContent).toMatch(/AlphaLead/);
+    expect(podiumA?.querySelector(".place-2")?.textContent).toMatch(/AlphaTwo/);
+    expect(podiumA?.querySelector(".place-3")?.textContent).toMatch(/AlphaThree/);
+    expect(podiumA?.textContent).not.toMatch(/BravoLead/);
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    const second = await renderAt("/tournaments/cup-b");
+    const podiumB = second.querySelector('[data-testid="tournament-podium"]');
+    expect(podiumB?.querySelector(".place-1")?.textContent).toMatch(/BravoLead/);
+    expect(podiumB?.querySelector(".place-2")?.textContent).toMatch(/BravoTwo/);
+    expect(podiumB?.querySelector(".place-3")?.textContent).toMatch(/BravoThree/);
+    expect(podiumB?.textContent).not.toMatch(/AlphaLead/);
   });
 
   it("hides the join button when accepts_joins is false", async () => {
