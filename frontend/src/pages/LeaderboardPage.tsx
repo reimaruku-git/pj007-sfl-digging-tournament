@@ -7,6 +7,7 @@ import {
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
+import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { JoinTournamentList } from "../components/JoinTournamentList";
 import { Pebbles } from "../components/Pebbles";
 import { SyncCountdown } from "../components/SyncCountdown";
@@ -229,15 +230,39 @@ function LiveBoard({
 }) {
   const rows = visibleBoardEntries(entries, sort, 10);
   const sortLabel = sort === "asc" ? " ↑" : sort === "desc" ? " ↓" : "";
+  const href = `/tournaments/${encodeURIComponent(tournament.tournament_id)}`;
   return (
     <section
       className="card table-wrap live-board"
       data-testid={`live-board-${tournament.tournament_id}`}
     >
-      <div className="kicker">{tournament.name || "Live board"}</div>
-      <p className="meta">
-        {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
-      </p>
+      <div className="live-board-head">
+        <Link
+          to={href}
+          state={{ from: "home" }}
+          className="live-board-open"
+          data-testid={`open-board-${tournament.tournament_id}`}
+          aria-label={`Open ${tournament.name || "tournament"}`}
+        >
+          <div className="kicker">
+            {tournament.name || "Live board"}
+            <span className="live-board-open-hint">Open →</span>
+          </div>
+          <p className="meta">
+            {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
+          </p>
+        </Link>
+        <DownloadBoardButton
+          name={tournament.name || "Live board"}
+          startAt={tournament.start_at}
+          endAt={tournament.end_at}
+          durationDays={tournament.duration_days}
+          prizeAmount={tournament.prize_amount}
+          entries={entries}
+          totalCount={tournament.count}
+          testId={`download-board-${tournament.tournament_id}`}
+        />
+      </div>
       {loading && (
         <div className="skeleton-stack" aria-hidden>
           <div className="skeleton" />

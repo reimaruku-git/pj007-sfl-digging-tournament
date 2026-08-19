@@ -7,6 +7,7 @@ import {
   submitFarm,
   type TournamentSummary,
 } from "../api/public";
+import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
@@ -124,14 +125,27 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
       {data && (
         <>
-          <div className="kicker">{data.config.name || "Tournament"}</div>
-          <p className="meta" data-testid="tournament-window">
-            {formatDateRangeUtc(
-              data.config.start_at,
-              data.config.end_at,
-              data.config.duration_days,
-            )}
-          </p>
+          <div className="tourney-detail-head">
+            <div>
+              <div className="kicker">{data.config.name || "Tournament"}</div>
+              <p className="meta" data-testid="tournament-window">
+                {formatDateRangeUtc(
+                  data.config.start_at,
+                  data.config.end_at,
+                  data.config.duration_days,
+                )}
+              </p>
+            </div>
+            <DownloadBoardButton
+              name={data.config.name || "Tournament"}
+              startAt={data.config.start_at}
+              endAt={data.config.end_at}
+              durationDays={data.config.duration_days}
+              prizeAmount={data.config.prize_amount}
+              entries={data.entries}
+              totalCount={data.count}
+            />
+          </div>
           <div className="tourney-facts">
             <div data-testid="tournament-prize">
               <span className="muted">Prize</span>

@@ -8,11 +8,16 @@ import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../
 const listTournaments = vi.fn();
 const fetchTournament = vi.fn();
 const submitFarm = vi.fn();
+const downloadTournamentBoardImage = vi.fn();
 
 vi.mock("../api/public", () => ({
   listTournaments: (...args: unknown[]) => listTournaments(...args),
   fetchTournament: (...args: unknown[]) => fetchTournament(...args),
   submitFarm: (...args: unknown[]) => submitFarm(...args),
+}));
+
+vi.mock("../lib/boardImage", () => ({
+  downloadTournamentBoardImage: (...args: unknown[]) => downloadTournamentBoardImage(...args),
 }));
 
 import { readFileSync } from "node:fs";
@@ -110,6 +115,8 @@ beforeEach(() => {
   listTournaments.mockReset();
   fetchTournament.mockReset();
   submitFarm.mockReset();
+  downloadTournamentBoardImage.mockReset();
+  downloadTournamentBoardImage.mockResolvedValue(undefined);
   writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
 });
 
@@ -266,6 +273,20 @@ describe("TournamentsPage", () => {
     expect(podium?.querySelector(".place-1")?.textContent).toMatch(/Ada/);
     expect(podium?.querySelector(".place-2")?.textContent).toMatch(/Bea/);
     expect(page.querySelector(".place-1")?.getAttribute("href")).toBe("/tournaments/live/farm/1");
+    const download = page.querySelector('[data-testid="download-board"]') as HTMLButtonElement;
+    expect(download).not.toBeNull();
+    expect(download.disabled).toBe(false);
+    await act(async () => {
+      download.click();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(downloadTournamentBoardImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Test Tournament 2",
+        prize_amount: "30",
+        total_count: 2,
+      }),
+    );
   });
 
   it("shows each event's own podium from that event's standings", async () => {
@@ -331,6 +352,8 @@ describe("TournamentsPage", () => {
     expect(back?.textContent).toMatch(/Back to tournaments/);
     expect(back?.getAttribute("href")).toBe("/tournaments");
     expect(page.textContent).not.toMatch(/← Home/);
+    const download = page.querySelector('[data-testid="download-board"]') as HTMLButtonElement;
+    expect(download.disabled).toBe(true);
   });
 
   it("joins from the detail using the stored farm id and sfl.world name", async () => {

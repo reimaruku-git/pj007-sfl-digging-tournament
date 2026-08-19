@@ -651,6 +651,71 @@ a.tourney-window:hover {
   margin-top: 16px;
 }
 
+.live-board-head,
+.tourney-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+a.live-board-open {
+  display: block;
+  min-width: 0;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 10px;
+}
+
+a.live-board-open .kicker {
+  margin-bottom: 0;
+}
+
+a.live-board-open .meta {
+  color: var(--mute);
+  margin-top: 6px;
+}
+
+a.live-board-open:hover .kicker,
+a.live-board-open:focus-visible .kicker {
+  color: var(--cream);
+}
+
+a.live-board-open:hover .live-board-open-hint,
+a.live-board-open:focus-visible .live-board-open-hint {
+  color: var(--gold);
+}
+
+.live-board-open-hint {
+  margin-left: 8px;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  color: var(--mute);
+  font-weight: 700;
+}
+
+.board-download-wrap {
+  flex: 0 0 auto;
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+
+.board-download {
+  font-size: 12px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.board-download-error {
+  color: var(--red);
+  font-size: 11px;
+  max-width: 16rem;
+  text-align: right;
+}
+
 .board-scroll {
   max-height: 380px;
   overflow: auto;
@@ -1442,5 +1507,10 @@ a.join-card:hover {
 
   .board-cards {
     display: block;
+  }
+
+  .live-board-head,
+  .tourney-detail-head {
+    flex-wrap: wrap;
   }
 }
