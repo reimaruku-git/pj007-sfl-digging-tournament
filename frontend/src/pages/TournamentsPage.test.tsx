@@ -215,6 +215,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).toMatch(/Creators Digging Tournament/);
     expect(page.querySelector('[data-testid="tourney-window-live"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="tourney-window-next"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="download-board"]')).toBeNull();
   });
 
   it("reads Ongoing green and Upcoming gray from the shipped stylesheet", () => {
@@ -276,6 +277,9 @@ describe("TournamentsPage", () => {
     const download = page.querySelector('[data-testid="download-board"]') as HTMLButtonElement;
     expect(download).not.toBeNull();
     expect(download.disabled).toBe(false);
+    expect(download.getAttribute("aria-label")).toBe("Download image");
+    expect(download.querySelector("svg")).not.toBeNull();
+    expect(download.textContent).not.toMatch(/Download image/);
     await act(async () => {
       download.click();
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -287,6 +291,10 @@ describe("TournamentsPage", () => {
         total_count: 2,
       }),
     );
+    const payload = downloadTournamentBoardImage.mock.calls[0]?.[0] as {
+      entries: LeaderboardEntry[];
+    };
+    expect(payload.entries.map((row) => row.name)).toEqual(["Ada", "Bea"]);
   });
 
   it("shows each event's own podium from that event's standings", async () => {

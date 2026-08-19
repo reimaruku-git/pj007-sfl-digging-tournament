@@ -683,19 +683,6 @@ a.live-board-open:focus-visible .kicker {
   color: var(--cream);
 }
 
-a.live-board-open:hover .live-board-open-hint,
-a.live-board-open:focus-visible .live-board-open-hint {
-  color: var(--gold);
-}
-
-.live-board-open-hint {
-  margin-left: 8px;
-  letter-spacing: 0.08em;
-  font-size: 10px;
-  color: var(--mute);
-  font-weight: 700;
-}
-
 .board-download-wrap {
   flex: 0 0 auto;
   display: grid;
@@ -704,9 +691,16 @@ a.live-board-open:focus-visible .live-board-open-hint {
 }
 
 .board-download {
-  font-size: 12px;
-  padding: 6px 12px;
-  white-space: nowrap;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+}
+
+.board-download svg {
+  display: block;
 }
 
 .board-download-error {

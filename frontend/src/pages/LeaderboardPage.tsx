@@ -7,7 +7,6 @@ import {
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
-import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { JoinTournamentList } from "../components/JoinTournamentList";
 import { Pebbles } from "../components/Pebbles";
 import { SyncCountdown } from "../components/SyncCountdown";
@@ -244,24 +243,11 @@ function LiveBoard({
           data-testid={`open-board-${tournament.tournament_id}`}
           aria-label={`Open ${tournament.name || "tournament"}`}
         >
-          <div className="kicker">
-            {tournament.name || "Live board"}
-            <span className="live-board-open-hint">Open →</span>
-          </div>
+          <div className="kicker">{tournament.name || "Live board"}</div>
           <p className="meta">
             {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
           </p>
         </Link>
-        <DownloadBoardButton
-          name={tournament.name || "Live board"}
-          startAt={tournament.start_at}
-          endAt={tournament.end_at}
-          durationDays={tournament.duration_days}
-          prizeAmount={tournament.prize_amount}
-          entries={entries}
-          totalCount={tournament.count}
-          testId={`download-board-${tournament.tournament_id}`}
-        />
       </div>
       {loading && (
         <div className="skeleton-stack" aria-hidden>

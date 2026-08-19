@@ -51,12 +51,23 @@ export function DownloadBoardButton({
         type="button"
         className="btn ghost board-download"
         data-testid={testId}
+        aria-label={busy ? "Saving image" : "Download image"}
+        title="Download image"
         disabled={busy || empty}
         onClick={() => {
           void onDownload();
         }}
       >
-        {busy ? "Saving…" : "Download image"}
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
+          <path
+            d="M8 2.5v8.2M4.4 7.8 8 11.4l3.6-3.6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </button>
       {error ? (
         <span className="board-download-error" data-testid={`${testId}-error`}>

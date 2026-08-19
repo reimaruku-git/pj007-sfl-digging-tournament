@@ -10,15 +10,10 @@ import { fileURLToPath } from "node:url";
 
 const listTournaments = vi.fn();
 const fetchTournament = vi.fn();
-const downloadTournamentBoardImage = vi.fn();
 
 vi.mock("../api/public", () => ({
   listTournaments: (...args: unknown[]) => listTournaments(...args),
   fetchTournament: (...args: unknown[]) => fetchTournament(...args),
-}));
-
-vi.mock("../lib/boardImage", () => ({
-  downloadTournamentBoardImage: (...args: unknown[]) => downloadTournamentBoardImage(...args),
 }));
 
 import {
@@ -115,8 +110,6 @@ async function renderHome() {
 beforeEach(() => {
   listTournaments.mockReset();
   fetchTournament.mockReset();
-  downloadTournamentBoardImage.mockReset();
-  downloadTournamentBoardImage.mockResolvedValue(undefined);
   writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
   vi.stubGlobal(
     "requestAnimationFrame",
@@ -222,9 +215,12 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid="open-board-later"]')?.getAttribute("href")).toBe(
       "/tournaments/later",
     );
-    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).toMatch(/Open →/);
-    expect(page.querySelector('[data-testid="download-board-soon"]')).not.toBeNull();
-    expect(page.querySelector('[data-testid="download-board-later"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).toMatch(/Ends first/);
+    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).not.toMatch(
+      /Open →/,
+    );
+    expect(page.querySelector('[data-testid^="download-board"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Download image/);
     expect(page.textContent).not.toMatch(/Finished \/ tracked/);
     expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
     expect(page.querySelector(".podium")).toBeNull();
@@ -567,57 +563,7 @@ describe("LeaderboardPage home", () => {
     expect(tw).toMatch(/tailwindcss\/utilities/);
   });
 
-  it("downloads the official top 10 even when avg/day sort is active", async () => {
-    const first = summary({
-      tournament_id: "one",
-      name: "Creators Digging Tournament",
-      status: "active",
-      start_at: "2026-08-17T00:00:00.000Z",
-      end_at: "2026-08-24T00:00:00.000Z",
-      duration_days: 7,
-      prize_amount: "30",
-      count: 12,
-    });
-    const many = Array.from({ length: 12 }, (_, index) =>
-      entry({
-        farm_id: `p${index + 1}`,
-        rank: index + 1,
-        score: 10 + index,
-        name: index === 0 ? "Leader" : `Player ${index + 1}`,
-        digs_to_third_op: 20 + index,
-      }),
-    );
-    listTournaments.mockResolvedValue({ tournaments: [first], count: 1 });
-    fetchTournament.mockResolvedValue(archive(first, many));
-
-    const page = await renderHome();
-    const sort = page.querySelector('[data-testid="sort-score-one"]') as HTMLButtonElement;
-    act(() => {
-      sort.click();
-    });
-    act(() => {
-      sort.click();
-    });
-    expect(sort.getAttribute("data-sort")).toBe("desc");
-    const download = page.querySelector('[data-testid="download-board-one"]') as HTMLButtonElement;
-    expect(download.disabled).toBe(false);
-    await act(async () => {
-      download.click();
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    });
-    expect(downloadTournamentBoardImage).toHaveBeenCalledTimes(1);
-    const payload = downloadTournamentBoardImage.mock.calls[0]?.[0] as {
-      name: string;
-      entries: LeaderboardEntry[];
-      total_count: number;
-    };
-    expect(payload.name).toBe("Creators Digging Tournament");
-    expect(payload.total_count).toBe(12);
-    expect(payload.entries).toHaveLength(12);
-    expect(payload.entries[0]?.name).toBe("Leader");
-  });
-
-  it("disables download when the live board has no farms", async () => {
+  it("keeps home boards clickable without a download control", async () => {
     const live = summary({
       tournament_id: "empty",
       name: "Empty cup",
@@ -626,13 +572,23 @@ describe("LeaderboardPage home", () => {
     listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
     fetchTournament.mockResolvedValue(archive(live, []));
     const page = await renderHome();
-    const download = page.querySelector(
-      '[data-testid="download-board-empty"]',
-    ) as HTMLButtonElement;
-    expect(download.disabled).toBe(true);
     expect(page.querySelector('[data-testid="open-board-empty"]')?.getAttribute("href")).toBe(
       "/tournaments/empty",
     );
+    expect(page.querySelector('[data-testid="open-board-empty"]')?.textContent).toMatch(
+      /Empty cup/,
+    );
+    expect(page.querySelector('[data-testid="open-board-empty"]')?.textContent).not.toMatch(
+      /Open →/,
+    );
+    expect(page.querySelector('[data-testid^="download-board"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Download image/);
+    const homeSrc = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "./LeaderboardPage.tsx"),
+      "utf8",
+    );
+    expect(homeSrc).not.toMatch(/DownloadBoardButton/);
+    expect(homeSrc).not.toMatch(/Open →/);
   });
 
   it("stretches the home tourney panel to the prize card height", () => {
