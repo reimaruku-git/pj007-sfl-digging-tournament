@@ -132,41 +132,42 @@ export function LeaderboardPage() {
             </li>
           </ul>
         </div>
-        <div className="card tourney-home" data-testid="tourney-home">
-          <div className="tourney-home-head">
-            <Link
-              to="/tournaments"
-              className="tourney-home-catalog"
-              data-testid="home-tournaments-link"
-            >
-              Tournaments
-            </Link>
+        <div className="hero-side" data-testid="hero-side">
+          {identity && (
+            <YouFarmCard
+              farmId={identity.farm_id}
+              name={identity.name}
+              farm={mineFarm.data}
+              loading={mineFarm.isLoading}
+            />
+          )}
+          <div className="card tourney-home" data-testid="tourney-home">
+            <div className="tourney-home-head">
+              <Link
+                to="/tournaments"
+                className="tourney-home-catalog"
+                data-testid="home-tournaments-link"
+              >
+                Tournaments
+              </Link>
+            </div>
+            {catalog.isError && <p className="flash err">{(catalog.error as Error).message}</p>}
+            <TourneyGroup
+              title="Ongoing"
+              empty="No ongoing tournament."
+              items={homeTourneyPreview(live)}
+              testId="ongoing-group"
+              live
+            />
+            <TourneyGroup
+              title="Upcoming"
+              empty="No upcoming tournaments."
+              items={homeTourneyPreview(upcoming)}
+              testId="upcoming-group"
+            />
           </div>
-          {catalog.isError && <p className="flash err">{(catalog.error as Error).message}</p>}
-          <TourneyGroup
-            title="Ongoing"
-            empty="No ongoing tournament."
-            items={homeTourneyPreview(live)}
-            testId="ongoing-group"
-            live
-          />
-          <TourneyGroup
-            title="Upcoming"
-            empty="No upcoming tournaments."
-            items={homeTourneyPreview(upcoming)}
-            testId="upcoming-group"
-          />
         </div>
       </section>
-
-      {identity && (
-        <YouFarmCard
-          farmId={identity.farm_id}
-          name={identity.name}
-          farm={mineFarm.data}
-          loading={mineFarm.isLoading}
-        />
-      )}
 
       {latestEnded && (
         <LatestResult
@@ -251,34 +252,25 @@ function YouFarmCard({
 }) {
   return (
     <Link to={`/farm/${farmId}`} className="you-farm" data-testid="you-farm">
-      <div className="you-farm-head">
-        <div>
-          <div className="kicker">Your farm</div>
-          <div className="you-farm-name" data-testid="you-farm-name">
-            {farm?.name || name || "Unnamed farm"}
-          </div>
-          <p className="farm-id" data-testid="you-farm-id">
-            {farmId}
-          </p>
+      <div className="you-farm-who">
+        <span className="kicker">Your farm</span>
+        <span className="you-farm-name" data-testid="you-farm-name">
+          {farm?.name || name || "Unnamed farm"}
+        </span>
+        <span className="farm-id" data-testid="you-farm-id">
+          {farmId}
+        </span>
+      </div>
+      <div className="you-farm-stats">
+        <div className="you-farm-metric" data-testid="you-farm-avg">
+          <span className="muted">Avg / day</span>
+          <b>{loading ? "—" : formatScore(farm?.recorded_average_per_day)}</b>
+        </div>
+        <div className="you-farm-metric" data-testid="you-farm-score-today">
+          <span className="muted">Score today</span>
+          <b>{loading ? "—" : (farm?.score_today ?? "—")}</b>
         </div>
       </div>
-      {loading && (
-        <div className="skeleton-stack" aria-hidden>
-          <div className="skeleton" />
-        </div>
-      )}
-      {!loading && (
-        <div className="you-farm-stats">
-          <div className="stat" data-testid="you-farm-avg">
-            <span className="muted">Avg / day</span>
-            <b>{formatScore(farm?.recorded_average_per_day)}</b>
-          </div>
-          <div className="stat" data-testid="you-farm-score-today">
-            <span className="muted">Score today</span>
-            <b>{farm?.score_today ?? "—"}</b>
-          </div>
-        </div>
-      )}
     </Link>
   );
 }

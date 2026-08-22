@@ -142,6 +142,11 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector("#join")).toBeNull();
     expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
     expect(page.querySelector('[data-testid="you-farm-id"]')?.textContent).toBe("3666918801844311");
+    expect(
+      page
+        .querySelector('[data-testid="hero-side"]')
+        ?.contains(page.querySelector('[data-testid="you-farm"]')),
+    ).toBe(true);
     expect(page.querySelector('[data-testid="latest-result"]')).toBeNull();
     expect(page.querySelector("#past")?.textContent).toMatch(/Past tournaments/);
     expect(page.querySelector("#past")?.textContent).toMatch(/No past tournaments yet/);
@@ -176,6 +181,10 @@ describe("LeaderboardPage home", () => {
       expect(link.getAttribute("href")).toBe("/tournaments");
       expect(link.textContent).toBe("Tournaments");
       expect(head.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const you = page.querySelector('[data-testid="you-farm"]') as HTMLElement;
+      expect(page.querySelector('[data-testid="hero-side"]')?.contains(you)).toBe(true);
+      expect(you.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(getComputedStyle(you).display).toBe("flex");
       expect(getComputedStyle(head).justifyContent).toBe("flex-end");
       expect(getComputedStyle(head).display).toBe("flex");
     } finally {
@@ -681,9 +690,15 @@ describe("LeaderboardPage home", () => {
 
     const page = await renderHome();
     const hero = page.querySelector('[data-testid="home-hero"]') as HTMLElement;
+    const side = page.querySelector('[data-testid="hero-side"]') as HTMLElement;
     const you = page.querySelector('[data-testid="you-farm"]') as HTMLElement;
+    const panel = page.querySelector('[data-testid="tourney-home"]') as HTMLElement;
     const liveBoard = page.querySelector('[data-testid="live-board-creators"]') as HTMLElement;
     expect(page.querySelectorAll('[data-testid="you-farm"]')).toHaveLength(1);
+    expect(hero.contains(you)).toBe(true);
+    expect(side.contains(you)).toBe(true);
+    expect(side.contains(panel)).toBe(true);
+    expect(you.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(you.getAttribute("href")).toBe("/farm/3666918801844311");
     expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
     expect(page.querySelector('[data-testid="you-farm-id"]')?.textContent).toBe("3666918801844311");
@@ -695,7 +710,6 @@ describe("LeaderboardPage home", () => {
     expect(you.textContent).not.toMatch(/Rank/);
     expect(you.textContent).not.toMatch(/Digs today/);
     expect(page.querySelector('[data-testid="you-farm-creators"]')).toBeNull();
-    expect(hero.compareDocumentPosition(you) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(you.compareDocumentPosition(liveBoard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(fetchFarm).toHaveBeenCalledWith("3666918801844311");
 
@@ -703,14 +717,19 @@ describe("LeaderboardPage home", () => {
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
       "utf8",
     );
-    expect(css).toMatch(/\.you-farm-stats\s*\{[^}]*grid-template-columns:\s*1fr 1fr/s);
+    expect(css).toMatch(/a\.you-farm\s*\{[^}]*display:\s*flex/s);
+    expect(css).toMatch(/a\.you-farm\s*\{[^}]*padding:\s*10px 14px/s);
+    expect(css).not.toMatch(/a\.you-farm\s*\{[^}]*padding:\s*16px 18px/s);
     expect(css).not.toMatch(/#e8b923/);
     const sheet = document.createElement("style");
     sheet.textContent = css;
     document.head.appendChild(sheet);
     try {
-      const stats = page.querySelector(".you-farm-stats") as HTMLElement;
-      expect(getComputedStyle(stats).display).toBe("grid");
+      expect(getComputedStyle(you).display).toBe("flex");
+      expect(getComputedStyle(you).flexWrap).toMatch(/wrap/);
+      expect(parseFloat(getComputedStyle(you).paddingTop)).toBeLessThan(16);
+      expect(getComputedStyle(side).display).toBe("flex");
+      expect(getComputedStyle(side).flexDirection).toBe("column");
     } finally {
       sheet.remove();
     }
@@ -815,7 +834,9 @@ describe("LeaderboardPage home", () => {
     );
     expect(css).toMatch(/\.hero\s*\{[^}]*align-items:\s*stretch/s);
     expect(css).toMatch(/\.hero\s*>\s*\.card\s*\{[^}]*height:\s*100%[^}]*margin-top:\s*0/s);
-    expect(css).toMatch(/\.tourney-home\s*\{[^}]*min-height:\s*100%/s);
+    expect(css).toMatch(/\.hero-side\s*\{[^}]*display:\s*flex/s);
+    expect(css).toMatch(/\.hero-side\s*>\s*\.card\s*\{[^}]*flex:\s*1/s);
+    expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*min-height:\s*100%/s);
     expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*align-content:\s*start/s);
     const siblingMargin = css.indexOf(".card + .card");
     const heroCardReset = css.indexOf(".hero > .card");
