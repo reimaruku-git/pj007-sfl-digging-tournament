@@ -68,6 +68,7 @@ class Store:
             "updated_at": now,
             "leader_farm_id": None,
             "current_tournament_id": None,
+            "featured_tournament_id": None,
         }
 
     def get_config(self) -> dict[str, Any]:

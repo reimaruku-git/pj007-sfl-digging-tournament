@@ -17,7 +17,16 @@ import {
   upcomingTournaments,
 } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
-import { catalogStatusLabel, formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
+import {
+  formatDateRangeUtc,
+  formatDurationDays,
+  formatScore,
+  formatWindowRange,
+  opensLabel,
+  remainingLabel,
+  statusLabel,
+  windowStatusLabel,
+} from "../lib/format";
 
 export function TournamentsPage() {
   const { tournamentId } = useParams();
@@ -32,21 +41,21 @@ function TournamentList() {
   const upcoming = upcomingTournaments(items);
   const ended = pastTournaments(items);
   return (
-    <>
-      <div className="tourney-catalog-head">
-        <div className="kicker">Tournaments</div>
-        <p className="meta">Ongoing, upcoming, and ended. Open an event for the board and prize.</p>
-      </div>
+    <div className="page-inner windows-page">
+      <header className="windows-head">
+        <div className="kicker">Calendar</div>
+        <h1 data-testid="tournaments-title">Tournaments</h1>
+      </header>
       {query.isLoading && <p className="muted">Loading tournaments…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
       {!query.isLoading && (
-        <div className="catalog-board" data-testid="catalog-board">
+        <div className="windows-board" data-testid="catalog-board">
           <CatalogGroup
-            title="Ongoing"
+            title="Live"
             tone="ongoing"
             testId="catalog-ongoing"
             items={live}
-            empty="No ongoing tournament."
+            empty="No live tournament."
           />
           <CatalogGroup
             title="Upcoming"
@@ -56,16 +65,15 @@ function TournamentList() {
             empty="No upcoming tournaments."
           />
           <CatalogGroup
-            title="Ended"
+            title="Past"
             tone="ended"
             testId="catalog-ended"
             items={ended}
-            empty="No ended tournaments yet."
-            scrollable
+            empty="No past tournaments yet."
           />
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -75,27 +83,22 @@ function CatalogGroup({
   testId,
   items,
   empty,
-  scrollable,
 }: {
   title: string;
   tone: "ongoing" | "upcoming" | "ended";
   testId: string;
   items: TournamentSummary[];
   empty: string;
-  scrollable?: boolean;
 }) {
   return (
-    <section className={`catalog-group is-${tone}`} data-testid={testId}>
-      <div className="catalog-group-head">
-        <div className="kicker">{title}</div>
+    <section className={`windows-group is-${tone}`} data-testid={testId}>
+      <div className="windows-group-head">
+        <h2>{title}</h2>
         <span className="catalog-count" data-testid={`${testId}-count`}>
           {items.length}
         </span>
       </div>
-      <div
-        className={["catalog-group-list", scrollable ? "is-scroll" : ""].filter(Boolean).join(" ")}
-        data-testid={`${testId}-list`}
-      >
+      <div className="windows-group-list" data-testid={`${testId}-list`}>
         {items.length === 0 && <p className="muted catalog-empty">{empty}</p>}
         {items.map((row) => (
           <CatalogWindow key={row.tournament_id} row={row} tone={tone} />
@@ -112,23 +115,44 @@ function CatalogWindow({
   row: TournamentSummary;
   tone: "ongoing" | "upcoming" | "ended";
 }) {
+  const when =
+    tone === "ongoing"
+      ? remainingLabel(row.end_at)
+      : tone === "upcoming"
+        ? opensLabel(row.start_at)
+        : "Ended";
   return (
     <Link
       to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
       state={{ from: "tournaments" }}
-      className={`tourney-window is-${tone}`}
+      className={`window-card is-${tone}`}
       data-testid={`tourney-window-${row.tournament_id}`}
     >
-      <div className="tourney-window-head">
-        <div className="tourney-window-name">{row.name || `${row.duration_days}d event`}</div>
+      <div className="window-card-top">
         <span className={`tourney-status ${tone}`} data-testid={`tourney-status-${tone}`}>
-          {catalogStatusLabel(row.status)}
+          {windowStatusLabel(row.status)}
         </span>
+        <span className="window-duration">{formatDurationDays(row.duration_days)}</span>
       </div>
-      <div className="tourney-window-meta">
-        {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
-        Flower · {row.count} farm{row.count === 1 ? "" : "s"}
-      </div>
+      <div className="window-card-name">{row.name || `${row.duration_days}d event`}</div>
+      <p className="window-card-dates">
+        {formatWindowRange(row.start_at, row.end_at)}
+        {when ? ` · ${when}` : ""}
+      </p>
+      <dl className="window-card-facts">
+        <div>
+          <dt>Prize</dt>
+          <dd>
+            {row.prize_amount} Flower
+          </dd>
+        </div>
+        <div>
+          <dt>Farms</dt>
+          <dd>
+            {row.count}
+          </dd>
+        </div>
+      </dl>
     </Link>
   );
 }
@@ -154,7 +178,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const data = query.data;
   const joinable = Boolean(data?.accepts_joins);
   return (
-    <section className="card table-wrap" data-testid="tournament-detail">
+    <section className="card table-wrap page-inner" data-testid="tournament-detail">
       <p className="meta">
         <Link to={back.to} data-testid="back-link">
           ← {back.label}

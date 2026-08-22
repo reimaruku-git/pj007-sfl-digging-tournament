@@ -1,5 +1,5 @@
 import { errorMessage, requestJson } from "./client";
-import type { LeaderboardEntry, Submission, TournamentConfig, TournamentSummary } from "./public";
+import type { LeaderboardEntry, Submission, TournamentConfig, TournamentList } from "./public";
 
 export type TrackedFarm = {
   farm_id: string;
@@ -186,12 +186,21 @@ export type TournamentWrite = {
   status: string;
 };
 
-export async function listAdminTournaments(): Promise<TournamentSummary[]> {
-  const { response, data } = await requestJson<{ tournaments: TournamentSummary[]; count: number }>(
-    "admin/tournaments",
-  );
+export async function listAdminTournaments(): Promise<TournamentList> {
+  const { response, data } = await requestJson<TournamentList>("admin/tournaments");
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load tournaments"));
-  return data.tournaments;
+  return data;
+}
+
+export async function setFeaturedTournament(
+  tournamentId: string | null,
+): Promise<string | null> {
+  const { response, data } = await requestJson<{ featured_tournament_id: string | null }>(
+    "admin/featured",
+    { method: "PUT", body: JSON.stringify({ tournament_id: tournamentId }) },
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to set featured tournament"));
+  return data.featured_tournament_id ?? null;
 }
 
 export async function createTournament(input: {

@@ -4,9 +4,12 @@ import {
   homeTourneyPreview,
   joinableTournaments,
   latestPastTournament,
+  featuredHomeTournament,
   liveTournamentsSoonestFirst,
+  nextColumnSort,
   nextScoreSort,
   pastTournaments,
+  sortedStandings,
   upcomingTournaments,
   visibleBoardEntries,
 } from "./board";
@@ -80,6 +83,155 @@ describe("visibleBoardEntries", () => {
     expect(nextScoreSort(null)).toBe("asc");
     expect(nextScoreSort("asc")).toBe("desc");
     expect(nextScoreSort("desc")).toBeNull();
+  });
+});
+
+describe("sortedStandings", () => {
+  const rows = [
+    entry({
+      rank: 1,
+      farm_id: "lead",
+      score: 18,
+      score_today: 27,
+      digs_to_third_op: 80,
+      name: "Lead",
+    }),
+    entry({
+      rank: 2,
+      farm_id: "mid",
+      score: 10,
+      score_today: 12,
+      digs_to_third_op: 40,
+      name: "Mid",
+    }),
+    entry({
+      rank: 3,
+      farm_id: "late",
+      score: 22,
+      score_today: 9,
+      digs_to_third_op: 90,
+      name: "Late",
+    }),
+    entry({
+      rank: 4,
+      farm_id: "blank",
+      score: null,
+      score_today: null,
+      digs_to_third_op: null,
+      name: "Blank",
+    }),
+  ];
+
+  it("keeps API rank order when sort is null", () => {
+    expect(sortedStandings(rows, null).map((row) => row.farm_id)).toEqual([
+      "lead",
+      "mid",
+      "late",
+      "blank",
+    ]);
+  });
+
+  it("orders avg, today, and total asc then desc with nulls last", () => {
+    expect(sortedStandings(rows, { column: "avg", dir: "asc" }).map((row) => row.farm_id)).toEqual([
+      "mid",
+      "lead",
+      "late",
+      "blank",
+    ]);
+    expect(sortedStandings(rows, { column: "avg", dir: "desc" }).map((row) => row.farm_id)).toEqual([
+      "late",
+      "lead",
+      "mid",
+      "blank",
+    ]);
+    expect(
+      sortedStandings(rows, { column: "today", dir: "asc" }).map((row) => row.farm_id),
+    ).toEqual(["late", "mid", "lead", "blank"]);
+    expect(
+      sortedStandings(rows, { column: "today", dir: "desc" }).map((row) => row.farm_id),
+    ).toEqual(["lead", "mid", "late", "blank"]);
+    expect(
+      sortedStandings(rows, { column: "total", dir: "asc" }).map((row) => row.farm_id),
+    ).toEqual(["mid", "lead", "late", "blank"]);
+    expect(
+      sortedStandings(rows, { column: "total", dir: "desc" }).map((row) => row.farm_id),
+    ).toEqual(["late", "lead", "mid", "blank"]);
+  });
+
+  it("cycles a column none → asc → desc → none and switching columns starts asc", () => {
+    expect(nextColumnSort(null, "avg")).toEqual({ column: "avg", dir: "asc" });
+    expect(nextColumnSort({ column: "avg", dir: "asc" }, "avg")).toEqual({
+      column: "avg",
+      dir: "desc",
+    });
+    expect(nextColumnSort({ column: "avg", dir: "desc" }, "avg")).toBeNull();
+    expect(nextColumnSort({ column: "avg", dir: "desc" }, "today")).toEqual({
+      column: "today",
+      dir: "asc",
+    });
+  });
+});
+
+describe("featuredHomeTournament", () => {
+  const items: TournamentSummary[] = [
+    {
+      tournament_id: "later",
+      name: "Ends later",
+      start_at: "2026-08-10T00:00:00Z",
+      end_at: "2026-08-30T00:00:00Z",
+      duration_days: 20,
+      prize_amount: "30",
+      status: "active",
+      archived_at: null,
+      count: 2,
+      leader_farm_id: null,
+    },
+    {
+      tournament_id: "soon",
+      name: "Ends first",
+      start_at: "2026-08-10T00:00:00Z",
+      end_at: "2026-08-25T00:00:00Z",
+      duration_days: 15,
+      prize_amount: "30",
+      status: "active",
+      archived_at: null,
+      count: 4,
+      leader_farm_id: null,
+    },
+    {
+      tournament_id: "past-cup",
+      name: "Old cup",
+      start_at: "2026-07-01T00:00:00Z",
+      end_at: "2026-07-08T00:00:00Z",
+      duration_days: 7,
+      prize_amount: "30",
+      status: "ended",
+      archived_at: "2026-07-08T00:00:00Z",
+      count: 3,
+      leader_farm_id: null,
+    },
+    {
+      tournament_id: "next",
+      name: "September",
+      start_at: "2026-09-01T00:00:00Z",
+      end_at: "2026-09-08T00:00:00Z",
+      duration_days: 7,
+      prize_amount: "45",
+      status: "scheduled",
+      archived_at: null,
+      count: 0,
+      leader_farm_id: null,
+    },
+  ];
+
+  it("falls back to soonest-ending live when no featured id is set", () => {
+    expect(featuredHomeTournament(items, null)?.tournament_id).toBe("soon");
+  });
+
+  it("returns an admin-featured live or ended event and ignores scheduled", () => {
+    expect(featuredHomeTournament(items, "later")?.tournament_id).toBe("later");
+    expect(featuredHomeTournament(items, "past-cup")?.tournament_id).toBe("past-cup");
+    expect(featuredHomeTournament(items, "next")?.tournament_id).toBe("soon");
   });
 });
 

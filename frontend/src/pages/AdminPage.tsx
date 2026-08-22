@@ -14,6 +14,7 @@ import {
   fetchTournamentRoster,
   listAdminTournaments,
   listFarms,
+  setFeaturedTournament,
   listIdentities,
   listSubmissions,
   refreshFarm,
@@ -225,12 +226,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       {flash && <div className={`flash ${flash.kind}`}>{flash.text}</div>}
 
       <AdminTournaments
-        items={tournaments.data ?? []}
+        items={tournaments.data?.tournaments ?? []}
+        featuredId={tournaments.data?.featured_tournament_id ?? null}
         players={farms.data ?? []}
         loading={tournaments.isLoading}
         selectedId={selectedTournamentId}
         roster={roster.data ?? []}
         onSelect={(id) => setSelectedTournamentId(id)}
+        onFeature={async (id) => {
+          await setFeaturedTournament(id);
+          note(id ? "Featured on the public home page." : "Home showcase cleared.");
+          invalidate();
+        }}
         onCreate={async (draft) => {
           const created = await createTournament(draft);
           note(`Created ${created.name} (${created.status}).`);

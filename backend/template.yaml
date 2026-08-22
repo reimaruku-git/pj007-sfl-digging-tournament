@@ -537,6 +537,14 @@ Resources:
             Method: PUT
             Auth:
               Authorizer: CognitoAuthorizer
+        AdminPutFeatured:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/featured
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
         AdminListTournaments:
           Type: HttpApi
           Properties:

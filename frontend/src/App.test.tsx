@@ -30,22 +30,8 @@ vi.mock("./api/public", () => ({
     leader_farm_id: null,
   }),
   fetchLeaderboard: vi.fn().mockResolvedValue({
-    entries: [
-      {
-        rank: 1,
-        farm_id: "1",
-        name: "rmr",
-        digs_to_third_op: 12,
-        otter_count: 3,
-        digs_today: 2,
-        score: 1.71,
-        total_digs: 21,
-        last_updated_at: null,
-        status: "completed",
-        invalidated: false,
-      },
-    ],
-    count: 1,
+    entries: [],
+    count: 0,
     generated_at: null,
     config: {
       start_at: "2026-08-14T00:00:00+00:00",
@@ -115,8 +101,9 @@ describe("routes", () => {
     expect(home.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(home.textContent).not.toMatch(/Enter your Farm ID/);
     expect(home.querySelector("#rules")).not.toBeNull();
-    expect(home.querySelector('[data-testid="ongoing-group"]')).not.toBeNull();
-    expect(home.querySelector("#past")).not.toBeNull();
+    expect(home.querySelector('[data-testid="home-hero"]')).not.toBeNull();
+    expect(home.querySelector('[data-testid="public-nav"]')?.textContent).toMatch(/Tournaments/);
+    expect(home.querySelector('[data-testid="public-nav"]')?.textContent).not.toMatch(/Windows/);
     expect(home.querySelector("#join")).toBeNull();
     expect(home.querySelector('[data-testid="farm-connect"]')).not.toBeNull();
     expect(home.querySelector('[data-testid="farm-id-input"]')).not.toBeNull();
@@ -140,7 +127,7 @@ describe("routes", () => {
     expect(admin.querySelector('button[aria-label="Menu"]')).not.toBeNull();
   });
 
-  it("identifies through our API from the header then hides connect, and disconnect restores the header field", async () => {
+  it("identifies through our API from the header then shows the connected chip", async () => {
     mockIdentify.mockResolvedValue({
       farm_id: "3666918801844311",
       name: "rmr",
@@ -165,17 +152,11 @@ describe("routes", () => {
     expect(mockIdentify).toHaveBeenCalledWith("3666918801844311");
     expect(home.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(home.querySelector('[data-testid="farm-connect"]')).toBeNull();
-    expect(home.querySelector('[data-testid="farm-connected"]')).toBeNull();
-    expect(home.querySelector(".topbar-tools")?.textContent).not.toMatch(/rmr/);
-    expect(home.querySelector(".topbar-tools")?.textContent).not.toMatch(/3666918801844311/);
-    expect(home.textContent).toMatch(/Prize pool/);
-    expect(home.textContent).toMatch(/Past tournaments/);
-    expect(home.querySelector("#join")).toBeNull();
-    expect(home.textContent).toMatch(/Ongoing/);
-    expect(home.textContent).toMatch(/Upcoming/);
+    const connected = home.querySelector('[data-testid="farm-connected"]');
+    expect(connected?.querySelector(".farm-connected-name")?.textContent).toBe("rmr");
+    expect(home.querySelector('[data-testid="public-nav"]')?.textContent).toMatch(/Tournaments/);
     const rules = home.querySelector("#rules");
     expect(rules).not.toBeNull();
-    expect(rules?.className).toMatch(/prize-card/);
     expect(rules?.textContent).toMatch(/Counts as 1 dig/);
     expect(rules?.textContent).toMatch(/Counts as 4 digs/);
     expect(rules?.textContent).toMatch(/last dig of those 4/);
@@ -193,52 +174,51 @@ describe("routes", () => {
     expect(rules?.textContent).toMatch(/Average of 3rd pebble, then 2nd, then 1st/);
     expect(rules?.textContent).toMatch(/earlier time on the 3rd pebble/);
     expect(home.querySelectorAll("#rules").length).toBe(1);
+    expect(home.textContent).not.toMatch(/How a window is won/);
+    expect(home.textContent).not.toMatch(/Windows in the sand/);
+    expect(home.textContent).not.toMatch(/See windows/);
+    expect(home.textContent).not.toMatch(/Hunt three pebbles/);
+    expect(home.textContent).not.toMatch(/Spend fewer strokes/);
 
-    const burger = home.querySelector('button[aria-label="Menu"]') as HTMLButtonElement;
     act(() => {
-      burger.click();
+      (connected as HTMLButtonElement).click();
     });
-    const connected = home.querySelector('[data-testid="farm-connected"]');
-    const options = home.querySelector('[data-testid="menu-options"]');
-    expect(connected).not.toBeNull();
-    expect(connected?.closest('[data-testid="menu-options"]')).toBeNull();
-    expect(connected?.querySelector(".farm-connected-name")?.textContent).toBe("rmr");
-    expect(connected?.querySelector(".farm-connected-id")?.textContent).toBe("3666918801844311");
-    expect(options?.textContent).toMatch(/Rules/);
-    expect(options?.textContent).toMatch(/Join a tournament/);
-    expect(options?.textContent).not.toMatch(/Tournaments/);
     const disconnect = home.querySelector('[data-testid="disconnect-farm"]') as HTMLButtonElement;
     expect(disconnect).not.toBeNull();
-    expect(options?.contains(disconnect)).toBe(true);
     expect(disconnect.textContent).toMatch(/Disconnect rmr/);
     act(() => {
       disconnect.click();
     });
     expect(home.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(home.querySelector("#rules")).not.toBeNull();
-    expect(home.querySelector("#past")).not.toBeNull();
     expect(home.querySelector("#join")).toBeNull();
     expect(home.querySelector('[data-testid="farm-connect"]')).not.toBeNull();
     expect(home.querySelector('[data-testid="farm-connected"]')).toBeNull();
   });
 
-  it("has a tournaments route without a stored farm identity", async () => {
+  it("has a Tournaments catalog route without a stored farm identity", async () => {
     const page = renderApp("/tournaments");
     await act(async () => {
       await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 30));
     });
     expect(page.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
-    expect(page.textContent).toMatch(/Upcoming|Tournaments|Ongoing/);
+    expect(page.querySelector('[data-testid="tournaments-title"]')?.textContent).toMatch(
+      /Tournaments/,
+    );
+    expect(page.querySelector('[data-testid="tournaments-title"]')?.textContent).not.toMatch(
+      /Windows/,
+    );
     expect(page.textContent).not.toMatch(/Create tournament/);
     expect(page.querySelector('[data-testid="farm-connect"]')).not.toBeNull();
   });
 
-  it("sends unknown paths to the leaderboard without identify", async () => {
+  it("sends unknown paths to the live home without identify", async () => {
     const el = renderApp("/nope");
     await act(async () => {
       await Promise.resolve();
     });
-    expect(el.textContent).toMatch(/Prize pool/);
+    expect(el.querySelector('[data-testid="home-hero"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
   });
 

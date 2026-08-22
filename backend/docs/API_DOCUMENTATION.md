@@ -36,15 +36,23 @@ is `scheduled`.
   "prize_amount": "30",
   "status": "active",
   "last_full_sync_at": "2026-08-14T13:00:00+00:00",
-  "updated_at": "2026-08-14T13:00:00+00:00"
+  "updated_at": "2026-08-14T13:00:00+00:00",
+  "featured_tournament_id": "20260814T120000Z_7d"
 }
 ```
 
+`tournament_id` is the soonest-ending **live** scoring window. FarmSync
+follows that window. `featured_tournament_id` is the admin-chosen home
+showcase (`active` or `ended`). It is `null` when none is set. It is
+not the scoring pointer — featuring an ended event does not stop live
+sync.
+
 ### `GET /leaderboard`
 
-Cached snapshot of the **featured** live event (soonest `end_at`).
-Each live event's own board is `GET /tournaments/{id}`. Frontend never
-calls the SFL API.
+Cached snapshot of the soonest-ending **live** event.
+Each event's own board is `GET /tournaments/{id}`. Frontend never
+calls the SFL API. Public home uses `featured_tournament_id` from
+`GET /tournaments` (or `GET /config`) and loads that event's board.
 
 ```json
 {
@@ -84,7 +92,8 @@ calls the SFL API.
     "prize_amount": "30",
     "status": "active",
     "last_full_sync_at": "2026-08-14T13:00:00+00:00",
-    "updated_at": "2026-08-14T13:00:00+00:00"
+    "updated_at": "2026-08-14T13:00:00+00:00",
+    "featured_tournament_id": "20260814T120000Z_7d"
   }
 }
 ```
@@ -208,9 +217,13 @@ Scheduled, live, and ended events. Ended standings are frozen to S3
       "leader_farm_id": null
     }
   ],
-  "count": 1
+  "count": 1,
+  "featured_tournament_id": "20260814T120000Z_7d"
 }
 ```
+
+`featured_tournament_id` is the admin-chosen home showcase, or `null`.
+Scheduled events cannot be featured.
 
 ### `GET /tournaments/{tournament_id}`
 
@@ -539,7 +552,23 @@ Prefer `POST /admin/tournaments` to queue a new named event.
 
 ### `GET /admin/tournaments`
 
-Same list shape as `GET /tournaments`.
+Same list shape as `GET /tournaments`, including `featured_tournament_id`.
+
+### `PUT /admin/featured`
+
+Set the public home showcase to a live (`active`) or ended tournament.
+`tournament_id: null` (or omitted / empty) clears it. Scheduled ids
+return `400` `VALIDATION_ERROR`. Missing ids return `404`.
+
+Does **not** change `current_tournament_id` or FarmSync.
+
+```json
+{ "tournament_id": "20260814T120000Z_7d" }
+```
+
+```json
+{ "featured_tournament_id": "20260814T120000Z_7d" }
+```
 
 ### `POST /admin/tournaments`
 

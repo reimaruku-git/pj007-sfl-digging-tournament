@@ -1,7 +1,13 @@
 import { getAuthToken, handleUnauthorized } from "../auth/session";
 
 const rawBase = import.meta.env.VITE_API_BASE || "";
-export const API_BASE = rawBase.endsWith("/") ? rawBase : `${rawBase}/`;
+const useDevProxy =
+  import.meta.env.DEV && /^https:\/\/[^/]*execute-api\./.test(rawBase);
+export const API_BASE = useDevProxy
+  ? "/__api/"
+  : rawBase.endsWith("/")
+    ? rawBase
+    : `${rawBase}/`;
 
 export { getAuthToken, handleUnauthorized };
 

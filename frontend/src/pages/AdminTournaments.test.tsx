@@ -73,6 +73,48 @@ describe("AdminTournaments", () => {
     expect((container.querySelector('input[type="number"]') as HTMLInputElement).min).toBe("1");
   });
 
+  it("lets admin feature a live or past tournament, not upcoming", async () => {
+    const onFeature = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "live",
+          name: "Live cup",
+          status: "active",
+        }),
+        row({
+          tournament_id: "next",
+          name: "September cup",
+          status: "scheduled",
+          start_at: "2026-09-01T00:00:00.000Z",
+          end_at: "2026-09-08T00:00:00.000Z",
+        }),
+        row({
+          tournament_id: "past-cup",
+          name: "July cup",
+          status: "ended",
+          start_at: "2026-07-01T00:00:00.000Z",
+          end_at: "2026-07-08T00:00:00.000Z",
+        }),
+      ],
+      { onFeature, featuredId: "live" },
+    );
+    expect(container.querySelector('[data-testid="admin-past-group"]')?.textContent).toMatch(
+      /July cup/,
+    );
+    expect(container.querySelector('[data-testid="admin-feature-live"]')?.textContent).toMatch(
+      /Featured/,
+    );
+    expect(container.querySelector('[data-testid="admin-feature-past-cup"]')?.textContent).toMatch(
+      /^Feature$/,
+    );
+    expect(container.querySelector('[data-testid="admin-feature-next"]')).toBeNull();
+    await act(async () => {
+      (container.querySelector('[data-testid="admin-feature-past-cup"]') as HTMLButtonElement).click();
+    });
+    expect(onFeature).toHaveBeenCalledWith("past-cup");
+  });
+
   it("splits current and upcoming and lets both be edited", () => {
     const onUpdate = vi.fn().mockResolvedValue(undefined);
     const { container } = render(

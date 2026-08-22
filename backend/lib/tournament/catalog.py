@@ -96,9 +96,50 @@ def active_tournaments(store: Store) -> list[dict[str, Any]]:
 
 
 def featured_tournament(store: Store) -> dict[str, Any] | None:
-    """Soonest-ending live event — same order as the public home page."""
+    """Soonest-ending live event — scoring window, not the home showcase."""
     live = active_tournaments(store)
     return live[0] if live else None
+
+
+def showcase_featured_id(store: Store) -> str | None:
+    """Admin-chosen home board. Live scoring window stays on current_tournament_id."""
+    tid = str(store.get_config().get("featured_tournament_id") or "").strip()
+    if not tid:
+        return None
+    row = store.get_tournament(tid)
+    if not row:
+        return None
+    if row.get("status") not in {STATUS_ACTIVE, STATUS_ENDED}:
+        return None
+    return tid
+
+
+def set_featured_tournament(store: Store, tournament_id_value: str | None) -> str | None:
+    """Persist a live or ended showcase id. Scheduled ids are rejected. None clears."""
+    seed_catalog(store)
+    current = store.get_config()
+    tid = str(tournament_id_value or "").strip()
+    if not tid:
+        current["featured_tournament_id"] = None
+        store.put_config(current)
+        return None
+    row = store.get_tournament(tid)
+    if not row:
+        raise CatalogError("tournament not found", code="NOT_FOUND", status=404)
+    status = row.get("status")
+    if status == STATUS_SCHEDULED:
+        raise CatalogError(
+            "scheduled tournaments cannot be featured", code="VALIDATION_ERROR", status=400
+        )
+    if status not in {STATUS_ACTIVE, STATUS_ENDED}:
+        raise CatalogError(
+            "only live or ended tournaments can be featured",
+            code="VALIDATION_ERROR",
+            status=400,
+        )
+    current["featured_tournament_id"] = tid
+    store.put_config(current)
+    return tid
 
 
 def point_featured_config(store: Store) -> dict[str, Any]:
@@ -149,6 +190,7 @@ def apply_live_config(
             "current_tournament_id": row["tournament_id"],
             "last_full_sync_at": current.get("last_full_sync_at"),
             "leader_farm_id": current.get("leader_farm_id"),
+            "featured_tournament_id": current.get("featured_tournament_id"),
         }
     )
 
@@ -393,6 +435,7 @@ def clear_live_config(store: Store) -> dict[str, Any]:
             "current_tournament_id": None,
             "last_full_sync_at": current.get("last_full_sync_at"),
             "leader_farm_id": None,
+            "featured_tournament_id": current.get("featured_tournament_id"),
         }
     )
 
@@ -419,6 +462,10 @@ def delete_tournament(
     store.drop_event_scores(tournament_id_value)
     store.delete_event_leaderboard(tournament_id_value)
     store.delete_tournament(tournament_id_value)
+    current = store.get_config()
+    if str(current.get("featured_tournament_id") or "") == tournament_id_value:
+        current["featured_tournament_id"] = None
+        store.put_config(current)
     point_featured_config(store)
     if not featured_tournament(store):
         store.put_leaderboard_cache({"entries": [], "count": 0, "leader_farm_id": None})

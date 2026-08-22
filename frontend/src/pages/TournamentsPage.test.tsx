@@ -129,22 +129,8 @@ afterEach(() => {
 });
 
 describe("TournamentsPage", () => {
-  it("groups ongoing, upcoming, and ended with links and a scrollable ended list", async () => {
+  it("lists live and upcoming windows with prize and farm count from the catalog payload", async () => {
     clearFarmIdentity();
-    const css = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
-      "utf8",
-    );
-    expect(css).toMatch(
-      /\.catalog-group-list\.is-scroll\s*\{[^}]*max-height:\s*calc\(4 \* var\(--catalog-block\) \+ 3 \* var\(--catalog-gap\)\)/s,
-    );
-    expect(css).toMatch(/\.catalog-group-list\.is-scroll\s*\{[^}]*overflow-y:\s*auto/s);
-    expect(css).toMatch(/--catalog-block:\s*3\.55rem/);
-    expect(css).toMatch(/\.tourney-window\s*\{[^}]*min-height:\s*var\(--catalog-block\)/s);
-    expect(css).toMatch(/\.tourney-window-meta\s*\{[^}]*white-space:\s*nowrap/s);
-    const sheet = document.createElement("style");
-    sheet.textContent = css;
-    document.head.appendChild(sheet);
     const lateLive = summary({
       tournament_id: "late",
       name: "Late live",
@@ -158,6 +144,8 @@ describe("TournamentsPage", () => {
       status: "active",
       start_at: "2026-08-01T00:00:00.000Z",
       end_at: "2026-08-20T00:00:00.000Z",
+      prize_amount: "100",
+      count: 6,
     });
     const laterUp = summary({
       tournament_id: "later",
@@ -215,61 +203,62 @@ describe("TournamentsPage", () => {
       tournaments: [laterUp, lateLive, past, nextUp, soonLive, older, may, april],
       count: 8,
     });
-    try {
-      const page = await renderAt("/tournaments");
-      expect(page.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
-      const ongoing = page.querySelector('[data-testid="catalog-ongoing"]');
-      const upcoming = page.querySelector('[data-testid="catalog-upcoming"]');
-      const ended = page.querySelector('[data-testid="catalog-ended"]');
-      expect(ongoing?.textContent).toMatch(/Ongoing/);
-      expect(upcoming?.textContent).toMatch(/Upcoming/);
-      expect(ended?.textContent).toMatch(/Ended/);
-      const ongoingIds = [...ongoing!.querySelectorAll('[data-testid^="tourney-window-"]')].map(
-        (node) => node.getAttribute("data-testid"),
-      );
-      const upcomingIds = [...upcoming!.querySelectorAll('[data-testid^="tourney-window-"]')].map(
-        (node) => node.getAttribute("data-testid"),
-      );
-      const endedIds = [...ended!.querySelectorAll('[data-testid^="tourney-window-"]')].map((node) =>
-        node.getAttribute("data-testid"),
-      );
-      expect(ongoingIds).toEqual(["tourney-window-soon", "tourney-window-late"]);
-      expect(upcomingIds).toEqual(["tourney-window-next", "tourney-window-later"]);
-      expect(endedIds).toEqual([
-        "tourney-window-past",
-        "tourney-window-older",
-        "tourney-window-may",
-        "tourney-window-april",
-      ]);
-      expect(ended?.textContent).toMatch(/1–8 Jul/);
-      expect(ended?.textContent).not.toMatch(/→/);
-      expect(ongoing?.textContent).not.toMatch(/Old cup/);
-      expect(upcoming?.textContent).not.toMatch(/Old cup/);
-      expect(ended?.textContent).not.toMatch(/Ends first/);
-      expect(ended?.textContent).not.toMatch(/October cup/);
-      expect(page.querySelector('[data-testid="tourney-window-soon"]')?.getAttribute("href")).toBe(
-        "/tournaments/soon",
-      );
-      expect(page.querySelector('[data-testid="tourney-window-next"]')?.getAttribute("href")).toBe(
-        "/tournaments/next",
-      );
-      expect(page.querySelector('[data-testid="tourney-window-past"]')?.getAttribute("href")).toBe(
-        "/tournaments/past",
-      );
-      expect(ongoing!.querySelectorAll('[data-testid="tourney-status-ongoing"]')).toHaveLength(2);
-      expect(upcoming!.querySelectorAll('[data-testid="tourney-status-upcoming"]')).toHaveLength(2);
-      expect(ended!.querySelectorAll('[data-testid="tourney-status-ended"]')).toHaveLength(4);
-      const endedList = page.querySelector('[data-testid="catalog-ended-list"]') as HTMLElement;
-      expect(endedList.classList.contains("is-scroll")).toBe(true);
-      const endedStyle = getComputedStyle(endedList);
-      expect(endedStyle.overflowY).toMatch(/auto|scroll/);
-      expect(endedStyle.maxHeight).toMatch(/calc\(4 \* var\(--catalog-block\)/);
-      expect(page.querySelector('[data-testid="catalog-ongoing-list"]')?.classList.contains("is-scroll")).toBe(
-        false,
-      );
-    } finally {
-      sheet.remove();
-    }
+    const page = await renderAt("/tournaments");
+    expect(page.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournaments-title"]')?.textContent).toMatch(
+      /Tournaments/,
+    );
+    expect(page.querySelector('[data-testid="tournaments-title"]')?.textContent).not.toMatch(
+      /Windows/,
+    );
+    expect(page.textContent).not.toMatch(
+      /Each tournament is its own board. Join one, dig for three Otter Pebbles/,
+    );
+    expect(page.textContent).not.toMatch(/Create tournament/);
+    const ongoing = page.querySelector('[data-testid="catalog-ongoing"]');
+    const upcoming = page.querySelector('[data-testid="catalog-upcoming"]');
+    const ended = page.querySelector('[data-testid="catalog-ended"]');
+    expect(ongoing?.textContent).toMatch(/Live/);
+    expect(upcoming?.textContent).toMatch(/Upcoming/);
+    expect(ended?.textContent).toMatch(/Past/);
+    const ongoingIds = [...ongoing!.querySelectorAll('[data-testid^="tourney-window-"]')].map(
+      (node) => node.getAttribute("data-testid"),
+    );
+    const upcomingIds = [...upcoming!.querySelectorAll('[data-testid^="tourney-window-"]')].map(
+      (node) => node.getAttribute("data-testid"),
+    );
+    const endedIds = [...ended!.querySelectorAll('[data-testid^="tourney-window-"]')].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+    expect(ongoingIds).toEqual(["tourney-window-soon", "tourney-window-late"]);
+    expect(upcomingIds).toEqual(["tourney-window-next", "tourney-window-later"]);
+    expect(endedIds).toEqual([
+      "tourney-window-past",
+      "tourney-window-older",
+      "tourney-window-may",
+      "tourney-window-april",
+    ]);
+    expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(
+      /100 Flower/,
+    );
+    expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(/6/);
+    expect(ended?.textContent).toMatch(/30 Flower/);
+    expect(ongoing?.textContent).not.toMatch(/Old cup/);
+    expect(upcoming?.textContent).not.toMatch(/Old cup/);
+    expect(ended?.textContent).not.toMatch(/Ends first/);
+    expect(ended?.textContent).not.toMatch(/October cup/);
+    expect(page.querySelector('[data-testid="tourney-window-soon"]')?.getAttribute("href")).toBe(
+      "/tournaments/soon",
+    );
+    expect(page.querySelector('[data-testid="tourney-window-next"]')?.getAttribute("href")).toBe(
+      "/tournaments/next",
+    );
+    expect(page.querySelector('[data-testid="tourney-window-past"]')?.getAttribute("href")).toBe(
+      "/tournaments/past",
+    );
+    expect(ongoing!.querySelectorAll('[data-testid="tourney-status-ongoing"]')).toHaveLength(2);
+    expect(upcoming!.querySelectorAll('[data-testid="tourney-status-upcoming"]')).toHaveLength(2);
+    expect(ended!.querySelectorAll('[data-testid="tourney-status-ended"]')).toHaveLength(4);
   });
 
   it("links ongoing and upcoming events to the info view", async () => {
@@ -298,7 +287,7 @@ describe("TournamentsPage", () => {
       page.querySelector('[data-testid="tourney-window-next"]'),
     )).toBe(true);
     expect(page.querySelector('[data-testid="catalog-ended"]')?.textContent).toMatch(
-      /No ended tournaments yet/,
+      /No past tournaments yet/,
     );
     expect(page.querySelector('[data-testid="download-board"]')).toBeNull();
   });
@@ -354,7 +343,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Display name/);
     expect(page.querySelector('[data-testid="back-link"]')?.textContent).toMatch(/Back to home/);
     expect(page.querySelector('[data-testid="back-link"]')?.getAttribute("href")).toBe("/");
-    expect(page.textContent).not.toMatch(/All tournaments/);
+    expect(page.textContent).not.toMatch(/All windows/);
     const podium = page.querySelector('[data-testid="tournament-podium"]');
     expect(podium).not.toBeNull();
     expect(podium?.textContent).toMatch(/Ada/);

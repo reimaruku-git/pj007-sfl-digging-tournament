@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../api/public";
-import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,7 +18,6 @@ vi.mock("../api/public", () => ({
   fetchFarm: (...args: unknown[]) => fetchFarm(...args),
 }));
 
-import { PAST_BADGE_ENDED, PAST_CARD_CLASS } from "../components/PastTournamentList";
 import { FarmSessionProvider } from "../lib/farmSession";
 import { writeFarmIdentity } from "../lib/followFarm";
 import { LeaderboardPage } from "./LeaderboardPage";
@@ -31,9 +30,9 @@ function summary(
     Pick<TournamentSummary, "tournament_id" | "name" | "status">,
 ): TournamentSummary {
   return {
-    start_at: "2026-08-10T14:44:00.000Z",
-    end_at: "2026-08-20T13:47:00.000Z",
-    duration_days: 10,
+    start_at: "2026-08-22T00:00:00.000Z",
+    end_at: "2026-08-28T00:00:00.000Z",
+    duration_days: 7,
     prize_amount: "30",
     archived_at: null,
     count: 0,
@@ -127,727 +126,346 @@ afterEach(() => {
 });
 
 describe("LeaderboardPage home", () => {
-  it("shows empty ongoing and upcoming with no default Active card or boards", async () => {
-    listTournaments.mockResolvedValue({ tournaments: [], count: 0 });
-    const page = await renderHome();
-    expect(page.querySelector('[data-testid="ongoing-group"]')?.textContent).toMatch(/Ongoing/);
-    expect(page.querySelector('[data-testid="upcoming-group"]')?.textContent).toMatch(/Upcoming/);
-    expect(page.textContent).toMatch(/No ongoing tournament/);
-    expect(page.textContent).toMatch(/No upcoming tournaments/);
-    expect(page.textContent).not.toMatch(/Finished \/ tracked/);
-    expect(page.textContent).not.toMatch(/Active/);
-    expect(page.querySelector("table.board-table")).toBeNull();
-    expect(page.querySelector('[data-testid^="live-board-"]')).toBeNull();
-    expect(page.textContent).not.toMatch(/Create tournament/);
-    expect(page.querySelector("#join")).toBeNull();
-    expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
-    expect(page.querySelector('[data-testid="you-farm-id"]')?.textContent).toBe("3666918801844311");
-    expect(
-      page
-        .querySelector('[data-testid="hero-side"]')
-        ?.contains(page.querySelector('[data-testid="you-farm"]')),
-    ).toBe(true);
-    expect(page.querySelector('[data-testid="latest-result"]')).toBeNull();
-    expect(page.querySelector("#past")?.textContent).toMatch(/Past tournaments/);
-    expect(page.querySelector("#past")?.textContent).toMatch(/No past tournaments yet/);
-    const catalogLink = page.querySelector('[data-testid="home-tournaments-link"]');
-    expect(catalogLink?.getAttribute("href")).toBe("/tournaments");
-    expect(catalogLink?.textContent).toMatch(/^Tournaments$/);
-    expect(page.querySelector('[data-testid="tourney-home"]')?.contains(catalogLink)).toBe(true);
-  });
-
-  it("puts a small Tournaments control at the top-right of the ongoing/upcoming panel", async () => {
-    const css = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
-      "utf8",
+  it("stacks hero, top three, standings, then our rules", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      prize_amount: "100",
+      count: 6,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({
+          farm_id: "3666918801844311",
+          rank: 1,
+          score: 27.57,
+          name: "rmr",
+          digs_to_third_op: 193,
+          score_today: 27,
+        }),
+        entry({
+          farm_id: "218",
+          rank: 2,
+          score: 31.14,
+          name: "Farm 218",
+          digs_to_third_op: 218,
+          score_today: 32,
+        }),
+        entry({
+          farm_id: "219",
+          rank: 3,
+          score: 31.29,
+          name: "Farm 219",
+          digs_to_third_op: 219,
+          score_today: 31,
+        }),
+      ]),
     );
-    expect(css).toMatch(/\.tourney-home-head\s*\{[^}]*justify-content:\s*flex-end/s);
-    const sheet = document.createElement("style");
-    sheet.textContent = css;
-    document.head.appendChild(sheet);
-    listTournaments.mockResolvedValue({ tournaments: [], count: 0 });
-    try {
-      const page = await renderHome();
-      const panel = page.querySelector('[data-testid="tourney-home"]') as HTMLElement;
-      const head = page.querySelector(".tourney-home-head") as HTMLElement;
-      const link = page.querySelector('[data-testid="home-tournaments-link"]') as HTMLAnchorElement;
-      const ongoing = page.querySelector('[data-testid="ongoing-group"]') as HTMLElement;
-      expect(panel).not.toBeNull();
-      expect(head).not.toBeNull();
-      expect(link).not.toBeNull();
-      expect(panel.contains(head)).toBe(true);
-      expect(panel.contains(ongoing)).toBe(true);
-      expect(head.contains(link)).toBe(true);
-      expect(link.getAttribute("href")).toBe("/tournaments");
-      expect(link.textContent).toBe("Tournaments");
-      expect(head.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      const you = page.querySelector('[data-testid="you-farm"]') as HTMLElement;
-      expect(page.querySelector('[data-testid="hero-side"]')?.contains(you)).toBe(true);
-      expect(you.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(getComputedStyle(you).display).toBe("flex");
-      expect(getComputedStyle(head).justifyContent).toBe("flex-end");
-      expect(getComputedStyle(head).display).toBe("flex");
-    } finally {
-      sheet.remove();
-    }
+    fetchFarm.mockResolvedValue(
+      entry({
+        farm_id: "3666918801844311",
+        name: "rmr",
+        rank: 1,
+        score: 27.57,
+        recorded_average_per_day: 27.57,
+        score_today: 27,
+        digs_to_third_op: 193,
+      }),
+    );
+
+    const page = await renderHome();
+    const hero = page.querySelector('[data-testid="home-hero"]') as HTMLElement;
+    const podium = page.querySelector('[data-testid="top-three"]') as HTMLElement;
+    const standings = page.querySelector('[data-testid="standings"]') as HTMLElement;
+    const rules = page.querySelector("#rules") as HTMLElement;
+    expect(hero).not.toBeNull();
+    expect(podium).not.toBeNull();
+    expect(standings).not.toBeNull();
+    expect(rules).not.toBeNull();
+    expect(hero.compareDocumentPosition(podium) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(podium.compareDocumentPosition(standings) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(standings.compareDocumentPosition(rules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(hero.textContent).toMatch(/Creators Digging Tournament/);
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toMatch(/100 Flower/);
+    expect(page.querySelector('[data-testid="hero-farms"]')?.textContent).toBe("6");
+    expect(page.querySelector('[data-testid="see-tournaments"]')?.getAttribute("href")).toBe(
+      "/tournaments",
+    );
+    expect(page.querySelector('[data-testid="see-tournaments"]')?.textContent).toMatch(
+      /See tournaments/,
+    );
+
+    expect(podium.textContent).toMatch(/Top three/);
+    expect(podium.querySelector(".place-1")?.textContent).toMatch(/rmr/);
+    expect(podium.querySelector(".place-1")?.textContent).toMatch(/193/);
+    expect(podium.querySelector(".place-2")?.textContent).toMatch(/Farm 218/);
+    expect(podium.querySelector(".place-3")?.textContent).toMatch(/Farm 219/);
+
+    expect(standings.textContent).toMatch(/Standings/);
+    expect(standings.textContent).toMatch(/Total/);
+    expect(standings.textContent).toMatch(/Today/);
+    expect(standings.textContent).toMatch(/Pebbles/);
+    expect(standings.textContent).toMatch(/Avg \/ day/);
+    expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
+    expect(page.querySelector('[data-testid="you-farm-avg"]')?.textContent).toMatch(/27\.57/);
+
+    expect(rules.textContent).toMatch(/Counts as 1 dig/);
+    expect(rules.textContent).toMatch(/Counts as 4 digs/);
+    expect(rules.textContent).toMatch(/last dig of those 4/);
+    expect(rules.textContent).toMatch(/only on days that already have a recorded score/);
+    expect(rules.textContent).toMatch(/14:00, 16:00, 18:00, 20:00, 23:00 UTC/);
+    expect(rules.querySelector("strong")?.textContent).toBe("Digs after 23:00 UTC do not count");
+    expect(rules.textContent).toMatch(/worst finisher that day or 30/);
+    expect(rules.textContent).toMatch(/5 for every missing pebble/);
+    expect(rules.textContent).toMatch(/Average of 3rd pebble, then 2nd, then 1st/);
+    expect(rules.textContent).toMatch(/How a tournament is scored/);
+    expect(rules.textContent).not.toMatch(/How a window is won/);
+    expect(rules.textContent).not.toMatch(/Enter a window/);
+    expect(rules.textContent).not.toMatch(/Hunt three pebbles/);
+    expect(rules.textContent).not.toMatch(/Spend fewer strokes/);
+    expect(page.textContent).not.toMatch(/\bWindows\b/);
+    expect(page.textContent).not.toMatch(
+      /Lowest average of days that already have a 3rd-pebble score/,
+    );
+    expect(page.textContent).not.toMatch(/Unofficial fan board for Sunflower Land digging/);
+    expect(page.textContent).not.toMatch(/Fewest digs to three Otter Pebbles/);
+    expect(page.querySelector("#past")).toBeNull();
+    expect(page.querySelector('[data-testid="tourney-home"]')).toBeNull();
+    expect(page.querySelector('[data-testid="featured-link"]')?.getAttribute("href")).toBe(
+      "/tournaments/sprint",
+    );
+    expect(page.textContent).not.toMatch(/By rank/);
+    expect(page.textContent).not.toMatch(/By today/);
   });
 
-  it("renders two parent sections, date-only child cards, and soonest-ending board first", async () => {
+  it("uses color canvases instead of raster photos", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 1,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({ farm_id: "1", rank: 1, score: 10, name: "Alpha", digs_to_third_op: 10 }),
+        entry({ farm_id: "2", rank: 2, score: 12, name: "Beta", digs_to_third_op: 12 }),
+        entry({ farm_id: "3", rank: 3, score: 14, name: "Gamma", digs_to_third_op: 14 }),
+      ]),
+    );
+
+    const page = await renderHome();
+    const canvases = page.querySelectorAll('[data-testid="color-canvas"]');
+    expect(canvases.length).toBeGreaterThan(3);
+    expect(page.querySelector("img")).toBeNull();
+    expect([...canvases].every((node) => !node.getAttribute("src"))).toBe(true);
+    expect(page.querySelector(".live-hero-art")).not.toBeNull();
+    expect(page.querySelector(".place-1 [data-testid='color-canvas']")).not.toBeNull();
+    expect(page.querySelector(".you-farm-art [data-testid='color-canvas']")).not.toBeNull();
+
+    const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const publicRoot = resolve(srcRoot, "../public");
+    const names = [
+      ...readdirSync(srcRoot, { recursive: true }).map(String),
+      ...readdirSync(publicRoot, { recursive: true }).map(String),
+    ];
+    expect(names.some((name) => /\.(png|jpe?g)$/i.test(name))).toBe(false);
+  });
+
+  it("cycles Avg / day, Today, and Total through asc, desc, then rank order", async () => {
+    const live = summary({
+      tournament_id: "one",
+      name: "First board",
+      status: "active",
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({
+          farm_id: "dug",
+          rank: 1,
+          score: 18,
+          score_today: 27,
+          digs_to_third_op: 80,
+          name: "Dug today",
+        }),
+        entry({
+          farm_id: "idle",
+          rank: 2,
+          score: 10,
+          score_today: 12,
+          digs_to_third_op: 40,
+          name: "Idle best",
+        }),
+        entry({
+          farm_id: "late",
+          rank: 3,
+          score: 22,
+          score_today: 9,
+          digs_to_third_op: 90,
+          name: "Late low today",
+        }),
+      ]),
+    );
+
+    const page = await renderHome();
+    const firstName = () =>
+      page.querySelector('[data-testid="standings"] tbody tr')?.textContent ?? "";
+    expect(firstName()).toMatch(/Dug today/);
+    expect(page.querySelector('[data-testid="sort-rank"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/By rank/);
+    expect(page.textContent).not.toMatch(/By today/);
+
+    const avg = page.querySelector('[data-testid="sort-avg"]') as HTMLButtonElement;
+    const today = page.querySelector('[data-testid="sort-today"]') as HTMLButtonElement;
+    const total = page.querySelector('[data-testid="sort-total"]') as HTMLButtonElement;
+
+    act(() => {
+      avg.click();
+    });
+    expect(firstName()).toMatch(/Idle best/);
+    act(() => {
+      avg.click();
+    });
+    expect(firstName()).toMatch(/Late low today/);
+    act(() => {
+      avg.click();
+    });
+    expect(firstName()).toMatch(/Dug today/);
+
+    act(() => {
+      today.click();
+    });
+    expect(firstName()).toMatch(/Late low today/);
+    act(() => {
+      today.click();
+    });
+    expect(firstName()).toMatch(/Dug today/);
+    act(() => {
+      today.click();
+    });
+    expect(firstName()).toMatch(/Dug today/);
+
+    act(() => {
+      total.click();
+    });
+    expect(firstName()).toMatch(/Idle best/);
+    act(() => {
+      total.click();
+    });
+    expect(firstName()).toMatch(/Late low today/);
+    act(() => {
+      total.click();
+    });
+    expect(firstName()).toMatch(/Dug today/);
+  });
+
+  it("shows only the admin-featured board, including an ended event", async () => {
     const soon = summary({
       tournament_id: "soon",
       name: "Ends first",
       status: "active",
-      start_at: "2026-08-01T14:44:00.000Z",
-      end_at: "2026-08-18T13:47:00.000Z",
-      duration_days: 17,
+      end_at: "2026-08-25T00:00:00.000Z",
+      count: 2,
     });
     const later = summary({
       tournament_id: "later",
       name: "Ends later",
       status: "active",
-      start_at: "2026-08-05T09:10:00.000Z",
-      end_at: "2026-08-25T18:00:00.000Z",
-      duration_days: 20,
-    });
-    const upcoming = summary({
-      tournament_id: "next",
-      name: "September cup",
-      status: "scheduled",
-      start_at: "2026-09-01T14:00:00.000Z",
-      end_at: "2026-09-08T14:00:00.000Z",
-      duration_days: 7,
-    });
-    listTournaments.mockResolvedValue({ tournaments: [later, upcoming, soon], count: 3 });
-    fetchTournament.mockImplementation(async (id: string) => {
-      if (id === "soon")
-        return archive(soon, [entry({ farm_id: "a", rank: 1, score: 1.2, name: "Alpha" })]);
-      return archive(later, [entry({ farm_id: "b", rank: 1, score: 2.4, name: "Bravo" })]);
-    });
-
-    const page = await renderHome();
-    expect(page.querySelector('[data-testid="ongoing-group"]')?.textContent).toMatch(/Ends first/);
-    expect(page.querySelector('[data-testid="ongoing-group"]')?.textContent).toMatch(/Ends later/);
-    expect(page.querySelector('[data-testid="upcoming-group"]')?.textContent).toMatch(
-      /September cup/,
-    );
-    expect(page.querySelectorAll('[data-testid^="tourney-card-"]')).toHaveLength(3);
-
-    const durationText =
-      page.querySelector('[data-testid="tourney-duration-soon"]')?.textContent ?? "";
-    expect(durationText).toMatch(/1–18 Aug/);
-    expect(durationText).not.toMatch(/→|· 17d/);
-    expect(durationText).not.toMatch(/\d{2}:\d{2}/);
-    expect(durationText).not.toMatch(/UTC/);
-    const liveCard = page.querySelector('[data-testid="tourney-card-soon"]');
-    expect(liveCard?.querySelector(".tourney-card-head")?.contains(
-      liveCard.querySelector('[data-testid="tourney-duration-soon"]'),
-    )).toBe(true);
-    const nextRefresh = liveCard?.querySelector('[data-testid="tourney-next-refresh"]');
-    expect(liveCard?.textContent).toMatch(/Next refresh/);
-    expect(nextRefresh).not.toBeNull();
-    expect(nextRefresh?.classList.contains("tourney-next")).toBe(true);
-    expect(nextRefresh?.classList.contains("stat")).toBe(false);
-    expect(liveCard?.querySelector(".stat")).toBeNull();
-    expect(liveCard?.getAttribute("href")).toBe("/tournaments/soon");
-    expect(page.querySelector('[data-testid="tourney-card-next"]')?.textContent).not.toMatch(
-      /Next refresh/,
-    );
-    expect(page.querySelector('[data-testid="tourney-card-next"]')?.getAttribute("href")).toBe(
-      "/tournaments/next",
-    );
-
-    const boards = [...page.querySelectorAll('[data-testid^="live-board-"]')];
-    expect(boards).toHaveLength(2);
-    expect(boards[0]?.getAttribute("data-testid")).toBe("live-board-soon");
-    expect(boards[1]?.getAttribute("data-testid")).toBe("live-board-later");
-    expect(boards[0]?.textContent).toMatch(/Total/);
-    expect(boards[0]?.textContent).toMatch(/Avg \/ day/);
-    expect(boards[0]?.textContent).toMatch(/Today/);
-    expect(boards[0]?.textContent).toMatch(/Pebbles/);
-    expect(page.querySelector('[data-testid="open-board-soon"]')?.getAttribute("href")).toBe(
-      "/tournaments/soon",
-    );
-    expect(page.querySelector('[data-testid="open-board-later"]')?.getAttribute("href")).toBe(
-      "/tournaments/later",
-    );
-    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).toMatch(
-      /Ends first/,
-    );
-    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).not.toMatch(
-      /Open →/,
-    );
-    expect(page.querySelector('[data-testid^="download-board"]')).toBeNull();
-    expect(page.textContent).not.toMatch(/Download image/);
-    expect(page.textContent).not.toMatch(/Finished \/ tracked/);
-    expect(page.querySelectorAll('[data-testid="you-farm"]')).toHaveLength(1);
-    expect(page.querySelector('[data-testid="you-farm"]')?.textContent).not.toMatch(/Ends first/);
-    expect(page.querySelector('[data-testid="latest-result"]')).toBeNull();
-    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
-    expect(page.querySelector(".podium")).toBeNull();
-    expect(page.querySelector('[aria-label="Top three"]')).toBeNull();
-    expect(page.textContent).not.toMatch(/Top three/);
-  });
-
-  it("defaults to API rank, cycles avg/day three times, and isolates boards", async () => {
-    const first = summary({
-      tournament_id: "one",
-      name: "First board",
-      status: "active",
-      end_at: "2026-08-18T00:00:00.000Z",
-    });
-    const second = summary({
-      tournament_id: "two",
-      name: "Second board",
-      status: "active",
-      end_at: "2026-08-22T00:00:00.000Z",
-    });
-    const laterScores = [11, 12, 13, 14, 15, 16, 17, 19, 21, 22];
-    const many = [
-      entry({ farm_id: "dug", rank: 1, score: 18, name: "Dug today" }),
-      entry({ farm_id: "idle", rank: 2, score: 10, name: "Idle best" }),
-      ...laterScores.map((score, index) =>
-        entry({
-          farm_id: `p${index + 3}`,
-          rank: index + 3,
-          score,
-          name: index === 9 ? "Worst avg" : `Player ${index + 3}`,
-        }),
-      ),
-    ];
-    listTournaments.mockResolvedValue({ tournaments: [first, second], count: 2 });
-    fetchTournament.mockImplementation(async (id: string) => {
-      if (id === "one") return archive(first, many);
-      return archive(second, [
-        entry({ farm_id: "keep", rank: 1, score: 0.8, name: "Keep me first" }),
-        entry({ farm_id: "other", rank: 2, score: 0.4, name: "Better unused avg" }),
-      ]);
-    });
-
-    const page = await renderHome();
-    const firstBoard = page.querySelector('[data-testid="live-board-one"]');
-    const secondBoard = page.querySelector('[data-testid="live-board-two"]');
-    const sort = page.querySelector('[data-testid="sort-score-one"]') as HTMLButtonElement;
-    expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
-    expect(firstBoard?.textContent).toMatch(/Total/);
-    expect(firstBoard?.textContent).toMatch(/Avg \/ day/);
-    expect(firstBoard?.textContent).toMatch(/Today/);
-    expect(firstBoard?.textContent).toMatch(/Dug today/);
-    expect(firstBoard?.textContent).not.toMatch(/Worst avg/);
-    expect(firstBoard?.textContent).not.toMatch(/Player 11/);
-    expect(sort.getAttribute("data-sort")).toBe("none");
-    expect(sort.getAttribute("aria-pressed")).toBe("false");
-    expect(sort.textContent).toBe("Avg / day");
-    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Dug today/);
-    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
-
-    act(() => {
-      sort.click();
-    });
-    expect(sort.getAttribute("data-sort")).toBe("asc");
-    expect(sort.textContent).toBe("Avg / day ↑");
-    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Idle best/);
-    expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
-    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
-
-    act(() => {
-      sort.click();
-    });
-    expect(sort.getAttribute("data-sort")).toBe("desc");
-    expect(sort.textContent).toBe("Avg / day ↓");
-    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Worst avg/);
-    expect(firstBoard?.querySelectorAll("tbody tr")).toHaveLength(10);
-    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
-    expect(secondBoard?.querySelector("tbody tr")?.textContent).not.toMatch(/Worst avg/);
-
-    act(() => {
-      sort.click();
-    });
-    expect(sort.getAttribute("data-sort")).toBe("none");
-    expect(sort.getAttribute("aria-pressed")).toBe("false");
-    expect(sort.textContent).toBe("Avg / day");
-    expect(firstBoard?.querySelector("tbody tr")?.textContent).toMatch(/Dug today/);
-    expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
-  });
-
-  it("lists past tournaments newest-end first and omits live join cards", async () => {
-    const live = summary({
-      tournament_id: "creators",
-      name: "Creators Digging Tournament",
-      status: "active",
-      start_at: "2026-08-17T00:00:00.000Z",
-      end_at: "2026-08-24T00:00:00.000Z",
-      duration_days: 7,
-    });
-    const next = summary({
-      tournament_id: "test-3",
-      name: "Test Tournament 3",
-      status: "scheduled",
-      start_at: "2026-08-24T00:00:00.000Z",
-      end_at: "2026-08-31T00:00:00.000Z",
-      duration_days: 7,
-    });
-    const older = summary({
-      tournament_id: "july-cup",
-      name: "July cup",
-      status: "ended",
-      start_at: "2026-07-01T00:00:00.000Z",
-      end_at: "2026-07-08T00:00:00.000Z",
-      duration_days: 7,
-      prize_amount: "30",
-      archived_at: "2026-07-08T00:00:00.000Z",
-      count: 3,
-    });
-    const newer = summary({
-      tournament_id: "august-cup",
-      name: "August cup",
-      status: "ended",
-      start_at: "2026-08-01T00:00:00.000Z",
-      end_at: "2026-08-08T00:00:00.000Z",
-      duration_days: 7,
-      prize_amount: "45",
-      archived_at: "2026-08-08T00:00:00.000Z",
-      count: 1,
-    });
-    listTournaments.mockResolvedValue({
-      tournaments: [next, live, older, newer],
+      end_at: "2026-08-30T00:00:00.000Z",
       count: 4,
     });
-    fetchTournament.mockImplementation(async (id: string) => {
-      if (id === "august-cup") {
-        return archive(newer, [
-          entry({ farm_id: "f1", rank: 1, score: 19.17, name: "Freako", digs_to_third_op: 115 }),
-          entry({ farm_id: "f2", rank: 2, score: 20.67, name: "Leauwuuu", digs_to_third_op: 124 }),
-          entry({ farm_id: "f3", rank: 3, score: 19.6, name: "Purikku22", digs_to_third_op: 98 }),
-        ]);
-      }
-      if (id === "july-cup") return archive(older, []);
-      return archive(live, []);
-    });
-
-    const page = await renderHome();
-    expect(page.querySelector("#join")).toBeNull();
-    expect(page.querySelector('[data-testid="join-tournaments"]')).toBeNull();
-    expect(page.textContent).not.toMatch(/Join a tournament/);
-    expect(page.querySelector('[data-testid="join-farm-id"]')).toBeNull();
-    expect(page.querySelector('[data-testid="join-form"]')).toBeNull();
-
-    const past = page.querySelector("#past");
-    const picker = page.querySelector('[data-testid="past-tournaments"]');
-    expect(past?.textContent).toMatch(/Past tournaments/);
-    expect(past?.textContent).toMatch(/Finished events, newest first/);
-    expect(picker?.textContent).toMatch(/August cup/);
-    expect(picker?.textContent).toMatch(/July cup/);
-    expect(picker?.textContent).not.toMatch(/Creators Digging Tournament/);
-    expect(picker?.textContent).not.toMatch(/Test Tournament 3/);
-    expect(picker?.textContent).toMatch(/1–8 Aug/);
-    expect(picker?.textContent).toMatch(/45 Flower · 1 farm/);
-    expect(picker?.textContent).toMatch(/1–8 Jul/);
-    expect(picker?.textContent).toMatch(/30 Flower · 3 farms/);
-    expect(picker?.querySelectorAll("input")).toHaveLength(0);
-
-    const links = [...page.querySelectorAll('[data-testid="past-tournaments"] a')].map((node) =>
-      node.getAttribute("data-testid"),
-    );
-    expect(links).toEqual(["past-link-august-cup", "past-link-july-cup"]);
-    const august = page.querySelector('[data-testid="past-link-august-cup"]');
-    expect(august?.getAttribute("href")).toBe("/tournaments/august-cup");
-    expect(august?.className).toBe(PAST_CARD_CLASS);
-    expect(august?.className).toMatch(/rounded-2xl/);
-    expect(august?.className).toMatch(/bg-dusk-panel|bg-\[#23201c\]/);
-    expect(august?.className).toMatch(/border/);
-    expect(august?.className).toMatch(/shadow-/);
-    expect(august?.className).toMatch(/\bp-5\b/);
-    expect(august?.className).not.toMatch(/join-option/);
-    expect(august?.querySelector(".font-bold")?.textContent).toBe("August cup");
-    const badge = august?.querySelector('[data-testid="past-badge-ended"]');
-    expect(badge?.textContent).toBe("Ended");
-    expect(badge?.className).toBe(PAST_BADGE_ENDED);
-    expect(badge?.className).toMatch(/bg-zinc-700/);
-    expect(badge?.className).toMatch(/text-white/);
-  });
-
-  it("keeps live boards ordered by soonest end when past events are present", async () => {
-    const liveSoonEnd = summary({
-      tournament_id: "live-soon-end",
-      name: "Ends first",
-      status: "active",
-      start_at: "2026-08-10T00:00:00.000Z",
-      end_at: "2026-08-18T00:00:00.000Z",
-      duration_days: 8,
-    });
-    const liveOldStart = summary({
-      tournament_id: "live-old-start",
-      name: "Started first",
-      status: "active",
-      start_at: "2026-08-01T00:00:00.000Z",
-      end_at: "2026-08-25T00:00:00.000Z",
-      duration_days: 24,
-    });
-    const past = summary({
+    const ended = summary({
       tournament_id: "past-cup",
       name: "Old cup",
       status: "ended",
       start_at: "2026-07-01T00:00:00.000Z",
       end_at: "2026-07-08T00:00:00.000Z",
-      duration_days: 7,
     });
     listTournaments.mockResolvedValue({
-      tournaments: [past, liveSoonEnd, liveOldStart],
+      tournaments: [later, ended, soon],
       count: 3,
+      featured_tournament_id: "past-cup",
     });
     fetchTournament.mockImplementation(async (id: string) => {
-      const row = id === "live-soon-end" ? liveSoonEnd : liveOldStart;
-      return archive(row, []);
+      if (id === "soon") {
+        return archive(soon, [
+          entry({ farm_id: "alpha", rank: 1, score: 8, name: "SoonLead", digs_to_third_op: 80 }),
+        ]);
+      }
+      if (id === "later") {
+        return archive(later, [
+          entry({ farm_id: "bravo", rank: 1, score: 12, name: "LaterLead", digs_to_third_op: 120 }),
+        ]);
+      }
+      return archive(ended, [
+        entry({ farm_id: "old", rank: 1, score: 1, name: "OldWinner", digs_to_third_op: 10 }),
+      ]);
     });
 
     const page = await renderHome();
-    const boards = [...page.querySelectorAll('[data-testid^="live-board-"]')].map((node) =>
-      node.getAttribute("data-testid"),
+    expect(page.querySelector('[data-testid="live-switcher"]')).toBeNull();
+    expect(page.querySelector('[data-testid="live-board-soon"]')).toBeNull();
+    expect(page.querySelector('[data-testid="live-board-later"]')).toBeNull();
+    expect(page.querySelector('[data-testid="live-board-past-cup"]')?.textContent).toMatch(
+      /OldWinner/,
     );
-    expect(boards).toEqual(["live-board-live-soon-end", "live-board-live-old-start"]);
-    expect(page.querySelector('[data-testid="past-link-past-cup"]')?.getAttribute("href")).toBe(
+    expect(page.textContent).not.toMatch(/SoonLead/);
+    expect(page.textContent).not.toMatch(/LaterLead/);
+    expect(page.querySelector('[data-testid="featured-link"]')?.getAttribute("href")).toBe(
       "/tournaments/past-cup",
     );
-    expect(page.querySelectorAll('[data-testid="you-farm"]')).toHaveLength(1);
-    expect(page.querySelector('[data-testid="latest-result-name"]')?.textContent).toBe("Old cup");
-    expect(page.querySelector('[data-testid="latest-result-name"]')?.getAttribute("href")).toBe(
-      "/tournaments/past-cup",
-    );
+    expect(page.querySelector('[data-testid="home-hero"]')?.textContent).toMatch(/Old cup/);
+    const fetched = fetchTournament.mock.calls.map((call) => call[0]);
+    expect(fetched).toEqual(["past-cup"]);
   });
 
-  it("caps the home ongoing and upcoming widgets at two each", async () => {
-    const live = [1, 2, 3].map((index) =>
-      summary({
-        tournament_id: `live-${index}`,
-        name: `Live ${index}`,
-        status: "active",
-        end_at: `2026-08-${18 + index}T00:00:00.000Z`,
-      }),
-    );
-    const upcoming = [1, 2, 3].map((index) =>
-      summary({
-        tournament_id: `next-${index}`,
-        name: `Soon ${index}`,
-        status: "scheduled",
-        start_at: `2026-09-0${index}T00:00:00.000Z`,
-        end_at: `2026-09-1${index}T00:00:00.000Z`,
-      }),
-    );
-    listTournaments.mockResolvedValue({ tournaments: [...live, ...upcoming], count: 6 });
-    fetchTournament.mockImplementation(async (id: string) => {
-      const row = live.find((item) => item.tournament_id === id) ?? live[0];
-      return archive(row, []);
-    });
-
-    const page = await renderHome();
-    const ongoingCards = page.querySelectorAll(
-      '[data-testid="ongoing-group"] [data-testid^="tourney-card-"]',
-    );
-    const upcomingCards = page.querySelectorAll(
-      '[data-testid="upcoming-group"] [data-testid^="tourney-card-"]',
-    );
-    expect(ongoingCards).toHaveLength(2);
-    expect(upcomingCards).toHaveLength(2);
-    expect(page.querySelector('[data-testid="tourney-card-live-3"]')).toBeNull();
-    expect(page.querySelector('[data-testid="tourney-card-next-3"]')).toBeNull();
-    expect(page.querySelectorAll('[data-testid^="live-board-"]')).toHaveLength(3);
-  });
-
-  it("gives past cards and badges computed padding that beats the universal reset", async () => {
-    const css = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
-      "utf8",
-    );
-    expect(css).toMatch(/\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[^}]*padding:\s*0/s);
-    expect(css).not.toMatch(/@layer[^{]*\{[^}]*\.past-card/s);
-    expect(css).toMatch(/a\.past-card\s*\{[^}]*padding:\s*20px/s);
-    expect(css).toMatch(/\.past-badge\s*\{[^}]*padding:\s*4px 10px/s);
-    const sheet = document.createElement("style");
-    sheet.setAttribute("data-testid", "past-style-sheet");
-    sheet.textContent = css;
-    document.head.appendChild(sheet);
-
-    const ended = summary({
-      tournament_id: "august-cup",
-      name: "August cup",
-      status: "ended",
-      start_at: "2026-08-01T00:00:00.000Z",
-      end_at: "2026-08-08T00:00:00.000Z",
-      duration_days: 7,
-      count: 2,
-    });
-    listTournaments.mockResolvedValue({ tournaments: [ended], count: 1 });
-    fetchTournament.mockResolvedValue(archive(ended, []));
-
-    try {
-      const page = await renderHome();
-      const card = page.querySelector('[data-testid="past-link-august-cup"]') as HTMLElement;
-      const badge = page.querySelector('[data-testid="past-badge-ended"]') as HTMLElement;
-      const sub = page.querySelector("#past .past-sub") as HTMLElement;
-      const stack = page.querySelector('[data-testid="past-tournaments"]') as HTMLElement;
-      expect(card).not.toBeNull();
-      expect(badge).not.toBeNull();
-      const cardStyle = getComputedStyle(card);
-      expect(parseFloat(cardStyle.paddingTop)).toBeGreaterThanOrEqual(16);
-      expect(parseFloat(cardStyle.paddingRight)).toBeGreaterThanOrEqual(16);
-      expect(parseFloat(cardStyle.paddingBottom)).toBeGreaterThanOrEqual(16);
-      expect(parseFloat(cardStyle.paddingLeft)).toBeGreaterThanOrEqual(16);
-      const badgeStyle = getComputedStyle(badge);
-      expect(parseFloat(badgeStyle.paddingTop)).toBeGreaterThan(0);
-      expect(parseFloat(badgeStyle.paddingRight)).toBeGreaterThan(0);
-      expect(parseFloat(badgeStyle.paddingBottom)).toBeGreaterThan(0);
-      expect(parseFloat(badgeStyle.paddingLeft)).toBeGreaterThan(0);
-      expect(parseFloat(getComputedStyle(sub).marginBottom)).toBeGreaterThanOrEqual(12);
-      const stackStyle = getComputedStyle(stack);
-      expect(parseFloat(stackStyle.gap || stackStyle.rowGap)).toBeGreaterThanOrEqual(12);
-    } finally {
-      sheet.remove();
-    }
-  });
-
-  it("styles past cards with Tailwind utilities, not the old join-option row", () => {
-    const list = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../components/PastTournamentList.tsx"),
-      "utf8",
-    );
-    const tw = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../tailwind.css"),
-      "utf8",
-    );
-    expect(list).toMatch(/rounded-2xl/);
-    expect(list).toMatch(/bg-dusk-panel/);
-    expect(list).toMatch(/border/);
-    expect(list).toMatch(/shadow-/);
-    expect(list).toMatch(/\bp-5\b/);
-    expect(list).toMatch(/bg-zinc-700/);
-    expect(list).toMatch(/text-white/);
-    expect(list).not.toMatch(/join-option/);
-    expect(list).not.toMatch(/Join a tournament/);
-    expect(tw).not.toMatch(/tailwindcss\/preflight/);
-    expect(tw).not.toMatch(/@import "tailwindcss";/);
-    expect(tw).toMatch(/tailwindcss\/utilities/);
-  });
-
-  it("keeps home boards clickable without a download control", async () => {
-    const live = summary({
-      tournament_id: "empty",
-      name: "Empty cup",
+  it("falls back to the soonest live board when nothing is featured", async () => {
+    const soon = summary({
+      tournament_id: "soon",
+      name: "Ends first",
       status: "active",
-    });
-    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
-    fetchTournament.mockResolvedValue(archive(live, []));
-    const page = await renderHome();
-    expect(page.querySelector('[data-testid="open-board-empty"]')?.getAttribute("href")).toBe(
-      "/tournaments/empty",
-    );
-    expect(page.querySelector('[data-testid="open-board-empty"]')?.textContent).toMatch(
-      /Empty cup/,
-    );
-    expect(page.querySelector('[data-testid="open-board-empty"]')?.textContent).not.toMatch(
-      /Open →/,
-    );
-    expect(page.querySelector('[data-testid^="download-board"]')).toBeNull();
-    expect(page.textContent).not.toMatch(/Download image/);
-    const homeSrc = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "./LeaderboardPage.tsx"),
-      "utf8",
-    );
-    expect(homeSrc).not.toMatch(/DownloadBoardButton/);
-    expect(homeSrc).not.toMatch(/Open →/);
-  });
-
-  it("shows one overall farm record with name, id, recorded avg/day, and score today", async () => {
-    const live = summary({
-      tournament_id: "creators",
-      name: "Creators Digging Tournament",
-      status: "active",
-      start_at: "2026-08-17T00:00:00.000Z",
-      end_at: "2026-08-24T00:00:00.000Z",
-      duration_days: 7,
+      end_at: "2026-08-25T00:00:00.000Z",
     });
     const later = summary({
       tournament_id: "later",
       name: "Ends later",
       status: "active",
-      start_at: "2026-08-05T00:00:00.000Z",
       end_at: "2026-08-30T00:00:00.000Z",
-      duration_days: 25,
     });
-    listTournaments.mockResolvedValue({ tournaments: [later, live], count: 2 });
+    listTournaments.mockResolvedValue({ tournaments: [later, soon], count: 2 });
     fetchTournament.mockImplementation(async (id: string) => {
-      if (id === "creators") {
-        return archive(live, [entry({ farm_id: "a", rank: 1, score: 8, name: "LiveLead" })]);
-      }
-      return archive(later, [entry({ farm_id: "b", rank: 1, score: 9, name: "Other" })]);
-    });
-    fetchFarm.mockResolvedValue(
-      entry({
-        farm_id: "3666918801844311",
-        name: "rmr",
-        rank: 5,
-        score: 19.0,
-        recorded_average_per_day: 20.4,
-        score_today: 18,
-        digs_to_third_op: 102,
-      }),
-    );
-
-    const page = await renderHome();
-    const hero = page.querySelector('[data-testid="home-hero"]') as HTMLElement;
-    const side = page.querySelector('[data-testid="hero-side"]') as HTMLElement;
-    const you = page.querySelector('[data-testid="you-farm"]') as HTMLElement;
-    const panel = page.querySelector('[data-testid="tourney-home"]') as HTMLElement;
-    const liveBoard = page.querySelector('[data-testid="live-board-creators"]') as HTMLElement;
-    expect(page.querySelectorAll('[data-testid="you-farm"]')).toHaveLength(1);
-    expect(hero.contains(you)).toBe(true);
-    expect(side.contains(you)).toBe(true);
-    expect(side.contains(panel)).toBe(true);
-    expect(you.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(you.getAttribute("href")).toBe("/farm/3666918801844311");
-    expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
-    expect(page.querySelector('[data-testid="you-farm-id"]')?.textContent).toBe("3666918801844311");
-    expect(page.querySelector('[data-testid="you-farm-avg"]')?.textContent).toMatch(/20\.40/);
-    expect(page.querySelector('[data-testid="you-farm-avg"]')?.textContent).not.toMatch(/19\.00/);
-    expect(page.querySelector('[data-testid="you-farm-score-today"]')?.textContent).toMatch(/18/);
-    expect(you.textContent).not.toMatch(/Creators Digging Tournament/);
-    expect(you.textContent).not.toMatch(/Ends later/);
-    expect(you.textContent).not.toMatch(/Rank/);
-    expect(you.textContent).not.toMatch(/Digs today/);
-    expect(page.querySelector('[data-testid="you-farm-creators"]')).toBeNull();
-    expect(you.compareDocumentPosition(liveBoard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(fetchFarm).toHaveBeenCalledWith("3666918801844311");
-
-    const css = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
-      "utf8",
-    );
-    expect(css).toMatch(/a\.you-farm\s*\{[^}]*display:\s*flex/s);
-    expect(css).toMatch(/a\.you-farm\s*\{[^}]*padding:\s*10px 14px/s);
-    expect(css).not.toMatch(/a\.you-farm\s*\{[^}]*padding:\s*16px 18px/s);
-    expect(css).not.toMatch(/#e8b923/);
-    const sheet = document.createElement("style");
-    sheet.textContent = css;
-    document.head.appendChild(sheet);
-    try {
-      expect(getComputedStyle(you).display).toBe("flex");
-      expect(getComputedStyle(you).flexWrap).toMatch(/wrap/);
-      expect(parseFloat(getComputedStyle(you).paddingTop)).toBeLessThan(16);
-      expect(getComputedStyle(side).display).toBe("flex");
-      expect(getComputedStyle(side).flexDirection).toBe("column");
-    } finally {
-      sheet.remove();
-    }
-  });
-
-  it("shows the newest ended tournament name and podium above live boards", async () => {
-    const live = summary({
-      tournament_id: "creators",
-      name: "Creators Digging Tournament",
-      status: "active",
-      start_at: "2026-08-17T00:00:00.000Z",
-      end_at: "2026-08-24T00:00:00.000Z",
-      duration_days: 7,
-    });
-    const older = summary({
-      tournament_id: "july-cup",
-      name: "July cup",
-      status: "ended",
-      start_at: "2026-07-01T00:00:00.000Z",
-      end_at: "2026-07-08T00:00:00.000Z",
-      duration_days: 7,
-    });
-    const newer = summary({
-      tournament_id: "august-cup",
-      name: "August cup",
-      status: "ended",
-      start_at: "2026-08-01T00:00:00.000Z",
-      end_at: "2026-08-08T00:00:00.000Z",
-      duration_days: 7,
-    });
-    listTournaments.mockResolvedValue({ tournaments: [live, older, newer], count: 3 });
-    fetchTournament.mockImplementation(async (id: string) => {
-      if (id === "august-cup") {
-        return archive(newer, [
-          entry({ farm_id: "f1", rank: 1, score: 19.17, name: "Freako", digs_to_third_op: 115 }),
-          entry({ farm_id: "f2", rank: 2, score: 20.67, name: "Leauwuuu", digs_to_third_op: 124 }),
-          entry({ farm_id: "f3", rank: 3, score: 19.6, name: "Purikku22", digs_to_third_op: 98 }),
+      if (id === "soon") {
+        return archive(soon, [
+          entry({ farm_id: "alpha", rank: 1, score: 8, name: "SoonLead", digs_to_third_op: 80 }),
         ]);
       }
-      if (id === "july-cup") {
-        return archive(older, [
-          entry({ farm_id: "old1", rank: 1, score: 10, name: "OldWinner", digs_to_third_op: 70 }),
-        ]);
-      }
-      return archive(live, [entry({ farm_id: "live1", rank: 1, score: 8, name: "LiveLead" })]);
+      return archive(later, [
+        entry({ farm_id: "bravo", rank: 1, score: 12, name: "LaterLead", digs_to_third_op: 120 }),
+      ]);
     });
 
     const page = await renderHome();
-    const hero = page.querySelector('[data-testid="home-hero"]') as HTMLElement;
-    const latest = page.querySelector('[data-testid="latest-result"]') as HTMLElement;
-    const liveBoard = page.querySelector('[data-testid="live-board-creators"]') as HTMLElement;
-    const name = page.querySelector('[data-testid="latest-result-name"]') as HTMLAnchorElement;
-    expect(latest).not.toBeNull();
-    expect(name?.textContent).toBe("August cup");
-    expect(name?.getAttribute("href")).toBe("/tournaments/august-cup");
-    expect(page.querySelector('[data-testid="latest-result-window"]')?.textContent).toMatch(
-      /1–8 Aug/,
+    expect(page.querySelector('[data-testid="live-switcher"]')).toBeNull();
+    expect(page.querySelector('[data-testid="live-board-soon"]')?.textContent).toMatch(/SoonLead/);
+    expect(page.querySelector('[data-testid="live-board-later"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/LaterLead/);
+    expect(page.querySelector('[data-testid="featured-link"]')?.getAttribute("href")).toBe(
+      "/tournaments/soon",
     );
-    expect(latest.textContent).toMatch(/Latest result/);
-    expect(latest.textContent).not.toMatch(/July cup/);
-    expect(latest.textContent).not.toMatch(/OldWinner/);
-    expect(latest.textContent).not.toMatch(/Creators Digging Tournament/);
-    const podium = latest.querySelector('[data-testid="tournament-podium"]');
-    expect(podium).not.toBeNull();
-    expect(podium?.querySelector(".place-1")?.textContent).toMatch(/Freako/);
-    expect(podium?.querySelector(".place-1")?.textContent).toMatch(/115/);
-    expect(podium?.querySelector(".place-2")?.textContent).toMatch(/Leauwuuu/);
-    expect(podium?.querySelector(".place-3")?.textContent).toMatch(/Purikku22/);
-    expect(hero.compareDocumentPosition(latest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(
-      latest.compareDocumentPosition(liveBoard) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    const fetched = fetchTournament.mock.calls.map((call) => call[0]);
-    expect(fetched).toContain("august-cup");
-    expect(fetched).toContain("creators");
-    expect(fetched).not.toContain("july-cup");
-
-    const css = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
-      "utf8",
-    );
-    expect(css).toMatch(/a\.latest-result-name\s*\{[^}]*color:\s*var\(--cream\)/s);
-    expect(css).toMatch(/a\.latest-result-name:hover[^}]*color:\s*var\(--gold\)/s);
-    expect(css).not.toMatch(/#e8b923/);
-    expect(css).toMatch(
-      /\.latest-result \.podium\s*\{[^}]*grid-template-columns:\s*1fr 1\.15fr 1fr/s,
-    );
-    const sheet = document.createElement("style");
-    sheet.textContent = css;
-    document.head.appendChild(sheet);
-    try {
-      expect(getComputedStyle(latest.querySelector(".podium") as HTMLElement).display).toBe("grid");
-    } finally {
-      sheet.remove();
-    }
   });
 
-  it("stretches the home tourney panel to the prize card height", () => {
-    const css = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
-      "utf8",
-    );
-    expect(css).toMatch(/\.hero\s*\{[^}]*align-items:\s*stretch/s);
-    expect(css).toMatch(/\.hero\s*>\s*\.card\s*\{[^}]*height:\s*100%[^}]*margin-top:\s*0/s);
-    expect(css).toMatch(/\.hero-side\s*\{[^}]*display:\s*flex/s);
-    expect(css).toMatch(/\.hero-side\s*>\s*\.card\s*\{[^}]*flex:\s*1/s);
-    expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*min-height:\s*100%/s);
-    expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*align-content:\s*start/s);
-    expect(css).toMatch(/\.tourney-card-head\s*\{[^}]*align-items:\s*center/s);
-    expect(css).toMatch(/\.tourney-card-meta\s*\{[^}]*white-space:\s*nowrap/s);
-    expect(css).toMatch(/\.tourney-group\s*\{[^}]*min-height:\s*calc\(2 \* var\(--tourney-block\)/s);
-    const siblingMargin = css.indexOf(".card + .card");
-    const heroCardReset = css.indexOf(".hero > .card");
-    expect(siblingMargin).toBeGreaterThan(-1);
-    expect(heroCardReset).toBeGreaterThan(siblingMargin);
+  it("shows empty copy when there is no live tournament", async () => {
+    listTournaments.mockResolvedValue({ tournaments: [], count: 0 });
+    const page = await renderHome();
+    expect(page.querySelector('[data-testid="home-hero"]')).not.toBeNull();
+    expect(page.querySelector("#rules")).not.toBeNull();
+    expect(page.textContent).toMatch(/No live tournament yet/);
+    expect(page.textContent).not.toMatch(/No live window/);
+    expect(page.querySelector('[data-testid="now-digging"]')).toBeNull();
+    expect(page.querySelector("table.board-table")).toBeNull();
   });
 });

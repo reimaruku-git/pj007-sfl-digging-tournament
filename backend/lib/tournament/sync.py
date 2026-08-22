@@ -83,6 +83,8 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
             "status": "scheduled",
             "last_full_sync_at": config.get("last_full_sync_at"),
             "updated_at": config.get("updated_at"),
+            "featured_tournament_id": str(config.get("featured_tournament_id") or "").strip()
+            or None,
         }
     days = int(config.get("duration_days") or 0) or duration_days(start, end)
     tid = str(config.get("current_tournament_id") or config.get("tournament_id") or "").strip()
@@ -105,6 +107,7 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
         "status": config.get("status") or "scheduled",
         "last_full_sync_at": config.get("last_full_sync_at"),
         "updated_at": config.get("updated_at"),
+        "featured_tournament_id": str(config.get("featured_tournament_id") or "").strip() or None,
     }
 
 
