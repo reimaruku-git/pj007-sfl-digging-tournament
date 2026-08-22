@@ -115,7 +115,8 @@ describe("routes", () => {
     expect(home.textContent).not.toMatch(/Enter your Farm ID/);
     expect(home.querySelector("#rules")).not.toBeNull();
     expect(home.querySelector('[data-testid="ongoing-group"]')).not.toBeNull();
-    expect(home.querySelector("#join")).not.toBeNull();
+    expect(home.querySelector("#past")).not.toBeNull();
+    expect(home.querySelector("#join")).toBeNull();
     expect(home.querySelector('[data-testid="farm-connect"]')).not.toBeNull();
     expect(home.querySelector('[data-testid="farm-id-input"]')).not.toBeNull();
 
@@ -167,7 +168,8 @@ describe("routes", () => {
     expect(home.querySelector(".topbar-tools")?.textContent).not.toMatch(/rmr/);
     expect(home.querySelector(".topbar-tools")?.textContent).not.toMatch(/3666918801844311/);
     expect(home.textContent).toMatch(/Prize pool/);
-    expect(home.textContent).toMatch(/Join a tournament/);
+    expect(home.textContent).toMatch(/Past tournaments/);
+    expect(home.querySelector("#join")).toBeNull();
     expect(home.textContent).toMatch(/Ongoing/);
     expect(home.textContent).toMatch(/Upcoming/);
     const rules = home.querySelector("#rules");
@@ -215,7 +217,8 @@ describe("routes", () => {
     });
     expect(home.querySelector('[data-testid="farm-id-gate"]')).toBeNull();
     expect(home.querySelector("#rules")).not.toBeNull();
-    expect(home.querySelector("#join")).not.toBeNull();
+    expect(home.querySelector("#past")).not.toBeNull();
+    expect(home.querySelector("#join")).toBeNull();
     expect(home.querySelector('[data-testid="farm-connect"]')).not.toBeNull();
     expect(home.querySelector('[data-testid="farm-connected"]')).toBeNull();
   });

@@ -1,6 +1,6 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -135,6 +135,50 @@ describe("public chrome", () => {
     expect(el.querySelector('[data-testid="farm-connected"]')).toBeNull();
     expect(el.querySelector('[data-testid="farm-id-input"]')).toBeNull();
     expect(el.querySelector(".utc-chip")).not.toBeNull();
+  });
+
+  it("sends Join a tournament to the catalog page", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={["/"]}>
+          <FarmSessionProvider>
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  <Layout>
+                    <main data-testid="home-body">home</main>
+                  </Layout>
+                }
+              />
+              <Route
+                path="/tournaments"
+                element={
+                  <Layout>
+                    <main data-testid="catalog-body">catalog</main>
+                  </Layout>
+                }
+              />
+            </Routes>
+          </FarmSessionProvider>
+        </MemoryRouter>,
+      );
+    });
+    act(() => {
+      (container.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
+    });
+    const join = [...container.querySelectorAll('[data-testid="menu-options"] button')].find(
+      (node) => node.textContent === "Join a tournament",
+    ) as HTMLButtonElement;
+    expect(join).not.toBeUndefined();
+    act(() => {
+      join.click();
+    });
+    expect(container.querySelector('[data-testid="catalog-body"]')?.textContent).toBe("catalog");
+    expect(container.querySelector('[data-testid="home-body"]')).toBeNull();
   });
 
   it("styles ongoing green and upcoming gray in the shipped stylesheet", () => {

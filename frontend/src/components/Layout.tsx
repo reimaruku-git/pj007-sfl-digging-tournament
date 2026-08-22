@@ -35,10 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   function goJoin() {
     setOpen(false);
-    navigate("/");
-    window.requestAnimationFrame(() => {
-      document.getElementById("join")?.scrollIntoView({ behavior: "smooth" });
-    });
+    navigate("/tournaments");
   }
 
   function goRules() {

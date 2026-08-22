@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { LeaderboardEntry, TournamentSummary } from "../api/public";
 import {
   homeTourneyPreview,
-  joinListTournaments,
   joinableTournaments,
   liveTournamentsSoonestFirst,
   nextScoreSort,
+  pastTournaments,
   upcomingTournaments,
   visibleBoardEntries,
 } from "./board";
@@ -141,7 +141,7 @@ describe("tournament section order", () => {
     ]);
   });
 
-  it("orders the home join list by oldest live start, then soonest upcoming start", () => {
+  it("lists ended events newest-end first and omits live and scheduled", () => {
     const mismatch: TournamentSummary[] = [
       {
         tournament_id: "live-soon-end",
@@ -153,30 +153,6 @@ describe("tournament section order", () => {
         status: "active",
         archived_at: null,
         count: 1,
-        leader_farm_id: null,
-      },
-      {
-        tournament_id: "live-old-start",
-        name: "Started first",
-        start_at: "2026-08-01T00:00:00Z",
-        end_at: "2026-08-25T00:00:00Z",
-        duration_days: 24,
-        prize_amount: "30",
-        status: "active",
-        archived_at: null,
-        count: 1,
-        leader_farm_id: null,
-      },
-      {
-        tournament_id: "up-later",
-        name: "October cup",
-        start_at: "2026-10-01T00:00:00Z",
-        end_at: "2026-10-08T00:00:00Z",
-        duration_days: 7,
-        prize_amount: "30",
-        status: "scheduled",
-        archived_at: null,
-        count: 0,
         leader_farm_id: null,
       },
       {
@@ -192,8 +168,8 @@ describe("tournament section order", () => {
         leader_farm_id: null,
       },
       {
-        tournament_id: "past",
-        name: "Old cup",
+        tournament_id: "past-older",
+        name: "July cup",
         start_at: "2026-07-01T00:00:00Z",
         end_at: "2026-07-08T00:00:00Z",
         duration_days: 7,
@@ -203,22 +179,26 @@ describe("tournament section order", () => {
         count: 3,
         leader_farm_id: null,
       },
+      {
+        tournament_id: "past-newer",
+        name: "August cup",
+        start_at: "2026-08-01T00:00:00Z",
+        end_at: "2026-08-08T00:00:00Z",
+        duration_days: 7,
+        prize_amount: "30",
+        status: "ended",
+        archived_at: "2026-08-08T00:00:00Z",
+        count: 5,
+        leader_farm_id: null,
+      },
     ];
-    expect(liveTournamentsSoonestFirst(mismatch).map((row) => row.tournament_id)).toEqual([
-      "live-soon-end",
-      "live-old-start",
-    ]);
-    expect(joinListTournaments(mismatch).map((row) => row.tournament_id)).toEqual([
-      "live-old-start",
-      "live-soon-end",
-      "up-soon",
-      "up-later",
+    expect(pastTournaments(mismatch).map((row) => row.tournament_id)).toEqual([
+      "past-newer",
+      "past-older",
     ]);
     expect(joinableTournaments(mismatch).map((row) => row.tournament_id)).toEqual([
       "live-soon-end",
-      "live-old-start",
       "up-soon",
-      "up-later",
     ]);
   });
 

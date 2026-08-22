@@ -16,13 +16,9 @@ vi.mock("../api/public", () => ({
   fetchTournament: (...args: unknown[]) => fetchTournament(...args),
 }));
 
-import {
-  JOIN_BADGE_ONGOING,
-  JOIN_BADGE_UPCOMING,
-  JOIN_CARD_CLASS,
-} from "../components/JoinTournamentList";
+import { PAST_BADGE_ENDED, PAST_CARD_CLASS } from "../components/PastTournamentList";
 import { FarmSessionProvider } from "../lib/farmSession";
-import { clearFarmIdentity, writeFarmIdentity } from "../lib/followFarm";
+import { writeFarmIdentity } from "../lib/followFarm";
 import { LeaderboardPage } from "./LeaderboardPage";
 
 let root: Root;
@@ -139,6 +135,9 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector("table.board-table")).toBeNull();
     expect(page.querySelector('[data-testid^="live-board-"]')).toBeNull();
     expect(page.textContent).not.toMatch(/Create tournament/);
+    expect(page.querySelector("#join")).toBeNull();
+    expect(page.querySelector("#past")?.textContent).toMatch(/Past tournaments/);
+    expect(page.querySelector("#past")?.textContent).toMatch(/No past tournaments yet/);
   });
 
   it("renders two parent sections, date-only child cards, and soonest-ending board first", async () => {
@@ -309,7 +308,7 @@ describe("LeaderboardPage home", () => {
     expect(secondBoard?.querySelector("tbody tr")?.textContent).toMatch(/Keep me first/);
   });
 
-  it("lists upcoming and ongoing as Tailwind cards with badges and no farm fields", async () => {
+  it("lists past tournaments newest-end first and omits live join cards", async () => {
     const live = summary({
       tournament_id: "creators",
       name: "Creators Digging Tournament",
@@ -326,55 +325,77 @@ describe("LeaderboardPage home", () => {
       end_at: "2026-08-31T00:00:00.000Z",
       duration_days: 7,
     });
-    listTournaments.mockResolvedValue({ tournaments: [next, live], count: 2 });
+    const older = summary({
+      tournament_id: "july-cup",
+      name: "July cup",
+      status: "ended",
+      start_at: "2026-07-01T00:00:00.000Z",
+      end_at: "2026-07-08T00:00:00.000Z",
+      duration_days: 7,
+      prize_amount: "30",
+      archived_at: "2026-07-08T00:00:00.000Z",
+      count: 3,
+    });
+    const newer = summary({
+      tournament_id: "august-cup",
+      name: "August cup",
+      status: "ended",
+      start_at: "2026-08-01T00:00:00.000Z",
+      end_at: "2026-08-08T00:00:00.000Z",
+      duration_days: 7,
+      prize_amount: "45",
+      archived_at: "2026-08-08T00:00:00.000Z",
+      count: 1,
+    });
+    listTournaments.mockResolvedValue({
+      tournaments: [next, live, older, newer],
+      count: 4,
+    });
     fetchTournament.mockResolvedValue(archive(live, []));
 
     const page = await renderHome();
+    expect(page.querySelector("#join")).toBeNull();
+    expect(page.querySelector('[data-testid="join-tournaments"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Join a tournament/);
     expect(page.querySelector('[data-testid="join-farm-id"]')).toBeNull();
-    expect(page.textContent).not.toMatch(/Display name/);
     expect(page.querySelector('[data-testid="join-form"]')).toBeNull();
-    const join = page.querySelector("#join");
-    const picker = page.querySelector('[data-testid="join-tournaments"]');
-    expect(join?.textContent).toMatch(/JOIN A TOURNAMENT|Join a tournament/i);
-    expect(join?.textContent).toMatch(
-      /Open an upcoming or ongoing event to see the prize and join from there/,
-    );
-    expect(join?.textContent).toMatch(/You are rmr/);
-    expect(picker?.textContent).toMatch(/Creators Digging Tournament/);
-    expect(picker?.textContent).toMatch(/Test Tournament 3/);
-    expect(picker?.textContent).toMatch(/17 Aug → 24 Aug · 7d/);
-    expect(picker?.textContent).toMatch(/24 Aug → 31 Aug · 7d/);
-    expect(picker?.textContent).not.toMatch(/30 Flower/);
+
+    const past = page.querySelector("#past");
+    const picker = page.querySelector('[data-testid="past-tournaments"]');
+    expect(past?.textContent).toMatch(/Past tournaments/);
+    expect(past?.textContent).toMatch(/Finished events, newest first/);
+    expect(picker?.textContent).toMatch(/August cup/);
+    expect(picker?.textContent).toMatch(/July cup/);
+    expect(picker?.textContent).not.toMatch(/Creators Digging Tournament/);
+    expect(picker?.textContent).not.toMatch(/Test Tournament 3/);
+    expect(picker?.textContent).toMatch(/1 Aug → 8 Aug · 7d/);
+    expect(picker?.textContent).toMatch(/45 Flower · 1 farm/);
+    expect(picker?.textContent).toMatch(/1 Jul → 8 Jul · 7d/);
+    expect(picker?.textContent).toMatch(/30 Flower · 3 farms/);
     expect(picker?.querySelectorAll("input")).toHaveLength(0);
 
-    const creators = page.querySelector('[data-testid="join-link-creators"]');
-    const test3 = page.querySelector('[data-testid="join-link-test-3"]');
-    expect(creators?.getAttribute("href")).toBe("/tournaments/creators");
-    expect(test3?.getAttribute("href")).toBe("/tournaments/test-3");
-    expect(creators?.className).toBe(JOIN_CARD_CLASS);
-    expect(creators?.className).toMatch(/rounded-2xl/);
-    expect(creators?.className).toMatch(/bg-dusk-panel|bg-\[#23201c\]/);
-    expect(creators?.className).toMatch(/border/);
-    expect(creators?.className).toMatch(/shadow-/);
-    expect(creators?.className).toMatch(/\bp-5\b/);
-    expect(creators?.className).not.toMatch(/join-option/);
-    expect(creators?.querySelector(".font-bold")?.textContent).toBe("Creators Digging Tournament");
-    expect(creators?.querySelector(".text-dusk-mute")?.textContent).toMatch(/17 Aug → 24 Aug · 7d/);
-
-    const ongoing = creators?.querySelector('[data-testid="join-badge-ongoing"]');
-    const upcoming = test3?.querySelector('[data-testid="join-badge-upcoming"]');
-    expect(ongoing?.textContent).toBe("Ongoing");
-    expect(upcoming?.textContent).toBe("Upcoming");
-    expect(ongoing?.className).toBe(JOIN_BADGE_ONGOING);
-    expect(upcoming?.className).toBe(JOIN_BADGE_UPCOMING);
-    expect(ongoing?.className).toMatch(/bg-green-700/);
-    expect(ongoing?.className).toMatch(/text-white/);
-    expect(upcoming?.className).toMatch(/bg-zinc-500/);
-    expect(upcoming?.className).toMatch(/text-white/);
-    expect(page.querySelectorAll('[data-testid="join-tournaments"] a')).toHaveLength(2);
+    const links = [...page.querySelectorAll('[data-testid="past-tournaments"] a')].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+    expect(links).toEqual(["past-link-august-cup", "past-link-july-cup"]);
+    const august = page.querySelector('[data-testid="past-link-august-cup"]');
+    expect(august?.getAttribute("href")).toBe("/tournaments/august-cup");
+    expect(august?.className).toBe(PAST_CARD_CLASS);
+    expect(august?.className).toMatch(/rounded-2xl/);
+    expect(august?.className).toMatch(/bg-dusk-panel|bg-\[#23201c\]/);
+    expect(august?.className).toMatch(/border/);
+    expect(august?.className).toMatch(/shadow-/);
+    expect(august?.className).toMatch(/\bp-5\b/);
+    expect(august?.className).not.toMatch(/join-option/);
+    expect(august?.querySelector(".font-bold")?.textContent).toBe("August cup");
+    const badge = august?.querySelector('[data-testid="past-badge-ended"]');
+    expect(badge?.textContent).toBe("Ended");
+    expect(badge?.className).toBe(PAST_BADGE_ENDED);
+    expect(badge?.className).toMatch(/bg-zinc-700/);
+    expect(badge?.className).toMatch(/text-white/);
   });
 
-  it("sorts the join list by oldest live start, not soonest live end", async () => {
+  it("keeps live boards ordered by soonest end when past events are present", async () => {
     const liveSoonEnd = summary({
       tournament_id: "live-soon-end",
       name: "Ends first",
@@ -391,25 +412,17 @@ describe("LeaderboardPage home", () => {
       end_at: "2026-08-25T00:00:00.000Z",
       duration_days: 24,
     });
-    const upLater = summary({
-      tournament_id: "up-later",
-      name: "October cup",
-      status: "scheduled",
-      start_at: "2026-10-01T00:00:00.000Z",
-      end_at: "2026-10-08T00:00:00.000Z",
-      duration_days: 7,
-    });
-    const upSoon = summary({
-      tournament_id: "up-soon",
-      name: "September cup",
-      status: "scheduled",
-      start_at: "2026-09-01T00:00:00.000Z",
-      end_at: "2026-09-08T00:00:00.000Z",
+    const past = summary({
+      tournament_id: "past-cup",
+      name: "Old cup",
+      status: "ended",
+      start_at: "2026-07-01T00:00:00.000Z",
+      end_at: "2026-07-08T00:00:00.000Z",
       duration_days: 7,
     });
     listTournaments.mockResolvedValue({
-      tournaments: [upLater, liveSoonEnd, upSoon, liveOldStart],
-      count: 4,
+      tournaments: [past, liveSoonEnd, liveOldStart],
+      count: 3,
     });
     fetchTournament.mockImplementation(async (id: string) => {
       const row = id === "live-soon-end" ? liveSoonEnd : liveOldStart;
@@ -417,30 +430,13 @@ describe("LeaderboardPage home", () => {
     });
 
     const page = await renderHome();
-    const links = [...page.querySelectorAll('[data-testid="join-tournaments"] a')].map((node) =>
-      node.getAttribute("data-testid"),
-    );
-    expect(links).toEqual([
-      "join-link-live-old-start",
-      "join-link-live-soon-end",
-      "join-link-up-soon",
-      "join-link-up-later",
-    ]);
     const boards = [...page.querySelectorAll('[data-testid^="live-board-"]')].map((node) =>
       node.getAttribute("data-testid"),
     );
     expect(boards).toEqual(["live-board-live-soon-end", "live-board-live-old-start"]);
-  });
-
-  it("omits You are from the join header when no farm is connected", async () => {
-    clearFarmIdentity();
-    listTournaments.mockResolvedValue({ tournaments: [], count: 0 });
-    const page = await renderHome();
-    expect(page.querySelector("#join")?.textContent).toMatch(
-      /Open an upcoming or ongoing event to see the prize and join from there/,
+    expect(page.querySelector('[data-testid="past-link-past-cup"]')?.getAttribute("href")).toBe(
+      "/tournaments/past-cup",
     );
-    expect(page.querySelector("#join")?.textContent).not.toMatch(/You are/);
-    expect(page.querySelector("#join")?.textContent).not.toMatch(/Connect your farm to join/);
   });
 
   it("caps the home ongoing and upcoming widgets at two each", async () => {
@@ -481,45 +477,37 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelectorAll('[data-testid^="live-board-"]')).toHaveLength(3);
   });
 
-  it("gives join cards and badges computed padding that beats the universal reset", async () => {
+  it("gives past cards and badges computed padding that beats the universal reset", async () => {
     const css = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
       "utf8",
     );
     expect(css).toMatch(/\*\s*,\s*\*::before\s*,\s*\*::after\s*\{[^}]*padding:\s*0/s);
-    expect(css).not.toMatch(/@layer[^{]*\{[^}]*\.join-card/s);
-    expect(css).toMatch(/a\.join-card\s*\{[^}]*padding:\s*20px/s);
-    expect(css).toMatch(/\.join-badge\s*\{[^}]*padding:\s*4px 10px/s);
+    expect(css).not.toMatch(/@layer[^{]*\{[^}]*\.past-card/s);
+    expect(css).toMatch(/a\.past-card\s*\{[^}]*padding:\s*20px/s);
+    expect(css).toMatch(/\.past-badge\s*\{[^}]*padding:\s*4px 10px/s);
     const sheet = document.createElement("style");
-    sheet.setAttribute("data-testid", "join-style-sheet");
+    sheet.setAttribute("data-testid", "past-style-sheet");
     sheet.textContent = css;
     document.head.appendChild(sheet);
 
-    const live = summary({
-      tournament_id: "creators",
-      name: "Creators Digging Tournament",
-      status: "active",
-      start_at: "2026-08-17T00:00:00.000Z",
-      end_at: "2026-08-24T00:00:00.000Z",
+    const ended = summary({
+      tournament_id: "august-cup",
+      name: "August cup",
+      status: "ended",
+      start_at: "2026-08-01T00:00:00.000Z",
+      end_at: "2026-08-08T00:00:00.000Z",
       duration_days: 7,
+      count: 2,
     });
-    const next = summary({
-      tournament_id: "test-3",
-      name: "Test Tournament 3",
-      status: "scheduled",
-      start_at: "2026-08-24T00:00:00.000Z",
-      end_at: "2026-08-31T00:00:00.000Z",
-      duration_days: 7,
-    });
-    listTournaments.mockResolvedValue({ tournaments: [next, live], count: 2 });
-    fetchTournament.mockResolvedValue(archive(live, []));
+    listTournaments.mockResolvedValue({ tournaments: [ended], count: 1 });
 
     try {
       const page = await renderHome();
-      const card = page.querySelector('[data-testid="join-link-creators"]') as HTMLElement;
-      const badge = page.querySelector('[data-testid="join-badge-ongoing"]') as HTMLElement;
-      const sub = page.querySelector("#join .join-sub") as HTMLElement;
-      const stack = page.querySelector('[data-testid="join-tournaments"]') as HTMLElement;
+      const card = page.querySelector('[data-testid="past-link-august-cup"]') as HTMLElement;
+      const badge = page.querySelector('[data-testid="past-badge-ended"]') as HTMLElement;
+      const sub = page.querySelector("#past .past-sub") as HTMLElement;
+      const stack = page.querySelector('[data-testid="past-tournaments"]') as HTMLElement;
       expect(card).not.toBeNull();
       expect(badge).not.toBeNull();
       const cardStyle = getComputedStyle(card);
@@ -540,9 +528,9 @@ describe("LeaderboardPage home", () => {
     }
   });
 
-  it("styles join cards with Tailwind utilities, not the old join-option row", () => {
+  it("styles past cards with Tailwind utilities, not the old join-option row", () => {
     const list = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), "../components/JoinTournamentList.tsx"),
+      resolve(dirname(fileURLToPath(import.meta.url)), "../components/PastTournamentList.tsx"),
       "utf8",
     );
     const tw = readFileSync(
@@ -554,10 +542,10 @@ describe("LeaderboardPage home", () => {
     expect(list).toMatch(/border/);
     expect(list).toMatch(/shadow-/);
     expect(list).toMatch(/\bp-5\b/);
-    expect(list).toMatch(/bg-green-700/);
-    expect(list).toMatch(/bg-zinc-500/);
+    expect(list).toMatch(/bg-zinc-700/);
     expect(list).toMatch(/text-white/);
     expect(list).not.toMatch(/join-option/);
+    expect(list).not.toMatch(/Join a tournament/);
     expect(tw).not.toMatch(/tailwindcss\/preflight/);
     expect(tw).not.toMatch(/@import "tailwindcss";/);
     expect(tw).toMatch(/tailwindcss\/utilities/);

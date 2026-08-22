@@ -1397,26 +1397,26 @@ a.join-option:hover {
 }
 
 /* Unlayered so these beat the file-top `* { padding:0; margin:0 }` reset.
-   Tailwind join utilities live in @layer utilities and lose that fight. */
-#join.join-list {
+   Tailwind past-list utilities live in @layer utilities and lose that fight. */
+#past.past-list {
   margin-top: 16px;
 }
 
-#join .join-head {
+#past .past-head {
   margin: 0 0 8px;
 }
 
-#join .join-sub {
+#past .past-sub {
   margin: 0 0 16px;
 }
 
-#join .join-stack {
+#past .past-stack {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-a.join-card {
+a.past-card {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1430,15 +1430,15 @@ a.join-card {
   text-decoration: none;
 }
 
-a.join-card:hover {
+a.past-card:hover {
   border-color: rgba(184, 154, 86, 0.35);
 }
 
-.join-card-meta {
+.past-card-meta {
   margin-top: 4px;
 }
 
-.join-badge {
+.past-badge {
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: 6px;

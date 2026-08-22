@@ -7,7 +7,7 @@ import {
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
-import { JoinTournamentList } from "../components/JoinTournamentList";
+import { PastTournamentList } from "../components/PastTournamentList";
 import { Pebbles } from "../components/Pebbles";
 import { SyncCountdown } from "../components/SyncCountdown";
 import {
@@ -167,7 +167,7 @@ export function LeaderboardPage() {
         />
       ))}
 
-      <JoinTournamentList items={items} connectedName={identity?.name ?? null} />
+      <PastTournamentList items={items} />
     </>
   );
 }
