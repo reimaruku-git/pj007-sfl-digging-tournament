@@ -65,9 +65,10 @@ export function LeaderboardPage() {
   });
 
   const featured = live[0];
-  const followed = boards
-    .flatMap((query) => query.data?.entries ?? [])
-    .find((row) => row.farm_id === mine);
+  const mineRows = live.flatMap((row, index) => {
+    const entry = (boards[index]?.data?.entries ?? []).find((item) => item.farm_id === mine);
+    return entry ? [{ tournament: row, entry }] : [];
+  });
 
   function sortFor(id: string): ScoreSortDir {
     return sortById[id] ?? null;
@@ -156,15 +157,12 @@ export function LeaderboardPage() {
         </div>
       </section>
 
-      {followed && (
-        <Link to={`/farm/${followed.farm_id}`} className="you-banner">
-          <span className="kicker">Your farm</span>
-          <strong>
-            {followed.name || "Unnamed farm"} · rank {followed.rank ?? "—"} ·{" "}
-            {formatScore(followed.score)} · {followed.digs_to_third_op ?? "—"} digs
-          </strong>
-          <Pebbles count={followed.otter_count} />
-        </Link>
+      {mineRows.length > 0 && (
+        <div className="you-farm-list" data-testid="you-farm">
+          {mineRows.map(({ tournament, entry }) => (
+            <YouFarmCard key={tournament.tournament_id} tournament={tournament} entry={entry} />
+          ))}
+        </div>
       )}
 
       {latestEnded && (
@@ -234,6 +232,58 @@ function TourneyGroup({
         </Link>
       ))}
     </div>
+  );
+}
+
+function YouFarmCard({
+  tournament,
+  entry,
+}: {
+  tournament: TournamentSummary;
+  entry: LeaderboardEntry;
+}) {
+  const href = `/tournaments/${encodeURIComponent(tournament.tournament_id)}/farm/${entry.farm_id}`;
+  return (
+    <Link
+      to={href}
+      state={{ from: "home" }}
+      className="you-farm"
+      data-testid={`you-farm-${tournament.tournament_id}`}
+    >
+      <div className="you-farm-head">
+        <div>
+          <div className="kicker">Your farm</div>
+          <div className="you-farm-name">{entry.name || "Unnamed farm"}</div>
+          <p className="you-farm-event">
+            {tournament.name || "Untitled tournament"}
+            <span className={`badge ${entry.status}`}>{statusLabel(entry.status)}</span>
+          </p>
+        </div>
+        <Pebbles count={entry.otter_count} size="md" />
+      </div>
+      <div className="you-farm-stats">
+        <div className="stat" data-testid={`you-farm-rank-${tournament.tournament_id}`}>
+          <span className="muted">Rank</span>
+          <b>{entry.rank ?? "—"}</b>
+        </div>
+        <div className="stat" data-testid={`you-farm-avg-${tournament.tournament_id}`}>
+          <span className="muted">Avg / day</span>
+          <b>{formatScore(entry.score)}</b>
+        </div>
+        <div className="stat" data-testid={`you-farm-total-${tournament.tournament_id}`}>
+          <span className="muted">Total</span>
+          <b>{entry.digs_to_third_op ?? "—"}</b>
+        </div>
+        <div className="stat" data-testid={`you-farm-digs-today-${tournament.tournament_id}`}>
+          <span className="muted">Digs today</span>
+          <b>{entry.digs_today}</b>
+        </div>
+        <div className="stat" data-testid={`you-farm-score-today-${tournament.tournament_id}`}>
+          <span className="muted">Score today</span>
+          <b>{entry.score_today ?? "—"}</b>
+        </div>
+      </div>
+    </Link>
   );
 }
 
