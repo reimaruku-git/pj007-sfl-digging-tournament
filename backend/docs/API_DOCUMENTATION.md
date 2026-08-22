@@ -174,10 +174,17 @@ Shareable personal result.
         "second_op_at": "2026-08-14T12:24:00+00:00",
         "third_op_at": "2026-08-14T12:42:00+00:00"
       }
-    ]
+    ],
+    "recorded_average_per_day": 21.0
   }
 }
 ```
+
+`score` is the featured event's official average (scored days in that
+window). `recorded_average_per_day` is this farm's mean 3rd-OP over
+every stored UTC day that already has a number, across events. Shared
+days from overlapping windows count once. `score_today` is today's
+3rd-OP from that history (null if today has no recorded score yet).
 
 ### `GET /tournaments`
 

@@ -57,6 +57,7 @@ vi.mock("./api/public", () => ({
   }),
   submitFarm: vi.fn(),
   identifyFarm: vi.fn(),
+  fetchFarm: vi.fn().mockRejectedValue(new Error("farm not found")),
 }));
 
 import { identifyFarm } from "./api/public";
@@ -183,9 +184,7 @@ describe("routes", () => {
     expect(rules?.textContent).toMatch(/pebble is found on dig 9/);
     expect(rules?.textContent).toMatch(/only on days that already have a recorded score/);
     expect(rules?.textContent).toMatch(/14:00, 16:00, 18:00, 20:00, 23:00 UTC/);
-    expect(rules?.querySelector("strong")?.textContent).toBe(
-      "Digs after 23:00 UTC do not count",
-    );
+    expect(rules?.querySelector("strong")?.textContent).toBe("Digs after 23:00 UTC do not count");
     expect(rules?.textContent).toMatch(/worst finisher that day or 30/);
     expect(rules?.textContent).toMatch(/5 for every missing pebble/);
     expect(rules?.textContent).toMatch(/minus 1 and minus 2/);

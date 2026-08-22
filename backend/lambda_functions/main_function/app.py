@@ -31,6 +31,7 @@ from tournament.catalog import (
     update_tournament,
 )
 from tournament.farms import FarmRegistry
+from tournament.history import recorded_farm_stats
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.membership import (
     MembershipError,
@@ -226,7 +227,12 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
         tournament_days=days,
     )
     match = next((item for item in ranked if item.get("farm_id") == farm_id), row)
-    return create_response(200, {"farm": public_entry(match)})
+    entry = public_entry(match)
+    stats = recorded_farm_stats(store, farm_id)
+    entry["recorded_average_per_day"] = stats["recorded_average_per_day"]
+    if stats["score_today"] is not None:
+        entry["score_today"] = stats["score_today"]
+    return create_response(200, {"farm": entry})
 
 
 def _public_identity(row: dict[str, Any]) -> dict[str, Any]:

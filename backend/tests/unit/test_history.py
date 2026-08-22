@@ -2,7 +2,13 @@
 
 from datetime import datetime, timezone
 
-from tournament.history import aggregate_days, average_scored_days, today_live_fields
+from tournament.history import (
+    aggregate_days,
+    average_scored_days,
+    put_farm_day,
+    recorded_farm_stats,
+    today_live_fields,
+)
 from tournament.leaderboard import public_entry, rank_scores
 from tournament.store import Store
 
@@ -35,6 +41,47 @@ def test_average_scored_days_omits_unscored_today_and_keeps_penalty():
     assert missed_with_penalty["scored_days"] == 2
 
     assert average_scored_days([]) == {"total": None, "average": None, "scored_days": 0}
+
+
+def test_recorded_farm_stats_average_all_stored_days_not_the_featured_window(aws_env):
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    put_farm_day(
+        store,
+        "99",
+        "2026-07-08",
+        {"day": "2026-07-08", "digs_to_third_op": 14, "otter_count": 3, "status": "completed"},
+        overwrite_finalized=True,
+    )
+    put_farm_day(
+        store,
+        "99",
+        "2026-08-17",
+        {"day": "2026-08-17", "digs_to_third_op": 20, "otter_count": 3, "status": "completed"},
+        overwrite_finalized=True,
+    )
+    put_farm_day(
+        store,
+        "99",
+        "2026-08-18",
+        {
+            "day": "2026-08-18",
+            "digs_to_third_op": 18,
+            "otter_count": 2,
+            "digs_today": 12,
+            "status": "in_progress",
+        },
+    )
+    stats = recorded_farm_stats(store, "99", now=datetime(2026, 8, 18, 16, tzinfo=timezone.utc))
+    assert stats["recorded_average_per_day"] == 17.33
+    assert stats["score_today"] == 18
+    empty = recorded_farm_stats(store, "missing")
+    assert empty["recorded_average_per_day"] is None
+    assert empty["score_today"] is None
 
 
 def test_aggregate_days_writes_total_average_and_today_fields():

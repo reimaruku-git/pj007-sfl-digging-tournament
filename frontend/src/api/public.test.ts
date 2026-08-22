@@ -67,12 +67,16 @@ describe("public api", () => {
           last_updated_at: null,
           status: "in_progress",
           invalidated: false,
+          recorded_average_per_day: 16.5,
+          score_today: 9,
         },
       }),
     );
     const farm = await fetchFarm("222");
     expect(mockRequest).toHaveBeenCalledWith("farms/222");
     expect(farm.status).toBe("in_progress");
+    expect(farm.recorded_average_per_day).toBe(16.5);
+    expect(farm.score_today).toBe(9);
   });
 
   it("identifies a farm through our sfl.world lookup", async () => {

@@ -510,6 +510,52 @@ def test_admin_sync_accepts_without_farm_id(aws_env, monkeypatch):
     assert "farm_id" not in payload
 
 
+def test_get_farm_exposes_recorded_average_across_history_days(aws_env, monkeypatch):
+    from tournament.history import put_farm_day
+
+    app = _load_app(aws_env, monkeypatch)
+    store = app._get_store()
+    store.put_config(
+        {
+            "start_at": "2026-08-17T00:00:00+00:00",
+            "end_at": "2026-08-24T00:00:00+00:00",
+            "duration_days": 7,
+        }
+    )
+    added = app.lambda_handler(
+        _event("POST", "/admin/farms", {"farm_id": "99", "name": "rmr"}),
+        None,
+    )
+    assert added["statusCode"] == 201
+    put_farm_day(
+        store,
+        "99",
+        "2026-07-08",
+        {"day": "2026-07-08", "digs_to_third_op": 14, "otter_count": 3, "status": "completed"},
+        overwrite_finalized=True,
+    )
+    put_farm_day(
+        store,
+        "99",
+        "2026-08-18",
+        {
+            "day": "2026-08-18",
+            "digs_to_third_op": 20,
+            "otter_count": 3,
+            "digs_today": 8,
+            "status": "completed",
+        },
+        overwrite_finalized=True,
+    )
+    response = app.lambda_handler(_event("GET", "/farms/99", farm_id="99"), None)
+    assert response["statusCode"] == 200
+    farm = _json(response)["farm"]
+    assert farm["farm_id"] == "99"
+    assert farm["name"] == "rmr"
+    assert farm["recorded_average_per_day"] == 17.0
+    assert farm["score_today"] is None
+
+
 def test_unknown_route(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     response = app.lambda_handler(_event("GET", "/nope"), None)

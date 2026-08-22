@@ -53,6 +53,7 @@ export type LeaderboardEntry = {
   status: FarmStatus;
   invalidated: boolean;
   days?: FarmDayRecord[];
+  recorded_average_per_day?: number | null;
 };
 
 export type LeaderboardResponse = {
@@ -139,7 +140,10 @@ export type TournamentArchive = {
   accepts_joins?: boolean;
 };
 
-export async function listTournaments(): Promise<{ tournaments: TournamentSummary[]; count: number }> {
+export async function listTournaments(): Promise<{
+  tournaments: TournamentSummary[];
+  count: number;
+}> {
   const { response, data } = await requestJson<{ tournaments: TournamentSummary[]; count: number }>(
     "tournaments",
   );

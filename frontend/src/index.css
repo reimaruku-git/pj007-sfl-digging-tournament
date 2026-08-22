@@ -1178,14 +1178,9 @@ a.latest-result-name:focus-visible {
   margin-bottom: 0;
 }
 
-.you-farm-list {
-  display: grid;
-  gap: 12px;
-  margin: 0 0 16px;
-}
-
 a.you-farm {
   display: block;
+  margin: 0 0 16px;
   padding: 16px 18px;
   border-radius: 14px;
   border: 1px solid rgba(184, 154, 86, 0.3);
@@ -1219,19 +1214,13 @@ a.you-farm:focus-visible {
   color: var(--cream);
 }
 
-.you-farm-event {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  color: var(--mute);
-  font-size: 13px;
+.you-farm-head .farm-id {
+  margin-top: 4px;
 }
 
 .you-farm-stats {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 
@@ -1635,10 +1624,6 @@ a.past-card:hover {
 
   .latest-result .podium {
     grid-template-columns: 1fr 1.15fr 1fr;
-  }
-
-  .you-farm-stats {
-    grid-template-columns: 1fr 1fr;
   }
 
   .brand h1 {

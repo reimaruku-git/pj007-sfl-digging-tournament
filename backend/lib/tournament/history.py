@@ -248,6 +248,27 @@ def average_scored_days(days: list[dict[str, Any]]) -> dict[str, Any]:
     return average_field_days(days, "digs_to_third_op")
 
 
+def recorded_farm_stats(
+    store: Store,
+    farm_id: str,
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Career avg/day and today's 3rd-OP across every stored UTC day.
+
+    Unique history files only. Days without a numeric 3rd-OP are omitted
+    from the average. Overlapping events that share one day still count
+    once.
+    """
+    days = store.list_farm_days(farm_id)
+    derived = average_scored_days(days)
+    live = today_live_fields(days, utc_clock(now).date().isoformat())
+    return {
+        "recorded_average_per_day": derived["average"],
+        "score_today": live["score_today"],
+    }
+
+
 def today_live_fields(days: list[dict[str, Any]], today: str | None) -> dict[str, Any]:
     """Today's 3rd-OP and pebble count. Missing today is unscored, not zero."""
     if not today:
