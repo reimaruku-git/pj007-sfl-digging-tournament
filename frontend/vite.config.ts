@@ -4,24 +4,21 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 function apiProxy(apiBase: string): Record<string, ProxyOptions> | undefined {
-  if (!apiBase) return undefined;
-  try {
-    const url = new URL(apiBase);
-    const prefix = url.pathname.replace(/\/$/, "");
-    return {
-      "/__api": {
-        target: url.origin,
-        changeOrigin: true,
-        rewrite: (path) => `${prefix}${path.replace(/^\/__api/, "")}`,
-      },
-    };
-  } catch {
-    return undefined;
-  }
+  const match = apiBase.match(/^(https?:\/\/[^/]+)(\/.*)?$/);
+  if (!match) return undefined;
+  const origin = match[1];
+  const prefix = (match[2] || "").replace(/\/$/, "");
+  return {
+    "/__api": {
+      target: origin,
+      changeOrigin: true,
+      rewrite: (path) => `${prefix}${path.replace(/^\/__api/, "")}`,
+    },
+  };
 }
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+  const env = loadEnv(mode, ".", "");
   const proxy = apiProxy(env.VITE_API_BASE);
   return {
     plugins: [react(), tailwindcss()],
