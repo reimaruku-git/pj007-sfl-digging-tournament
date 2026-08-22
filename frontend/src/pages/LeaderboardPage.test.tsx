@@ -138,6 +138,44 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector("#join")).toBeNull();
     expect(page.querySelector("#past")?.textContent).toMatch(/Past tournaments/);
     expect(page.querySelector("#past")?.textContent).toMatch(/No past tournaments yet/);
+    const catalogLink = page.querySelector('[data-testid="home-tournaments-link"]');
+    expect(catalogLink?.getAttribute("href")).toBe("/tournaments");
+    expect(catalogLink?.textContent).toMatch(/^Tournaments$/);
+    expect(page.querySelector('[data-testid="tourney-home"]')?.contains(catalogLink)).toBe(true);
+  });
+
+  it("puts a small Tournaments control at the top-right of the ongoing/upcoming panel", async () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.tourney-home-head\s*\{[^}]*justify-content:\s*flex-end/s);
+    const sheet = document.createElement("style");
+    sheet.textContent = css;
+    document.head.appendChild(sheet);
+    listTournaments.mockResolvedValue({ tournaments: [], count: 0 });
+    try {
+      const page = await renderHome();
+      const panel = page.querySelector('[data-testid="tourney-home"]') as HTMLElement;
+      const head = page.querySelector(".tourney-home-head") as HTMLElement;
+      const link = page.querySelector('[data-testid="home-tournaments-link"]') as HTMLAnchorElement;
+      const ongoing = page.querySelector('[data-testid="ongoing-group"]') as HTMLElement;
+      expect(panel).not.toBeNull();
+      expect(head).not.toBeNull();
+      expect(link).not.toBeNull();
+      expect(panel.contains(head)).toBe(true);
+      expect(panel.contains(ongoing)).toBe(true);
+      expect(head.contains(link)).toBe(true);
+      expect(link.getAttribute("href")).toBe("/tournaments");
+      expect(link.textContent).toBe("Tournaments");
+      expect(
+        head.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(getComputedStyle(head).justifyContent).toBe("flex-end");
+      expect(getComputedStyle(head).display).toBe("flex");
+    } finally {
+      sheet.remove();
+    }
   });
 
   it("renders two parent sections, date-only child cards, and soonest-ending board first", async () => {

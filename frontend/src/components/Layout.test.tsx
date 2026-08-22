@@ -52,7 +52,7 @@ describe("public chrome", () => {
     });
     expect(el.textContent).toMatch(/Rules/);
     expect(el.textContent).toMatch(/Join a tournament/);
-    expect(el.textContent).toMatch(/Tournaments/);
+    expect(el.querySelector('[data-testid="menu-options"]')?.textContent).not.toMatch(/Tournaments/);
     expect(el.textContent).not.toMatch(/Find a farm/);
     expect(el.querySelector('[data-testid="disconnect-farm"]')).toBeNull();
     const hrefs = [...el.querySelectorAll("a")].map((node) => node.getAttribute("href"));
@@ -107,7 +107,7 @@ describe("public chrome", () => {
     ).toBeTruthy();
     expect(options?.textContent).toMatch(/Rules/);
     expect(options?.textContent).toMatch(/Join a tournament/);
-    expect(options?.textContent).toMatch(/Tournaments/);
+    expect(options?.textContent).not.toMatch(/Tournaments/);
     expect(options?.querySelector('[data-testid="disconnect-farm"]')?.textContent).toMatch(
       /Disconnect rmr/,
     );
@@ -124,7 +124,7 @@ describe("public chrome", () => {
     const options = el.querySelector('[data-testid="menu-options"]');
     expect(options?.textContent).toMatch(/Rules/);
     expect(options?.textContent).toMatch(/Join a tournament/);
-    expect(options?.textContent).toMatch(/Tournaments/);
+    expect(options?.textContent).not.toMatch(/Tournaments/);
     expect(options?.querySelector('[data-testid="disconnect-farm"]')).toBeNull();
   });
 

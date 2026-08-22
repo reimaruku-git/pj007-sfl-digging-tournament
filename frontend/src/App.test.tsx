@@ -207,7 +207,7 @@ describe("routes", () => {
     expect(connected?.querySelector(".farm-connected-id")?.textContent).toBe("3666918801844311");
     expect(options?.textContent).toMatch(/Rules/);
     expect(options?.textContent).toMatch(/Join a tournament/);
-    expect(options?.textContent).toMatch(/Tournaments/);
+    expect(options?.textContent).not.toMatch(/Tournaments/);
     const disconnect = home.querySelector('[data-testid="disconnect-farm"]') as HTMLButtonElement;
     expect(disconnect).not.toBeNull();
     expect(options?.contains(disconnect)).toBe(true);

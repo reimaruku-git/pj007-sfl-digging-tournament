@@ -11,7 +11,11 @@ import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
-import { joinableTournaments } from "../lib/board";
+import {
+  liveTournamentsSoonestFirst,
+  pastTournaments,
+  upcomingTournaments,
+} from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
 import { catalogStatusLabel, formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
 
@@ -24,57 +28,90 @@ export function TournamentsPage() {
 function TournamentList() {
   const query = useQuery({ queryKey: ["tournaments"], queryFn: listTournaments });
   const items = query.data?.tournaments ?? [];
-  const windows = joinableTournaments(items);
-  const past = items.filter((row) => row.status === "ended");
+  const live = liveTournamentsSoonestFirst(items);
+  const upcoming = upcomingTournaments(items);
+  const ended = pastTournaments(items);
   return (
     <>
       <div className="tourney-catalog-head">
         <div className="kicker">Tournaments</div>
-        <p className="meta">Ongoing first, then upcoming. Nearest event sits at the top.</p>
+        <p className="meta">Ongoing, upcoming, and ended. Open an event for the board and prize.</p>
       </div>
       {query.isLoading && <p className="muted">Loading tournaments…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
-      {!query.isLoading && windows.length === 0 && (
-        <p className="muted">No ongoing or upcoming events.</p>
-      )}
-      {windows.length > 0 && (
-        <div className="tourney-stack" data-testid="tourney-stack">
-          {windows.map((row) => (
-            <CatalogWindow key={row.tournament_id} row={row} />
-          ))}
+      {!query.isLoading && (
+        <div className="catalog-board" data-testid="catalog-board">
+          <CatalogGroup
+            title="Ongoing"
+            tone="ongoing"
+            testId="catalog-ongoing"
+            items={live}
+            empty="No ongoing tournament."
+          />
+          <CatalogGroup
+            title="Upcoming"
+            tone="upcoming"
+            testId="catalog-upcoming"
+            items={upcoming}
+            empty="No upcoming tournaments."
+          />
+          <CatalogGroup
+            title="Ended"
+            tone="ended"
+            testId="catalog-ended"
+            items={ended}
+            empty="No ended tournaments yet."
+            scrollable
+          />
         </div>
-      )}
-      {past.length > 0 && (
-        <section className="card">
-          <div className="kicker">Past</div>
-          <ul className="rules-list" style={{ listStyle: "none", marginLeft: 0 }}>
-            {past.map((row) => (
-              <li key={row.tournament_id}>
-                <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                <span>
-                  <Link
-                    to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
-                    state={{ from: "tournaments" }}
-                  >
-                    {row.name || `${row.duration_days}d event`}
-                  </Link>
-                  <div className="meta">
-                    {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} ·{" "}
-                    {row.prize_amount} Flower · {row.count} farm{row.count === 1 ? "" : "s"}
-                  </div>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
       )}
     </>
   );
 }
 
-function CatalogWindow({ row }: { row: TournamentSummary }) {
-  const ongoing = row.status === "active";
-  const tone = ongoing ? "ongoing" : "upcoming";
+function CatalogGroup({
+  title,
+  tone,
+  testId,
+  items,
+  empty,
+  scrollable,
+}: {
+  title: string;
+  tone: "ongoing" | "upcoming" | "ended";
+  testId: string;
+  items: TournamentSummary[];
+  empty: string;
+  scrollable?: boolean;
+}) {
+  return (
+    <section className={`catalog-group is-${tone}`} data-testid={testId}>
+      <div className="catalog-group-head">
+        <div className="kicker">{title}</div>
+        <span className="catalog-count" data-testid={`${testId}-count`}>
+          {items.length}
+        </span>
+      </div>
+      <div
+        className={["catalog-group-list", scrollable ? "is-scroll" : ""].filter(Boolean).join(" ")}
+        data-testid={`${testId}-list`}
+      >
+        {items.length === 0 && <p className="muted catalog-empty">{empty}</p>}
+        {items.map((row) => (
+          <CatalogWindow key={row.tournament_id} row={row} tone={tone} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function CatalogWindow({
+  row,
+  tone,
+}: {
+  row: TournamentSummary;
+  tone: "ongoing" | "upcoming" | "ended";
+}) {
   return (
     <Link
       to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
@@ -88,7 +125,7 @@ function CatalogWindow({ row }: { row: TournamentSummary }) {
       <div className="tourney-window-name">{row.name || `${row.duration_days}d event`}</div>
       <div className="tourney-window-meta">
         {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
-        Flower
+        Flower · {row.count} farm{row.count === 1 ? "" : "s"}
       </div>
     </Link>
   );

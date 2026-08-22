@@ -98,16 +98,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <button type="button" role="menuitem" onClick={goJoin}>
                     Join a tournament
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setOpen(false);
-                      navigate("/tournaments");
-                    }}
-                  >
-                    Tournaments
-                  </button>
                   {identity && !isAdmin && (
                     <button
                       type="button"

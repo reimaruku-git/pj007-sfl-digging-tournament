@@ -120,7 +120,16 @@ export function LeaderboardPage() {
             </li>
           </ul>
         </div>
-        <div className="card tourney-home">
+        <div className="card tourney-home" data-testid="tourney-home">
+          <div className="tourney-home-head">
+            <Link
+              to="/tournaments"
+              className="tourney-home-catalog"
+              data-testid="home-tournaments-link"
+            >
+              Tournaments
+            </Link>
+          </div>
           {catalog.isError && <p className="flash err">{(catalog.error as Error).message}</p>}
           <TourneyGroup
             title="Ongoing"
