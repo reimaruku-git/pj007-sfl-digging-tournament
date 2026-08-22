@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { LeaderboardEntry } from "../api/public";
-import { formatScore } from "../lib/format";
+import { ColorCanvas, type CanvasTone } from "./ColorCanvas";
 import { Pebbles } from "./Pebbles";
 
 function farmPath(farmId: string, tournamentId?: string) {
@@ -9,6 +9,12 @@ function farmPath(farmId: string, tournamentId?: string) {
   }
   return `/farm/${farmId}`;
 }
+
+const PLACE_TONE: Record<1 | 2 | 3, CanvasTone> = {
+  1: "podium-1",
+  2: "podium-2",
+  3: "podium-3",
+};
 
 function Slot({
   entry,
@@ -21,22 +27,29 @@ function Slot({
 }) {
   if (!entry) {
     return (
-      <div className={`podium-slot place-${place} empty`}>
-        <div className="podium-medal">{place}</div>
+      <div className={`podium-card place-${place} empty`}>
+        <div className="podium-art">
+          <ColorCanvas tone={PLACE_TONE[place]} />
+          <span className="podium-place">{place}</span>
+        </div>
         <p className="muted">Open</p>
       </div>
     );
   }
   return (
-    <Link to={farmPath(entry.farm_id, tournamentId)} className={`podium-slot place-${place}`}>
-      <div className="podium-medal">{place}</div>
-      <div className="podium-name">{entry.name || "Unnamed farm"}</div>
-      <div className="podium-score">
-        {entry.digs_to_third_op ?? "—"}
-        <span>total</span>
-        <span className="muted">{formatScore(entry.score)} avg</span>
+    <Link to={farmPath(entry.farm_id, tournamentId)} className={`podium-card place-${place}`}>
+      <div className="podium-art">
+        <ColorCanvas tone={PLACE_TONE[place]} />
+        <span className="podium-place">{place}</span>
       </div>
-      <Pebbles count={entry.otter_count} />
+      <div className="podium-meta">
+        <div className="podium-name">{entry.name || "Unnamed farm"}</div>
+        <div className="podium-score">
+          {entry.digs_to_third_op ?? "—"}
+          <span>Digs</span>
+        </div>
+        <Pebbles count={entry.otter_count} />
+      </div>
     </Link>
   );
 }

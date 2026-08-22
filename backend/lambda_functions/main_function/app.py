@@ -27,6 +27,8 @@ from tournament.catalog import (
     normalize_name,
     parse_window,
     seed_catalog,
+    set_featured_tournament,
+    showcase_featured_id,
     tournament_record,
     update_tournament,
 )
@@ -327,9 +329,17 @@ def handle_admin_get_config(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"config": public_config(config)})
 
 
+def _tournament_list_payload(store: Store) -> dict[str, Any]:
+    tournaments = list_public_tournaments(store)
+    return {
+        "tournaments": tournaments,
+        "count": len(tournaments),
+        "featured_tournament_id": showcase_featured_id(store),
+    }
+
+
 def handle_list_tournaments(_event: dict[str, Any]) -> dict[str, Any]:
-    tournaments = list_public_tournaments(_get_store())
-    return create_response(200, {"tournaments": tournaments, "count": len(tournaments)})
+    return create_response(200, _tournament_list_payload(_get_store()))
 
 
 def handle_get_tournament(event: dict[str, Any]) -> dict[str, Any]:
@@ -367,8 +377,19 @@ def _membership_error(exc: MembershipError) -> dict[str, Any]:
 
 
 def handle_admin_list_tournaments(_event: dict[str, Any]) -> dict[str, Any]:
-    tournaments = list_public_tournaments(_get_store())
-    return create_response(200, {"tournaments": tournaments, "count": len(tournaments)})
+    return create_response(200, _tournament_list_payload(_get_store()))
+
+
+def handle_admin_put_featured(event: dict[str, Any]) -> dict[str, Any]:
+    body = _body(event)
+    raw = body.get("tournament_id")
+    if raw is None:
+        raw = body.get("tournamentId")
+    try:
+        featured_id = set_featured_tournament(_get_store(), None if raw is None else str(raw))
+    except CatalogError as exc:
+        return _catalog_error(exc)
+    return create_response(200, {"featured_tournament_id": featured_id})
 
 
 def handle_admin_create_tournament(event: dict[str, Any]) -> dict[str, Any]:
@@ -712,6 +733,7 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("PUT", re.compile(r"^/admin/config$"), handle_admin_put_config),
     ("GET", re.compile(r"^/admin/tournaments$"), handle_admin_list_tournaments),
     ("POST", re.compile(r"^/admin/tournaments$"), handle_admin_create_tournament),
+    ("PUT", re.compile(r"^/admin/featured$"), handle_admin_put_featured),
     (
         "PUT",
         re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)$"),

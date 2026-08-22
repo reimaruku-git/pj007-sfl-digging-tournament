@@ -9,6 +9,7 @@ import {
   refreshFarm,
   rejectSubmission,
   saveConfig,
+  setFeaturedTournament,
 } from "./admin";
 
 vi.mock("./client", () => ({
@@ -86,6 +87,16 @@ describe("admin api", () => {
     });
     expect(saved.config.prize_amount).toBe("30");
     expect(saved.rescore?.rescored).toBe(2);
+  });
+
+  it("sets the home showcase through PUT admin/featured", async () => {
+    mockRequest.mockResolvedValueOnce(ok({ featured_tournament_id: "cup-1" }));
+    const featured = await setFeaturedTournament("cup-1");
+    expect(mockRequest).toHaveBeenCalledWith("admin/featured", {
+      method: "PUT",
+      body: JSON.stringify({ tournament_id: "cup-1" }),
+    });
+    expect(featured).toBe("cup-1");
   });
 
   it("loads a player detail from the authenticated farm route", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   fetchFarm,
   fetchTournament,
@@ -8,27 +8,56 @@ import {
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
-import { PastTournamentList } from "../components/PastTournamentList";
+import { ColorCanvas, farmCanvasTone } from "../components/ColorCanvas";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
-import { SyncCountdown } from "../components/SyncCountdown";
 import {
-  homeTourneyPreview,
-  latestPastTournament,
-  liveTournamentsSoonestFirst,
-  nextScoreSort,
-  upcomingTournaments,
-  visibleBoardEntries,
-  type ScoreSortDir,
+  featuredHomeTournament,
+  nextColumnSort,
+  sortedStandings,
+  type StandingsColumn,
+  type StandingsSort,
 } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
-import { formatDateRangeUtc, formatScore, statusLabel } from "../lib/format";
+import {
+  formatScore,
+  formatWindowRange,
+  remainingLabel,
+  statusLabel,
+} from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
+
+const RULES = [
+  {
+    label: "Shovel",
+    body: "Counts as 1 dig",
+  },
+  {
+    label: "Drill",
+    body: "Counts as 4 digs. If you find an Otter Pebble with a Drill, it counts as the last dig of those 4. Example: After 5 shovel digs, using a Drill makes digs 6-7-8-9. The pebble is found on dig 9.",
+  },
+  {
+    label: "Score",
+    body: "Your score is the average number of digs it took to find the 3rd Otter Pebble, only on days that already have a recorded score. Missed days keep whatever score was recorded (including the unfinished penalty). Lower average is better.",
+  },
+  {
+    label: "Refresh",
+    body: "14:00, 16:00, 18:00, 20:00, 23:00 UTC. Digs after 23:00 UTC do not count",
+  },
+  {
+    label: "Unfinished",
+    body: "Score = (worst finisher that day or 30, whichever is higher) + 5 for every missing pebble. Missing 2nd and 1st pebbles become that score minus 1 and minus 2 unless you already found them. This number is permanent and still goes into your average. SO DIG!",
+  },
+  {
+    label: "Ties",
+    body: "Average of 3rd pebble, then 2nd, then 1st. If still tied → earlier time on the 3rd pebble, then 2nd, then 1st.",
+  },
+] as const;
 
 export function LeaderboardPage() {
   const { identity } = useFarmSession();
   const mine = identity?.farm_id ?? "";
-  const [sortById, setSortById] = useState<Record<string, ScoreSortDir>>({});
+  const [sort, setSort] = useState<StandingsSort>(null);
 
   const catalog = useQuery({
     queryKey: ["tournaments"],
@@ -47,194 +76,373 @@ export function LeaderboardPage() {
     return () => window.clearTimeout(id);
   }, [catalog.dataUpdatedAt, catalog.refetch]);
 
-  const items = catalog.data?.tournaments ?? [];
-  const live = useMemo(() => liveTournamentsSoonestFirst(items), [items]);
-  const upcoming = useMemo(() => upcomingTournaments(items), [items]);
-  const latestEnded = useMemo(() => latestPastTournament(items), [items]);
+  const featured = useMemo(
+    () =>
+      featuredHomeTournament(
+        catalog.data?.tournaments ?? [],
+        catalog.data?.featured_tournament_id,
+      ),
+    [catalog.data],
+  );
 
-  const boards = useQueries({
-    queries: live.map((row) => ({
-      queryKey: ["tournament", row.tournament_id],
-      queryFn: () => fetchTournament(row.tournament_id),
-    })),
+  const board = useQuery({
+    queryKey: ["tournament", featured?.tournament_id],
+    queryFn: () => fetchTournament(featured!.tournament_id),
+    enabled: Boolean(featured?.tournament_id),
   });
 
-  const latestBoard = useQuery({
-    queryKey: ["tournament", latestEnded?.tournament_id],
-    queryFn: () => fetchTournament(latestEnded!.tournament_id),
-    enabled: Boolean(latestEnded),
-  });
-
-  const featured = live[0];
   const mineFarm = useQuery({
     queryKey: ["farm", mine],
     queryFn: () => fetchFarm(mine),
     enabled: Boolean(mine),
   });
 
-  function sortFor(id: string): ScoreSortDir {
-    return sortById[id] ?? null;
-  }
+  const featuredEntries = board.data?.entries ?? [];
+  const you =
+    featuredEntries.find((row) => row.farm_id === mine) ??
+    (mineFarm.data?.farm_id === mine ? mineFarm.data : undefined);
 
   return (
     <>
-      <section className="hero" data-testid="home-hero">
-        <div className="card prize-card" id="rules">
-          <div className="kicker">{featured?.name || "Prize pool"}</div>
-          <div className="prize">{featured?.prize_amount ?? "30"} Flower</div>
-          <p className="meta">
-            Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
-            affect your score.
+      <Hero featured={featured} loading={catalog.isLoading} error={catalog.error as Error | undefined} />
+
+      <div className="page-inner">
+        {featured && (
+          <LiveEventBand
+            tournament={featured}
+            entries={featuredEntries}
+            loading={board.isLoading}
+            error={board.error as Error | undefined}
+            sort={sort}
+            onSort={setSort}
+            mine={mine}
+            you={identity ? you : undefined}
+            youName={identity?.name}
+            youLoading={board.isLoading || mineFarm.isLoading}
+          />
+        )}
+        {!catalog.isLoading && !featured && (
+          <p className="muted" data-testid="no-live">
+            No live tournament yet.
           </p>
-          <ul className="rules-list">
-            <li>
-              <span>Shovel</span>
-              <span>Counts as 1 dig</span>
-            </li>
-            <li>
-              <span>Drill</span>
-              <span>
-                Counts as 4 digs. If you find an Otter Pebble with a Drill, it counts as the last
-                dig of those 4. Example: After 5 shovel digs, using a Drill makes digs 6-7-8-9. The
-                pebble is found on dig 9.
-              </span>
-            </li>
-            <li>
-              <span>Score</span>
-              <span>
-                Your score is the average number of digs it took to find the 3rd Otter Pebble, only
-                on days that already have a recorded score. Missed days keep whatever score was
-                recorded (including the unfinished penalty). Lower average is better.
-              </span>
-            </li>
-            <li>
-              <span>Refresh</span>
-              <span>
-                14:00, 16:00, 18:00, 20:00, 23:00 UTC.{" "}
-                <strong>Digs after 23:00 UTC do not count</strong>
-              </span>
-            </li>
-            <li>
-              <span>Unfinished</span>
-              <span>
-                Score = (worst finisher that day or 30, whichever is higher) + 5 for every missing
-                pebble. Missing 2nd and 1st pebbles become that score minus 1 and minus 2 unless you
-                already found them. This number is permanent and still goes into your average. SO
-                DIG!
-              </span>
-            </li>
-            <li>
-              <span>Ties</span>
-              <span>
-                Average of 3rd pebble, then 2nd, then 1st. If still tied → earlier time on the 3rd
-                pebble, then 2nd, then 1st.
-              </span>
-            </li>
-          </ul>
-        </div>
-        <div className="hero-side" data-testid="hero-side">
-          {identity && (
-            <YouFarmCard
-              farmId={identity.farm_id}
-              name={identity.name}
-              farm={mineFarm.data}
-              loading={mineFarm.isLoading}
-            />
-          )}
-          <div className="card tourney-home" data-testid="tourney-home">
-            <div className="tourney-home-head">
-              <Link
-                to="/tournaments"
-                className="tourney-home-catalog"
-                data-testid="home-tournaments-link"
-              >
-                Tournaments
-              </Link>
-            </div>
-            {catalog.isError && <p className="flash err">{(catalog.error as Error).message}</p>}
-            <TourneyGroup
-              title="Ongoing"
-              empty="No ongoing tournament."
-              items={homeTourneyPreview(live)}
-              testId="ongoing-group"
-              live
-            />
-            <TourneyGroup
-              title="Upcoming"
-              empty="No upcoming tournaments."
-              items={homeTourneyPreview(upcoming)}
-              testId="upcoming-group"
-            />
-          </div>
-        </div>
-      </section>
-
-      {latestEnded && (
-        <LatestResult
-          tournament={latestEnded}
-          entries={latestBoard.data?.entries ?? []}
-          loading={latestBoard.isLoading}
-          error={latestBoard.error as Error | undefined}
-        />
-      )}
-
-      {live.map((row, index) => (
-        <LiveBoard
-          key={row.tournament_id}
-          tournament={row}
-          entries={boards[index]?.data?.entries ?? []}
-          loading={Boolean(boards[index]?.isLoading)}
-          error={boards[index]?.error as Error | undefined}
-          sort={sortFor(row.tournament_id)}
-          mine={mine}
-          onToggleSort={() =>
-            setSortById((current) => ({
-              ...current,
-              [row.tournament_id]: nextScoreSort(sortFor(row.tournament_id)),
-            }))
-          }
-        />
-      ))}
-
-      <PastTournamentList items={items} />
+        )}
+        {identity && !featured && (
+          <YouFarmCard
+            farmId={identity.farm_id}
+            name={identity.name}
+            farm={you}
+            loading={mineFarm.isLoading}
+          />
+        )}
+        <RulesBand />
+      </div>
     </>
   );
 }
 
-function TourneyGroup({
-  title,
-  empty,
-  items,
-  live,
-  testId,
+function Hero({
+  featured,
+  loading,
+  error,
 }: {
-  title: string;
-  empty: string;
-  items: TournamentSummary[];
-  live?: boolean;
-  testId: string;
+  featured: TournamentSummary | null;
+  loading: boolean;
+  error?: Error;
+}) {
+  const href = featured ? `/tournaments/${encodeURIComponent(featured.tournament_id)}` : "";
+  const eyebrow = featured
+    ? `${featured.status === "ended" ? "Past tournament" : "Live tournament"} · ${formatWindowRange(featured.start_at, featured.end_at)}`
+    : "Live tournament";
+  return (
+    <section className="live-hero" data-testid="home-hero">
+      <ColorCanvas tone="hero" className="live-hero-art" />
+      <div className="live-hero-inner">
+        <p className="hero-eyebrow">{eyebrow}</p>
+        {featured ? (
+          <Link to={href} className="hero-title-link" data-testid="featured-link">
+            <h2 className="hero-title">{featured.name}</h2>
+          </Link>
+        ) : (
+          <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
+        )}
+        <p className="hero-lead">
+          Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
+          affect your score.
+        </p>
+        <div className="hero-actions">
+          <Link to="/tournaments" className="btn primary" data-testid="see-tournaments">
+            See tournaments
+          </Link>
+          <a href="#standings" className="btn ghost">
+            Standings
+          </a>
+        </div>
+        {error && <p className="flash err">{error.message}</p>}
+        {loading && !featured && <p className="muted">Loading live tournament…</p>}
+        {!loading && !featured && !error && (
+          <p className="muted">No live tournament right now. See upcoming tournaments.</p>
+        )}
+        {featured && (
+          <Link to={href} className="now-digging-link" data-testid="featured-now-link">
+            <NowDigging featured={featured} />
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function NowDigging({ featured }: { featured: TournamentSummary }) {
+  return (
+    <div className="now-digging" data-testid="now-digging">
+      <ColorCanvas tone="thumb" className="now-digging-art" />
+      <div className="now-digging-copy">
+        <div className="kicker">Now digging</div>
+        <div className="now-digging-name">{featured.name}</div>
+        <p className="meta">
+          {formatWindowRange(featured.start_at, featured.end_at)}
+          {featured.end_at ? ` · ${remainingLabel(featured.end_at)}` : ""}
+        </p>
+      </div>
+      <dl className="now-digging-stats">
+        <div>
+          <dt>Remaining</dt>
+          <dd data-testid="hero-remaining">{remainingLabel(featured.end_at)}</dd>
+        </div>
+        <div>
+          <dt>Prize</dt>
+          <dd data-testid="hero-prize">{featured.prize_amount} Flower</dd>
+        </div>
+        <div>
+          <dt>Farms</dt>
+          <dd data-testid="hero-farms">{featured.count}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function LiveEventBand({
+  tournament,
+  entries,
+  loading,
+  error,
+  sort,
+  onSort,
+  mine,
+  you,
+  youName,
+  youLoading,
+}: {
+  tournament: TournamentSummary;
+  entries: LeaderboardEntry[];
+  loading: boolean;
+  error?: Error;
+  sort: StandingsSort;
+  onSort: (next: StandingsSort) => void;
+  mine: string;
+  you?: LeaderboardEntry;
+  youName?: string;
+  youLoading?: boolean;
+}) {
+  const rows = sortedStandings(entries, sort);
+  return (
+    <div
+      id={`live-${tournament.tournament_id}`}
+      className="live-event"
+      data-testid={`live-board-${tournament.tournament_id}`}
+    >
+      <section className="home-band" data-testid="top-three">
+        <div className="band-head">
+          <div>
+            <div className="kicker">Podium</div>
+            <h2>Top three</h2>
+          </div>
+        </div>
+        {loading && (
+          <div className="skeleton-stack" aria-hidden>
+            <div className="skeleton" />
+            <div className="skeleton" />
+          </div>
+        )}
+        {error && <p className="flash err">{error.message}</p>}
+        {!loading && entries.length === 0 && <p className="muted">No farms on this board yet.</p>}
+        {entries.length > 0 && (
+          <Podium entries={entries} tournamentId={tournament.tournament_id} />
+        )}
+      </section>
+
+      <section className="home-band" id="standings" data-testid="standings">
+        <div className="band-head">
+          <div>
+            <div className="kicker">Field</div>
+            <h2>Standings</h2>
+          </div>
+        </div>
+        {loading && (
+          <div className="skeleton-stack" aria-hidden>
+            <div className="skeleton" />
+            <div className="skeleton" />
+          </div>
+        )}
+        {!loading && rows.length === 0 && <p className="muted">No farms on this board yet.</p>}
+        {rows.length > 0 && (
+          <StandingsTable
+            rows={rows}
+            mine={mine}
+            tournamentId={tournament.tournament_id}
+            sort={sort}
+            onSort={onSort}
+          />
+        )}
+        {youName && (
+          <YouFarmCard
+            farmId={mine}
+            name={youName}
+            farm={you}
+            loading={Boolean(youLoading)}
+            tournamentId={tournament.tournament_id}
+          />
+        )}
+      </section>
+    </div>
+  );
+}
+
+function sortClass(sort: StandingsSort, column: StandingsColumn) {
+  if (sort?.column !== column) return "th-sort";
+  return `th-sort is-${sort.dir}`;
+}
+
+function sortAria(sort: StandingsSort, column: StandingsColumn): "ascending" | "descending" | "none" {
+  if (sort?.column !== column) return "none";
+  return sort.dir === "asc" ? "ascending" : "descending";
+}
+
+function SortHeader({
+  column,
+  label,
+  sort,
+  onSort,
+}: {
+  column: StandingsColumn;
+  label: string;
+  sort: StandingsSort;
+  onSort: (next: StandingsSort) => void;
 }) {
   return (
-    <div className="tourney-group" data-testid={testId}>
-      <div className="kicker">{title}</div>
-      {items.length === 0 && <p className="muted tourney-empty">{empty}</p>}
-      {items.map((row) => (
-        <Link
-          key={row.tournament_id}
-          to={`/tournaments/${encodeURIComponent(row.tournament_id)}`}
-          state={{ from: "home" }}
-          className="tourney-card tourney-card-link"
-          data-testid={`tourney-card-${row.tournament_id}`}
-        >
-          <div className="tourney-card-head">
-            <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
-            <div className="tourney-card-meta" data-testid={`tourney-duration-${row.tournament_id}`}>
-              {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+    <button
+      type="button"
+      className={sortClass(sort, column)}
+      data-testid={`sort-${column}`}
+      aria-sort={sortAria(sort, column)}
+      onClick={() => onSort(nextColumnSort(sort, column))}
+    >
+      {label}
+    </button>
+  );
+}
+
+function StandingsTable({
+  rows,
+  mine,
+  tournamentId,
+  sort,
+  onSort,
+}: {
+  rows: LeaderboardEntry[];
+  mine: string;
+  tournamentId: string;
+  sort: StandingsSort;
+  onSort: (next: StandingsSort) => void;
+}) {
+  return (
+    <div className="board-scroll standings-panel">
+      <div className="standings-sort-bar" data-testid="standings-sort">
+        <SortHeader column="avg" label="Avg / day" sort={sort} onSort={onSort} />
+        <SortHeader column="today" label="Today" sort={sort} onSort={onSort} />
+        <SortHeader column="total" label="Total" sort={sort} onSort={onSort} />
+      </div>
+      <table className="board-table">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Farm</th>
+            <th>
+              <SortHeader column="total" label="Total" sort={sort} onSort={onSort} />
+            </th>
+            <th>
+              <SortHeader column="today" label="Today" sort={sort} onSort={onSort} />
+            </th>
+            <th>Pebbles</th>
+            <th>
+              <SortHeader column="avg" label="Avg / day" sort={sort} onSort={onSort} />
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.farm_id}
+              className={[
+                row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
+                row.farm_id === mine ? "is-you" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</td>
+              <td>
+                <Link to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}>
+                  {row.name || "Unnamed farm"}
+                  {row.farm_id === mine ? <span className="you-tag">You</span> : null}
+                  <div className="farm-id">{row.farm_id}</div>
+                </Link>
+              </td>
+              <td>{row.digs_to_third_op ?? "—"}</td>
+              <td>{row.score_today ?? "—"}</td>
+              <td>
+                <Pebbles count={row.otter_count} />
+              </td>
+              <td>{formatScore(row.score)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="board-cards">
+        {rows.map((row) => (
+          <Link
+            key={row.farm_id}
+            to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
+            className={[
+              "farm-card",
+              row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
+              row.farm_id === mine ? "is-you" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            <div className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</div>
+            <div className="farm-card-main">
+              <div className="farm-card-name">
+                {row.name || "Unnamed farm"}
+                {row.farm_id === mine ? <span className="you-tag">You</span> : null}
+              </div>
+              <div className="farm-id">{row.farm_id}</div>
+              <div className="farm-card-meta">
+                <Pebbles count={row.otter_count} />
+                <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+              </div>
             </div>
-            {live ? <SyncCountdown variant="card" /> : null}
-          </div>
-        </Link>
-      ))}
+            <div className="farm-card-score">
+              <b>{row.digs_to_third_op ?? "—"}</b>
+              <span>total</span>
+              <span className="muted">{formatScore(row.score)} avg/day</span>
+              <span className="muted">today {row.score_today ?? "—"}</span>
+            </div>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
@@ -244,15 +452,23 @@ function YouFarmCard({
   name,
   farm,
   loading,
+  tournamentId,
 }: {
   farmId: string;
   name: string;
   farm?: LeaderboardEntry;
   loading: boolean;
+  tournamentId?: string;
 }) {
+  const href = tournamentId
+    ? `/tournaments/${encodeURIComponent(tournamentId)}/farm/${farmId}`
+    : `/farm/${farmId}`;
   return (
-    <Link to={`/farm/${farmId}`} className="you-farm" data-testid="you-farm">
-      <div className="you-farm-who">
+    <Link to={href} className="you-farm-panel" data-testid="you-farm">
+      <div className="you-farm-art">
+        <ColorCanvas tone={farmCanvasTone(farmId)} />
+      </div>
+      <div className="you-farm-copy">
         <span className="kicker">Your farm</span>
         <span className="you-farm-name" data-testid="you-farm-name">
           {farm?.name || name || "Unnamed farm"}
@@ -260,202 +476,64 @@ function YouFarmCard({
         <span className="farm-id" data-testid="you-farm-id">
           {farmId}
         </span>
+        <p className="you-farm-blurb">
+          {farm
+            ? `${farm.otter_count} of 3 Otter Pebbles. Average of days with a recorded 3rd-pebble score.`
+            : "Connect this farm to a live tournament to see rank and score."}
+        </p>
       </div>
-      <div className="you-farm-stats">
-        <div className="you-farm-metric" data-testid="you-farm-avg">
-          <span className="muted">Avg / day</span>
-          <b>{loading ? "—" : formatScore(farm?.recorded_average_per_day)}</b>
+      <dl className="you-farm-grid">
+        <div data-testid="you-farm-rank">
+          <dt>Rank</dt>
+          <dd>{loading ? "—" : (farm?.rank ?? "—")}</dd>
         </div>
-        <div className="you-farm-metric" data-testid="you-farm-score-today">
-          <span className="muted">Score today</span>
-          <b>{loading ? "—" : (farm?.score_today ?? "—")}</b>
+        <div data-testid="you-farm-total">
+          <dt>Total</dt>
+          <dd>{loading ? "—" : (farm?.digs_to_third_op ?? "—")}</dd>
         </div>
-      </div>
+        <div data-testid="you-farm-score-today">
+          <dt>Today</dt>
+          <dd>{loading ? "—" : (farm?.score_today ?? "—")}</dd>
+        </div>
+        <div data-testid="you-farm-avg">
+          <dt>Avg / day</dt>
+          <dd>
+            {loading ? "—" : formatScore(farm?.recorded_average_per_day ?? farm?.score)}
+          </dd>
+        </div>
+      </dl>
     </Link>
   );
 }
 
-function LatestResult({
-  tournament,
-  entries,
-  loading,
-  error,
-}: {
-  tournament: TournamentSummary;
-  entries: LeaderboardEntry[];
-  loading: boolean;
-  error?: Error;
-}) {
-  const href = `/tournaments/${encodeURIComponent(tournament.tournament_id)}`;
+function RulesBand() {
   return (
-    <section className="card latest-result" data-testid="latest-result">
-      <div className="latest-result-head">
-        <div className="kicker">Latest result</div>
-        <Link
-          to={href}
-          state={{ from: "home" }}
-          className="latest-result-name"
-          data-testid="latest-result-name"
-        >
-          {tournament.name || "Untitled tournament"}
-        </Link>
-        <p className="meta" data-testid="latest-result-window">
-          {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
+    <section className="home-band rules-band" id="rules" data-testid="rules">
+      <div className="band-head">
+        <div>
+          <div className="kicker">Rules, briefly</div>
+          <h2>How a tournament is scored</h2>
+        </div>
+        <p className="band-note">
+          Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
+          affect your score.
         </p>
       </div>
-      {loading && (
-        <div className="skeleton-stack" aria-hidden>
-          <div className="skeleton" />
-          <div className="skeleton" />
-        </div>
-      )}
-      {error && <p className="flash err">{error.message}</p>}
-      {!loading && !error && entries.length === 0 && (
-        <p className="muted">No standings recorded.</p>
-      )}
-      {!loading && entries.length > 0 && (
-        <Podium entries={entries} tournamentId={tournament.tournament_id} />
-      )}
-    </section>
-  );
-}
-
-function LiveBoard({
-  tournament,
-  entries,
-  loading,
-  error,
-  sort,
-  mine,
-  onToggleSort,
-}: {
-  tournament: TournamentSummary;
-  entries: LeaderboardEntry[];
-  loading: boolean;
-  error?: Error;
-  sort: ScoreSortDir;
-  mine: string;
-  onToggleSort: () => void;
-}) {
-  const rows = visibleBoardEntries(entries, sort, 10);
-  const sortLabel = sort === "asc" ? " ↑" : sort === "desc" ? " ↓" : "";
-  const href = `/tournaments/${encodeURIComponent(tournament.tournament_id)}`;
-  return (
-    <section
-      className="card table-wrap live-board"
-      data-testid={`live-board-${tournament.tournament_id}`}
-    >
-      <div className="live-board-head">
-        <Link
-          to={href}
-          state={{ from: "home" }}
-          className="live-board-open"
-          data-testid={`open-board-${tournament.tournament_id}`}
-          aria-label={`Open ${tournament.name || "tournament"}`}
-        >
-          <div className="kicker">{tournament.name || "Live board"}</div>
-          <p className="meta">
-            {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
-          </p>
-        </Link>
-      </div>
-      {loading && (
-        <div className="skeleton-stack" aria-hidden>
-          <div className="skeleton" />
-          <div className="skeleton" />
-        </div>
-      )}
-      {error && <p className="flash err">{error.message}</p>}
-      {!loading && rows.length === 0 && <p className="muted">No farms on this board yet.</p>}
-      {rows.length > 0 && (
-        <div className="board-scroll">
-          <table className="board-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Farm</th>
-                <th>Total</th>
-                <th>
-                  <button
-                    type="button"
-                    className={["sort-btn", sort ? "is-sorted" : ""].filter(Boolean).join(" ")}
-                    data-testid={`sort-score-${tournament.tournament_id}`}
-                    data-sort={sort ?? "none"}
-                    aria-pressed={sort != null}
-                    onClick={onToggleSort}
-                  >
-                    Avg / day{sortLabel}
-                  </button>
-                </th>
-                <th>Today</th>
-                <th>Pebbles</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr
-                  key={row.farm_id}
-                  className={[
-                    row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
-                    row.farm_id === mine ? "is-you" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</td>
-                  <td>
-                    <Link to={`/farm/${row.farm_id}`}>
-                      {row.name || "Unnamed farm"}
-                      {row.farm_id === mine ? <span className="you-tag">You</span> : null}
-                      <div className="farm-id">{row.farm_id}</div>
-                    </Link>
-                  </td>
-                  <td>{row.digs_to_third_op ?? "—"}</td>
-                  <td>{formatScore(row.score)}</td>
-                  <td>{row.score_today ?? "—"}</td>
-                  <td>
-                    <Pebbles count={row.otter_count} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="board-cards">
-            {rows.map((row) => (
-              <Link
-                key={row.farm_id}
-                to={`/farm/${row.farm_id}`}
-                className={[
-                  "farm-card",
-                  row.rank === 1 || row.rank === 2 || row.rank === 3 ? `rank-${row.rank}` : "",
-                  row.farm_id === mine ? "is-you" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                <div className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</div>
-                <div className="farm-card-main">
-                  <div className="farm-card-name">
-                    {row.name || "Unnamed farm"}
-                    {row.farm_id === mine ? <span className="you-tag">You</span> : null}
-                  </div>
-                  <div className="farm-id">{row.farm_id}</div>
-                  <div className="farm-card-meta">
-                    <Pebbles count={row.otter_count} />
-                    <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                  </div>
-                </div>
-                <div className="farm-card-score">
-                  <b>{row.digs_to_third_op ?? "—"}</b>
-                  <span>total</span>
-                  <span className="muted">{formatScore(row.score)} avg/day</span>
-                  <span className="muted">today {row.score_today ?? "—"}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
+      <ol className="rules-grid">
+        {RULES.map((rule) => (
+          <li key={rule.label}>
+            <span className="rules-label">{rule.label}</span>
+            {rule.label === "Refresh" ? (
+              <span>
+                14:00, 16:00, 18:00, 20:00, 23:00 UTC.{" "}
+                <strong>Digs after 23:00 UTC do not count</strong>
+              </span>
+            ) : (
+              <span>{rule.body}</span>
+            )}
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }

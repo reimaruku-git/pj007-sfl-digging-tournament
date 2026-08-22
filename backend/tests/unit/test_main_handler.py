@@ -4,7 +4,7 @@ import importlib
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from tournament.scoring import score_grid
@@ -554,6 +554,135 @@ def test_get_farm_exposes_recorded_average_across_history_days(aws_env, monkeypa
     assert farm["name"] == "rmr"
     assert farm["recorded_average_per_day"] == 17.0
     assert farm["score_today"] is None
+
+
+def test_admin_put_featured_live_and_ended_not_scheduled(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    store = app._get_store()
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    live_start = (now - timedelta(days=1)).isoformat()
+    live_end = (now + timedelta(days=6)).isoformat()
+    later_end = (now + timedelta(days=20)).isoformat()
+    scheduled_start = (now + timedelta(days=30)).isoformat()
+    scheduled_end = (now + timedelta(days=37)).isoformat()
+
+    live = _json(
+        app.lambda_handler(
+            _event(
+                "POST",
+                "/admin/tournaments",
+                {
+                    "name": "Live cup",
+                    "start_at": live_start,
+                    "end_at": live_end,
+                    "prize_amount": "30",
+                },
+            ),
+            None,
+        )
+    )["tournament"]
+    later = _json(
+        app.lambda_handler(
+            _event(
+                "POST",
+                "/admin/tournaments",
+                {
+                    "name": "Longer live",
+                    "start_at": live_start,
+                    "end_at": later_end,
+                    "prize_amount": "30",
+                },
+            ),
+            None,
+        )
+    )["tournament"]
+    scheduled = _json(
+        app.lambda_handler(
+            _event(
+                "POST",
+                "/admin/tournaments",
+                {
+                    "name": "Upcoming cup",
+                    "start_at": scheduled_start,
+                    "end_at": scheduled_end,
+                    "prize_amount": "30",
+                },
+            ),
+            None,
+        )
+    )["tournament"]
+    live_id = live["tournament_id"]
+    later_id = later["tournament_id"]
+    scheduled_id = scheduled["tournament_id"]
+    scoring_before = store.get_config().get("current_tournament_id")
+
+    ended_id = "20260701T000000Z_7d"
+    store.put_tournament(
+        {
+            "tournament_id": ended_id,
+            "name": "July cup",
+            "start_at": "2026-07-01T00:00:00+00:00",
+            "end_at": "2026-07-08T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+            "status": "ended",
+            "archived_at": "2026-07-08T00:05:00+00:00",
+        }
+    )
+    store.write_archive(
+        ended_id,
+        {
+            "tournament_id": ended_id,
+            "archived_at": "2026-07-08T00:05:00+00:00",
+            "config": {
+                "tournament_id": ended_id,
+                "name": "July cup",
+                "start_at": "2026-07-01T00:00:00+00:00",
+                "end_at": "2026-07-08T00:00:00+00:00",
+                "duration_days": 7,
+                "prize_amount": "30",
+                "status": "ended",
+            },
+            "entries": [],
+            "count": 0,
+            "leader_farm_id": None,
+        },
+    )
+
+    live_set = app.lambda_handler(
+        _event("PUT", "/admin/featured", {"tournament_id": live_id}), None
+    )
+    assert live_set["statusCode"] == 200
+    assert _json(live_set)["featured_tournament_id"] == live_id
+    catalog = _json(app.lambda_handler(_event("GET", "/tournaments"), None))
+    assert catalog["featured_tournament_id"] == live_id
+    config = _json(app.lambda_handler(_event("GET", "/config"), None))
+    assert config["featured_tournament_id"] == live_id
+    assert store.get_config()["current_tournament_id"] == scoring_before
+
+    ended_set = app.lambda_handler(
+        _event("PUT", "/admin/featured", {"tournament_id": ended_id}), None
+    )
+    assert ended_set["statusCode"] == 200
+    assert _json(ended_set)["featured_tournament_id"] == ended_id
+    catalog = _json(app.lambda_handler(_event("GET", "/tournaments"), None))
+    assert catalog["featured_tournament_id"] == ended_id
+    config = _json(app.lambda_handler(_event("GET", "/config"), None))
+    assert config["featured_tournament_id"] == ended_id
+    assert store.get_config()["current_tournament_id"] == scoring_before
+    assert store.get_config()["current_tournament_id"] != ended_id
+
+    scheduled_set = app.lambda_handler(
+        _event("PUT", "/admin/featured", {"tournament_id": scheduled_id}), None
+    )
+    assert scheduled_set["statusCode"] == 400
+    body = _json(scheduled_set)
+    assert body["error"] == "VALIDATION_ERROR"
+    catalog = _json(app.lambda_handler(_event("GET", "/tournaments"), None))
+    assert catalog["featured_tournament_id"] == ended_id
+    admin_list = _json(app.lambda_handler(_event("GET", "/admin/tournaments"), None))
+    assert admin_list["featured_tournament_id"] == ended_id
+    assert later_id in {row["tournament_id"] for row in catalog["tournaments"]}
 
 
 def test_unknown_route(aws_env, monkeypatch):

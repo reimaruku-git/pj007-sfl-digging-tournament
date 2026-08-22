@@ -3,10 +3,16 @@ import {
   catalogStatusLabel,
   formatDateRangeUtc,
   formatDateUtc,
+  formatDurationDays,
   formatRelative,
   formatScore,
   formatWhenUtc,
+  formatWindowRange,
   isoToDateInput,
+  opensLabel,
+  remainingLabel,
+  utcCalendarDaysUntil,
+  windowStatusLabel,
 } from "./format";
 
 describe("catalogStatusLabel", () => {
@@ -14,6 +20,14 @@ describe("catalogStatusLabel", () => {
     expect(catalogStatusLabel("active")).toBe("Ongoing");
     expect(catalogStatusLabel("scheduled")).toBe("Upcoming");
     expect(catalogStatusLabel("ended")).toBe("Ended");
+  });
+});
+
+describe("windowStatusLabel", () => {
+  it("labels live windows Live for the public catalog", () => {
+    expect(windowStatusLabel("active")).toBe("Live");
+    expect(windowStatusLabel("scheduled")).toBe("Upcoming");
+    expect(windowStatusLabel("ended")).toBe("Ended");
   });
 });
 
@@ -62,6 +76,28 @@ describe("isoToDateInput", () => {
 describe("formatWhenUtc", () => {
   it("prints a stable UTC stamp", () => {
     expect(formatWhenUtc("2026-08-15T14:00:00.000Z")).toBe("15 Aug 14:00 UTC");
+  });
+});
+
+describe("window calendar copy", () => {
+  const now = new Date("2026-08-22T12:00:00.000Z");
+
+  it("prints a spaced range with year", () => {
+    expect(formatWindowRange("2026-08-22T00:00:00.000Z", "2026-08-28T00:00:00.000Z")).toBe(
+      "22 – 28 Aug 2026",
+    );
+    expect(formatWindowRange("2026-08-22T00:00:00.000Z", "2026-09-03T00:00:00.000Z")).toBe(
+      "22 Aug – 3 Sep 2026",
+    );
+    expect(formatDurationDays(7)).toBe("7 days");
+    expect(formatDurationDays(1)).toBe("1 day");
+  });
+
+  it("counts remaining and opening days from UTC dates", () => {
+    expect(utcCalendarDaysUntil("2026-08-28T00:00:00.000Z", now)).toBe(6);
+    expect(remainingLabel("2026-08-28T00:00:00.000Z", now)).toBe("6 days remaining");
+    expect(opensLabel("2026-09-01T00:00:00.000Z", now)).toBe("Opens in 10 days");
+    expect(remainingLabel("2026-08-22T00:00:00.000Z", now)).toBe("Ends today");
   });
 });
 

@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchFarm, fetchLeaderboard, fetchTournament, identifyFarm, submitFarm } from "./public";
+import {
+  fetchFarm,
+  fetchLeaderboard,
+  fetchTournament,
+  identifyFarm,
+  listTournaments,
+  submitFarm,
+} from "./public";
 
 vi.mock("./client", () => ({
   requestJson: vi.fn(),
@@ -151,5 +158,32 @@ describe("public api", () => {
     expect(tournament.config.prize_amount).toBe("45");
     expect(tournament.count).toBe(1);
     expect(tournament.overall_average_per_day).toBeNull();
+  });
+
+  it("loads the catalog including featured_tournament_id", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        tournaments: [
+          {
+            tournament_id: "cup-1",
+            name: "Week cup",
+            start_at: "2026-08-14T00:00:00+00:00",
+            end_at: "2026-08-21T00:00:00+00:00",
+            duration_days: 7,
+            prize_amount: "30",
+            status: "active",
+            archived_at: null,
+            count: 2,
+            leader_farm_id: "99",
+          },
+        ],
+        count: 1,
+        featured_tournament_id: "cup-1",
+      }),
+    );
+    const listed = await listTournaments();
+    expect(mockRequest).toHaveBeenCalledWith("tournaments");
+    expect(listed.featured_tournament_id).toBe("cup-1");
+    expect(listed.tournaments[0]?.tournament_id).toBe("cup-1");
   });
 });

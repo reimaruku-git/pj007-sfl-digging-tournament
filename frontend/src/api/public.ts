@@ -13,6 +13,7 @@ export type TournamentConfig = {
   status: TournamentStatus;
   last_full_sync_at: string | null;
   updated_at?: string;
+  featured_tournament_id?: string | null;
 };
 
 export type FarmDayRecord = {
@@ -140,13 +141,14 @@ export type TournamentArchive = {
   accepts_joins?: boolean;
 };
 
-export async function listTournaments(): Promise<{
+export type TournamentList = {
   tournaments: TournamentSummary[];
   count: number;
-}> {
-  const { response, data } = await requestJson<{ tournaments: TournamentSummary[]; count: number }>(
-    "tournaments",
-  );
+  featured_tournament_id?: string | null;
+};
+
+export async function listTournaments(): Promise<TournamentList> {
+  const { response, data } = await requestJson<TournamentList>("tournaments");
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load tournaments"));
   return data;
 }

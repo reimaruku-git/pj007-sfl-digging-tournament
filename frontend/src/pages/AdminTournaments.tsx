@@ -2,7 +2,7 @@ import { FormEvent, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
 import type { TournamentSummary } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
-import { liveTournamentsSoonestFirst, upcomingTournaments } from "../lib/board";
+import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
 import { formatDateRangeUtc, isoToDateInput } from "../lib/format";
 
 export type TournamentDraft = {
@@ -28,6 +28,8 @@ export function AdminTournaments({
   onRemoveFarm,
   onApprove,
   onReject,
+  featuredId = null,
+  onFeature,
 }: {
   items: TournamentSummary[];
   players?: TrackedFarm[];
@@ -42,9 +44,12 @@ export function AdminTournaments({
   onRemoveFarm?: (id: string, farmId: string) => Promise<void>;
   onApprove?: (farmId: string, tournamentId: string) => Promise<void>;
   onReject?: (farmId: string, tournamentId: string) => Promise<void>;
+  featuredId?: string | null;
+  onFeature?: (id: string | null) => Promise<void>;
 }) {
   const live = useMemo(() => liveTournamentsSoonestFirst(items), [items]);
   const upcoming = useMemo(() => upcomingTournaments(items), [items]);
+  const ended = useMemo(() => pastTournaments(items), [items]);
   const [editor, setEditor] = useState<Editor>(null);
   const [draft, setDraft] = useState<TournamentDraft>(emptyDraft());
   const [busy, setBusy] = useState(false);
@@ -136,9 +141,12 @@ export function AdminTournaments({
           empty="No ongoing tournament."
           items={live}
           selectedId={selectedId}
+          featuredId={featuredId}
+          canFeature
           onOpen={onSelect}
           onEdit={openEdit}
           onDelete={requestDelete}
+          onFeature={onFeature}
         />
         <AdminGroup
           title="Upcoming"
@@ -148,6 +156,16 @@ export function AdminTournaments({
           onOpen={onSelect}
           onEdit={openEdit}
           onDelete={requestDelete}
+        />
+        <AdminGroup
+          title="Past"
+          empty="No past tournaments."
+          items={ended}
+          selectedId={selectedId}
+          featuredId={featuredId}
+          canFeature
+          onOpen={onSelect}
+          onFeature={onFeature}
         />
       </div>
 
@@ -243,17 +261,23 @@ function AdminGroup({
   empty,
   items,
   selectedId,
+  featuredId,
+  canFeature,
   onOpen,
   onEdit,
   onDelete,
+  onFeature,
 }: {
   title: string;
   empty: string;
   items: TournamentSummary[];
   selectedId?: string | null;
+  featuredId?: string | null;
+  canFeature?: boolean;
   onOpen?: (id: string | null) => void;
-  onEdit: (row: TournamentSummary) => void;
-  onDelete: (row: TournamentSummary) => void | Promise<void>;
+  onEdit?: (row: TournamentSummary) => void;
+  onDelete?: (row: TournamentSummary) => void | Promise<void>;
+  onFeature?: (id: string | null) => Promise<void>;
 }) {
   return (
     <div className="tourney-group" data-testid={`admin-${title.toLowerCase()}-group`}>
@@ -279,20 +303,37 @@ function AdminGroup({
             <div className="tourney-card-meta">
               {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
               Flower
+              {featuredId === row.tournament_id ? " · Featured on home" : ""}
             </div>
           </button>
           <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
-            <button className="btn" type="button" onClick={() => onEdit(row)}>
-              Edit
-            </button>
-            <button
-              className="btn"
-              type="button"
-              data-testid={`admin-delete-${row.tournament_id}`}
-              onClick={() => void onDelete(row)}
-            >
-              Delete
-            </button>
+            {canFeature && (
+              <button
+                className="btn"
+                type="button"
+                data-testid={`admin-feature-${row.tournament_id}`}
+                onClick={() =>
+                  void onFeature?.(featuredId === row.tournament_id ? null : row.tournament_id)
+                }
+              >
+                {featuredId === row.tournament_id ? "Featured" : "Feature"}
+              </button>
+            )}
+            {onEdit && (
+              <button className="btn" type="button" onClick={() => onEdit(row)}>
+                Edit
+              </button>
+            )}
+            {onDelete && (
+              <button
+                className="btn"
+                type="button"
+                data-testid={`admin-delete-${row.tournament_id}`}
+                onClick={() => void onDelete(row)}
+              >
+                Delete
+              </button>
+            )}
           </div>
         </article>
       ))}

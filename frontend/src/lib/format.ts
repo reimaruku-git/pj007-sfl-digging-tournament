@@ -25,6 +25,12 @@ export function catalogStatusLabel(status: string): string {
   return statusLabel(status);
 }
 
+export function windowStatusLabel(status: string): string {
+  if (status === "active") return "Live";
+  if (status === "scheduled") return "Upcoming";
+  return statusLabel(status);
+}
+
 export function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -128,4 +134,66 @@ export function formatUtcClock(now: Date = new Date()): string {
   const hours = String(now.getUTCHours()).padStart(2, "0");
   const minutes = String(now.getUTCMinutes()).padStart(2, "0");
   return `${hours}:${minutes} UTC`;
+}
+
+export function formatWindowRange(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string {
+  const from = start ? utcDayMonth(start) : null;
+  const to = end ? utcDayMonth(end) : null;
+  if (!from && !to) return "—";
+  if (!from && to) return `${to.day} ${to.month} ${to.year}`;
+  if (from && !to) return `${from.day} ${from.month} ${from.year}`;
+  if (!from || !to) return "—";
+  if (from.year === to.year && from.month === to.month) {
+    return `${from.day} – ${to.day} ${from.month} ${from.year}`;
+  }
+  if (from.year === to.year) {
+    return `${from.day} ${from.month} – ${to.day} ${to.month} ${from.year}`;
+  }
+  return `${from.day} ${from.month} ${from.year} – ${to.day} ${to.month} ${to.year}`;
+}
+
+export function formatDurationDays(days: number | null | undefined): string {
+  if (days == null || Number.isNaN(Number(days))) return "";
+  return Number(days) === 1 ? "1 day" : `${Number(days)} days`;
+}
+
+export function utcCalendarDaysUntil(
+  iso: string | null | undefined,
+  now: Date = new Date(),
+): number | null {
+  if (!iso) return null;
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return null;
+  const startOfNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const startOfTarget = Date.UTC(
+    target.getUTCFullYear(),
+    target.getUTCMonth(),
+    target.getUTCDate(),
+  );
+  return Math.round((startOfTarget - startOfNow) / 86_400_000);
+}
+
+export function remainingLabel(
+  endAt: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  const days = utcCalendarDaysUntil(endAt, now);
+  if (days == null) return "";
+  if (days <= 0) return "Ends today";
+  if (days === 1) return "1 day remaining";
+  return `${days} days remaining`;
+}
+
+export function opensLabel(
+  startAt: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  const days = utcCalendarDaysUntil(startAt, now);
+  if (days == null) return "";
+  if (days <= 0) return "Opens today";
+  if (days === 1) return "Opens in 1 day";
+  return `Opens in ${days} days`;
 }

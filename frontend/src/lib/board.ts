@@ -31,6 +31,62 @@ export function visibleBoardEntries(
   return rows.slice(0, limit);
 }
 
+export type StandingsColumn = "avg" | "today" | "total";
+export type StandingsSort = { column: StandingsColumn; dir: "asc" | "desc" } | null;
+
+const STANDINGS_FIELD: Record<StandingsColumn, "score" | "score_today" | "digs_to_third_op"> = {
+  avg: "score",
+  today: "score_today",
+  total: "digs_to_third_op",
+};
+
+export function nextColumnSort(current: StandingsSort, column: StandingsColumn): StandingsSort {
+  if (current == null || current.column !== column) return { column, dir: "asc" };
+  if (current.dir === "asc") return { column, dir: "desc" };
+  return null;
+}
+
+function numericOrNull(value: number | null | undefined): number | null {
+  if (value == null || Number.isNaN(Number(value))) return null;
+  return Number(value);
+}
+
+export function sortedStandings(
+  entries: LeaderboardEntry[],
+  sort: StandingsSort,
+): LeaderboardEntry[] {
+  const rows = [...entries];
+  if (sort == null) {
+    rows.sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
+    return rows;
+  }
+  const field = STANDINGS_FIELD[sort.column];
+  rows.sort((a, b) => {
+    const aNum = numericOrNull(a[field]);
+    const bNum = numericOrNull(b[field]);
+    if (aNum == null && bNum == null) return (a.rank ?? 9999) - (b.rank ?? 9999);
+    if (aNum == null) return 1;
+    if (bNum == null) return -1;
+    if (aNum !== bNum) return sort.dir === "asc" ? aNum - bNum : bNum - aNum;
+    return (a.rank ?? 9999) - (b.rank ?? 9999);
+  });
+  return rows;
+}
+
+export function featuredHomeTournament(
+  items: TournamentSummary[],
+  featuredId?: string | null,
+): TournamentSummary | null {
+  const wanted = (featuredId || "").trim();
+  if (wanted) {
+    const match = items.find((row) => row.tournament_id === wanted);
+    if (match && (match.status === "active" || match.status === "ended")) {
+      return match;
+    }
+  }
+  return liveTournamentsSoonestFirst(items)[0] ?? null;
+}
+
 export function liveTournamentsSoonestFirst(items: TournamentSummary[]): TournamentSummary[] {
   return items
     .filter((row) => row.status === "active")
