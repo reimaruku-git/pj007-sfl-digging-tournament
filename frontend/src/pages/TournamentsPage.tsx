@@ -119,10 +119,12 @@ function CatalogWindow({
       className={`tourney-window is-${tone}`}
       data-testid={`tourney-window-${row.tournament_id}`}
     >
-      <span className={`tourney-status ${tone}`} data-testid={`tourney-status-${tone}`}>
-        {catalogStatusLabel(row.status)}
-      </span>
-      <div className="tourney-window-name">{row.name || `${row.duration_days}d event`}</div>
+      <div className="tourney-window-head">
+        <div className="tourney-window-name">{row.name || `${row.duration_days}d event`}</div>
+        <span className={`tourney-status ${tone}`} data-testid={`tourney-status-${tone}`}>
+          {catalogStatusLabel(row.status)}
+        </span>
+      </div>
       <div className="tourney-window-meta">
         {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
         Flower · {row.count} farm{row.count === 1 ? "" : "s"}

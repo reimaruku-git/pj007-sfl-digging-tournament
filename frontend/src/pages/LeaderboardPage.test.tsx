@@ -234,10 +234,14 @@ describe("LeaderboardPage home", () => {
 
     const durationText =
       page.querySelector('[data-testid="tourney-duration-soon"]')?.textContent ?? "";
-    expect(durationText).toMatch(/1 Aug → 18 Aug · 17d/);
+    expect(durationText).toMatch(/1–18 Aug/);
+    expect(durationText).not.toMatch(/→|· 17d/);
     expect(durationText).not.toMatch(/\d{2}:\d{2}/);
     expect(durationText).not.toMatch(/UTC/);
     const liveCard = page.querySelector('[data-testid="tourney-card-soon"]');
+    expect(liveCard?.querySelector(".tourney-card-head")?.contains(
+      liveCard.querySelector('[data-testid="tourney-duration-soon"]'),
+    )).toBe(true);
     const nextRefresh = liveCard?.querySelector('[data-testid="tourney-next-refresh"]');
     expect(liveCard?.textContent).toMatch(/Next refresh/);
     expect(nextRefresh).not.toBeNull();
@@ -435,9 +439,9 @@ describe("LeaderboardPage home", () => {
     expect(picker?.textContent).toMatch(/July cup/);
     expect(picker?.textContent).not.toMatch(/Creators Digging Tournament/);
     expect(picker?.textContent).not.toMatch(/Test Tournament 3/);
-    expect(picker?.textContent).toMatch(/1 Aug → 8 Aug · 7d/);
+    expect(picker?.textContent).toMatch(/1–8 Aug/);
     expect(picker?.textContent).toMatch(/45 Flower · 1 farm/);
-    expect(picker?.textContent).toMatch(/1 Jul → 8 Jul · 7d/);
+    expect(picker?.textContent).toMatch(/1–8 Jul/);
     expect(picker?.textContent).toMatch(/30 Flower · 3 farms/);
     expect(picker?.querySelectorAll("input")).toHaveLength(0);
 
@@ -786,7 +790,7 @@ describe("LeaderboardPage home", () => {
     expect(name?.textContent).toBe("August cup");
     expect(name?.getAttribute("href")).toBe("/tournaments/august-cup");
     expect(page.querySelector('[data-testid="latest-result-window"]')?.textContent).toMatch(
-      /1 Aug → 8 Aug · 7d/,
+      /1–8 Aug/,
     );
     expect(latest.textContent).toMatch(/Latest result/);
     expect(latest.textContent).not.toMatch(/July cup/);
@@ -838,6 +842,9 @@ describe("LeaderboardPage home", () => {
     expect(css).toMatch(/\.hero-side\s*>\s*\.card\s*\{[^}]*flex:\s*1/s);
     expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*min-height:\s*100%/s);
     expect(css).not.toMatch(/\.tourney-home\s*\{[^}]*align-content:\s*start/s);
+    expect(css).toMatch(/\.tourney-card-head\s*\{[^}]*align-items:\s*center/s);
+    expect(css).toMatch(/\.tourney-card-meta\s*\{[^}]*white-space:\s*nowrap/s);
+    expect(css).toMatch(/\.tourney-group\s*\{[^}]*min-height:\s*calc\(2 \* var\(--tourney-block\)/s);
     const siblingMargin = css.indexOf(".card + .card");
     const heroCardReset = css.indexOf(".hero > .card");
     expect(siblingMargin).toBeGreaterThan(-1);

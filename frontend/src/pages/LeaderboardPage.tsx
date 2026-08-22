@@ -228,10 +228,10 @@ function TourneyGroup({
         >
           <div className="tourney-card-head">
             <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
+            <div className="tourney-card-meta" data-testid={`tourney-duration-${row.tournament_id}`}>
+              {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+            </div>
             {live ? <SyncCountdown variant="card" /> : null}
-          </div>
-          <div className="tourney-card-meta" data-testid={`tourney-duration-${row.tournament_id}`}>
-            {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
           </div>
         </Link>
       ))}

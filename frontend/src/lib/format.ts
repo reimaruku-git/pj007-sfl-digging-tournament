@@ -42,23 +42,55 @@ export function isoToDateInput(value: string | null | undefined): string {
   return `${year}-${month}-${day}`;
 }
 
+const SHORT_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function utcDayMonth(value: string): { year: number; month: string; day: number } | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    year: date.getUTCFullYear(),
+    month: SHORT_MONTHS[date.getUTCMonth()] ?? "",
+    day: date.getUTCDate(),
+  };
+}
+
 export function formatDateUtc(value: string | null | undefined): string {
   if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const month = date.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
-  const day = date.getUTCDate();
-  return `${day} ${month}`;
+  const parts = utcDayMonth(value);
+  if (!parts) return value;
+  return `${parts.day} ${parts.month}`;
 }
 
 export function formatDateRangeUtc(
   start: string | null | undefined,
   end: string | null | undefined,
-  days?: number | null,
+  _days?: number | null,
 ): string {
-  const range = `${formatDateUtc(start)} → ${formatDateUtc(end)}`;
-  if (days && days > 0) return `${range} · ${days}d`;
-  return range;
+  const from = start ? utcDayMonth(start) : null;
+  const to = end ? utcDayMonth(end) : null;
+  if (!from && !to) return "—";
+  if (!from) return formatDateUtc(end);
+  if (!to) return formatDateUtc(start);
+  if (from.year === to.year && from.month === to.month) {
+    return `${from.day}–${to.day} ${from.month}`;
+  }
+  if (from.year === to.year) {
+    return `${from.day} ${from.month}–${to.day} ${to.month}`;
+  }
+  return `${from.day} ${from.month} ${from.year}–${to.day} ${to.month} ${to.year}`;
 }
 
 export function formatWhenUtc(value: string | null | undefined): string {

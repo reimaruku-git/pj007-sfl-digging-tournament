@@ -135,8 +135,13 @@ describe("TournamentsPage", () => {
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
       "utf8",
     );
-    expect(css).toMatch(/\.catalog-group-list\.is-scroll\s*\{[^}]*max-height:\s*440px/s);
+    expect(css).toMatch(
+      /\.catalog-group-list\.is-scroll\s*\{[^}]*max-height:\s*calc\(4 \* var\(--catalog-block\) \+ 3 \* var\(--catalog-gap\)\)/s,
+    );
     expect(css).toMatch(/\.catalog-group-list\.is-scroll\s*\{[^}]*overflow-y:\s*auto/s);
+    expect(css).toMatch(/--catalog-block:\s*3\.55rem/);
+    expect(css).toMatch(/\.tourney-window\s*\{[^}]*min-height:\s*var\(--catalog-block\)/s);
+    expect(css).toMatch(/\.tourney-window-meta\s*\{[^}]*white-space:\s*nowrap/s);
     const sheet = document.createElement("style");
     sheet.textContent = css;
     document.head.appendChild(sheet);
@@ -188,9 +193,27 @@ describe("TournamentsPage", () => {
       duration_days: 7,
       count: 2,
     });
+    const may = summary({
+      tournament_id: "may",
+      name: "May cup",
+      status: "ended",
+      start_at: "2026-05-01T00:00:00.000Z",
+      end_at: "2026-05-08T00:00:00.000Z",
+      duration_days: 7,
+      count: 3,
+    });
+    const april = summary({
+      tournament_id: "april",
+      name: "April cup",
+      status: "ended",
+      start_at: "2026-04-01T00:00:00.000Z",
+      end_at: "2026-04-08T00:00:00.000Z",
+      duration_days: 7,
+      count: 1,
+    });
     listTournaments.mockResolvedValue({
-      tournaments: [laterUp, lateLive, past, nextUp, soonLive, older],
-      count: 6,
+      tournaments: [laterUp, lateLive, past, nextUp, soonLive, older, may, april],
+      count: 8,
     });
     try {
       const page = await renderAt("/tournaments");
@@ -212,7 +235,14 @@ describe("TournamentsPage", () => {
       );
       expect(ongoingIds).toEqual(["tourney-window-soon", "tourney-window-late"]);
       expect(upcomingIds).toEqual(["tourney-window-next", "tourney-window-later"]);
-      expect(endedIds).toEqual(["tourney-window-past", "tourney-window-older"]);
+      expect(endedIds).toEqual([
+        "tourney-window-past",
+        "tourney-window-older",
+        "tourney-window-may",
+        "tourney-window-april",
+      ]);
+      expect(ended?.textContent).toMatch(/1–8 Jul/);
+      expect(ended?.textContent).not.toMatch(/→/);
       expect(ongoing?.textContent).not.toMatch(/Old cup/);
       expect(upcoming?.textContent).not.toMatch(/Old cup/);
       expect(ended?.textContent).not.toMatch(/Ends first/);
@@ -228,12 +258,12 @@ describe("TournamentsPage", () => {
       );
       expect(ongoing!.querySelectorAll('[data-testid="tourney-status-ongoing"]')).toHaveLength(2);
       expect(upcoming!.querySelectorAll('[data-testid="tourney-status-upcoming"]')).toHaveLength(2);
-      expect(ended!.querySelectorAll('[data-testid="tourney-status-ended"]')).toHaveLength(2);
+      expect(ended!.querySelectorAll('[data-testid="tourney-status-ended"]')).toHaveLength(4);
       const endedList = page.querySelector('[data-testid="catalog-ended-list"]') as HTMLElement;
       expect(endedList.classList.contains("is-scroll")).toBe(true);
       const endedStyle = getComputedStyle(endedList);
       expect(endedStyle.overflowY).toMatch(/auto|scroll/);
-      expect(parseFloat(endedStyle.maxHeight)).toBeGreaterThan(0);
+      expect(endedStyle.maxHeight).toMatch(/calc\(4 \* var\(--catalog-block\)/);
       expect(page.querySelector('[data-testid="catalog-ongoing-list"]')?.classList.contains("is-scroll")).toBe(
         false,
       );
@@ -298,7 +328,10 @@ describe("TournamentsPage", () => {
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-detail"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toMatch(
-      /16 Aug → 17 Aug · 1d/,
+      /16–17 Aug/,
+    );
+    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).not.toMatch(
+      /→|· 1d/,
     );
     expect(page.querySelector('[data-testid="tournament-prize"]')?.textContent).toMatch(
       /30 Flower/,

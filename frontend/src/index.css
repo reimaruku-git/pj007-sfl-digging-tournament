@@ -23,6 +23,9 @@
   --rank2: #b4b8bf;
   --rank3: #b8885c;
   --r: 14px;
+  --tourney-block: 2.65rem;
+  --catalog-block: 3.55rem;
+  --catalog-gap: 6px;
 }
 
 html,
@@ -446,7 +449,7 @@ textarea {
 .tourney-home {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -507,15 +510,16 @@ a.tourney-home-catalog:hover {
 .tourney-group {
   background: var(--panel-2);
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   flex: 1 1 auto;
   overflow: auto;
+  min-height: calc(2 * var(--tourney-block) + 1.6rem);
 }
 
 @media (min-width: 801px) {
   .tourney-group {
     flex: 1 1 0;
-    min-height: 0;
+    min-height: calc(2 * var(--tourney-block) + 1.6rem);
   }
 }
 
@@ -531,9 +535,10 @@ a.tourney-home-catalog:hover {
 .tourney-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-top: 8px;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-top: 6px;
+  min-height: var(--tourney-block);
 }
 
 a.tourney-card-link {
@@ -549,22 +554,33 @@ a.tourney-card-link:hover {
 .tourney-card-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .tourney-card-name {
   font-weight: 700;
   color: var(--cream);
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tourney-card-meta {
   color: var(--mute);
-  font-size: 13px;
-  margin-top: 4px;
+  font-size: 12px;
+  margin-top: 0;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .tourney-next {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
   flex: 0 0 auto;
   text-align: right;
   font-size: 10px;
@@ -572,11 +588,12 @@ a.tourney-card-link:hover {
   color: var(--mute);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .tourney-next b {
-  display: block;
-  margin-top: 2px;
+  display: inline;
+  margin-top: 0;
   font-family: "DM Mono", monospace;
   font-size: 12px;
   font-weight: 600;
@@ -637,11 +654,11 @@ a.tourney-card-link:hover {
 .catalog-group-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--catalog-gap);
 }
 
 .catalog-group-list.is-scroll {
-  max-height: 440px;
+  max-height: calc(4 * var(--catalog-block) + 3 * var(--catalog-gap));
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -661,11 +678,11 @@ a.tourney-card-link:hover {
   display: block;
   background: var(--panel-2);
   border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 14px 16px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-height: var(--catalog-block);
   color: inherit;
   text-decoration: none;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
 }
 
 .tourney-window.is-ongoing {
@@ -685,14 +702,23 @@ a.tourney-window:hover {
   border-color: rgba(184, 154, 86, 0.4);
 }
 
+.tourney-window-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
 .tourney-status {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 1px 7px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -712,17 +738,25 @@ a.tourney-window:hover {
 }
 
 .tourney-window-name {
-  margin-top: 8px;
-  font-family: Fraunces, Georgia, serif;
-  font-size: 18px;
+  margin-top: 0;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--cream);
-  line-height: 1.15;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tourney-window-meta {
-  margin-top: 6px;
+  margin-top: 2px;
   color: var(--mute);
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tourney-facts {

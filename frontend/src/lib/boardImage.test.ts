@@ -110,7 +110,7 @@ describe("buildBoardImageModel", () => {
     });
     expect(model.rows[1]?.name).toBe("kkuummaa");
     expect(model.rows.map((row) => row.name)).not.toContain("Player 13");
-    expect(model.subtitle).toMatch(/17 Aug → 24 Aug · 7d/);
+    expect(model.subtitle).toMatch(/17–24 Aug/);
     expect(model.subtitle).toMatch(/30 Flower/);
     expect(model.caption).toBe("Top 10 of 14 farms · fewest digs to 3 Otter Pebbles");
     expect(model.filename).toBe("creators-digging-tournament-top-10.png");
