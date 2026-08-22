@@ -59,6 +59,11 @@ export function pastTournaments(items: TournamentSummary[]): TournamentSummary[]
     });
 }
 
+/** Newest-ended event, or null when none have finished. */
+export function latestPastTournament(items: TournamentSummary[]): TournamentSummary | null {
+  return pastTournaments(items)[0] ?? null;
+}
+
 export const HOME_TOURNEY_LIMIT = 2;
 
 export function homeTourneyPreview(items: TournamentSummary[]): TournamentSummary[] {

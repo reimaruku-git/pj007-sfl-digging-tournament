@@ -1145,6 +1145,41 @@ tr.is-you,
   text-transform: uppercase;
 }
 
+.latest-result {
+  margin: 0;
+}
+
+.latest-result-head {
+  margin-bottom: 14px;
+}
+
+.latest-result-head .kicker {
+  margin-bottom: 6px;
+}
+
+a.latest-result-name {
+  display: block;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--cream);
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+a.latest-result-name:hover,
+a.latest-result-name:focus-visible {
+  color: var(--gold);
+}
+
+.latest-result-head .meta {
+  margin-top: 6px;
+}
+
+.latest-result .podium {
+  margin-bottom: 0;
+}
+
 .you-banner {
   display: flex;
   flex-wrap: wrap;
@@ -1550,6 +1585,10 @@ a.past-card:hover {
 
   .podium {
     gap: 8px;
+  }
+
+  .latest-result .podium {
+    grid-template-columns: 1fr 1.15fr 1fr;
   }
 
   .brand h1 {

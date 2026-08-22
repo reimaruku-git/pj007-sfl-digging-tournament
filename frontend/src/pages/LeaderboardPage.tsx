@@ -9,9 +9,11 @@ import {
 } from "../api/public";
 import { PastTournamentList } from "../components/PastTournamentList";
 import { Pebbles } from "../components/Pebbles";
+import { Podium } from "../components/Podium";
 import { SyncCountdown } from "../components/SyncCountdown";
 import {
   homeTourneyPreview,
+  latestPastTournament,
   liveTournamentsSoonestFirst,
   nextScoreSort,
   upcomingTournaments,
@@ -47,12 +49,19 @@ export function LeaderboardPage() {
   const items = catalog.data?.tournaments ?? [];
   const live = useMemo(() => liveTournamentsSoonestFirst(items), [items]);
   const upcoming = useMemo(() => upcomingTournaments(items), [items]);
+  const latestEnded = useMemo(() => latestPastTournament(items), [items]);
 
   const boards = useQueries({
     queries: live.map((row) => ({
       queryKey: ["tournament", row.tournament_id],
       queryFn: () => fetchTournament(row.tournament_id),
     })),
+  });
+
+  const latestBoard = useQuery({
+    queryKey: ["tournament", latestEnded?.tournament_id],
+    queryFn: () => fetchTournament(latestEnded!.tournament_id),
+    enabled: Boolean(latestEnded),
   });
 
   const featured = live[0];
@@ -158,6 +167,15 @@ export function LeaderboardPage() {
         </Link>
       )}
 
+      {latestEnded && (
+        <LatestResult
+          tournament={latestEnded}
+          entries={latestBoard.data?.entries ?? []}
+          loading={latestBoard.isLoading}
+          error={latestBoard.error as Error | undefined}
+        />
+      )}
+
       {live.map((row, index) => (
         <LiveBoard
           key={row.tournament_id}
@@ -216,6 +234,51 @@ function TourneyGroup({
         </Link>
       ))}
     </div>
+  );
+}
+
+function LatestResult({
+  tournament,
+  entries,
+  loading,
+  error,
+}: {
+  tournament: TournamentSummary;
+  entries: LeaderboardEntry[];
+  loading: boolean;
+  error?: Error;
+}) {
+  const href = `/tournaments/${encodeURIComponent(tournament.tournament_id)}`;
+  return (
+    <section className="card latest-result" data-testid="latest-result">
+      <div className="latest-result-head">
+        <div className="kicker">Latest result</div>
+        <Link
+          to={href}
+          state={{ from: "home" }}
+          className="latest-result-name"
+          data-testid="latest-result-name"
+        >
+          {tournament.name || "Untitled tournament"}
+        </Link>
+        <p className="meta" data-testid="latest-result-window">
+          {formatDateRangeUtc(tournament.start_at, tournament.end_at, tournament.duration_days)}
+        </p>
+      </div>
+      {loading && (
+        <div className="skeleton-stack" aria-hidden>
+          <div className="skeleton" />
+          <div className="skeleton" />
+        </div>
+      )}
+      {error && <p className="flash err">{error.message}</p>}
+      {!loading && !error && entries.length === 0 && (
+        <p className="muted">No standings recorded.</p>
+      )}
+      {!loading && entries.length > 0 && (
+        <Podium entries={entries} tournamentId={tournament.tournament_id} />
+      )}
+    </section>
   );
 }
 

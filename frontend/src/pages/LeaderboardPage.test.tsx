@@ -136,6 +136,7 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid^="live-board-"]')).toBeNull();
     expect(page.textContent).not.toMatch(/Create tournament/);
     expect(page.querySelector("#join")).toBeNull();
+    expect(page.querySelector('[data-testid="latest-result"]')).toBeNull();
     expect(page.querySelector("#past")?.textContent).toMatch(/Past tournaments/);
     expect(page.querySelector("#past")?.textContent).toMatch(/No past tournaments yet/);
     const catalogLink = page.querySelector('[data-testid="home-tournaments-link"]');
@@ -168,9 +169,7 @@ describe("LeaderboardPage home", () => {
       expect(head.contains(link)).toBe(true);
       expect(link.getAttribute("href")).toBe("/tournaments");
       expect(link.textContent).toBe("Tournaments");
-      expect(
-        head.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
+      expect(head.compareDocumentPosition(ongoing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(getComputedStyle(head).justifyContent).toBe("flex-end");
       expect(getComputedStyle(head).display).toBe("flex");
     } finally {
@@ -252,13 +251,16 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid="open-board-later"]')?.getAttribute("href")).toBe(
       "/tournaments/later",
     );
-    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).toMatch(/Ends first/);
+    expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).toMatch(
+      /Ends first/,
+    );
     expect(page.querySelector('[data-testid="open-board-soon"]')?.textContent).not.toMatch(
       /Open →/,
     );
     expect(page.querySelector('[data-testid^="download-board"]')).toBeNull();
     expect(page.textContent).not.toMatch(/Download image/);
     expect(page.textContent).not.toMatch(/Finished \/ tracked/);
+    expect(page.querySelector('[data-testid="latest-result"]')).toBeNull();
     expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
     expect(page.querySelector(".podium")).toBeNull();
     expect(page.querySelector('[aria-label="Top three"]')).toBeNull();
@@ -389,7 +391,17 @@ describe("LeaderboardPage home", () => {
       tournaments: [next, live, older, newer],
       count: 4,
     });
-    fetchTournament.mockResolvedValue(archive(live, []));
+    fetchTournament.mockImplementation(async (id: string) => {
+      if (id === "august-cup") {
+        return archive(newer, [
+          entry({ farm_id: "f1", rank: 1, score: 19.17, name: "Freako", digs_to_third_op: 115 }),
+          entry({ farm_id: "f2", rank: 2, score: 20.67, name: "Leauwuuu", digs_to_third_op: 124 }),
+          entry({ farm_id: "f3", rank: 3, score: 19.6, name: "Purikku22", digs_to_third_op: 98 }),
+        ]);
+      }
+      if (id === "july-cup") return archive(older, []);
+      return archive(live, []);
+    });
 
     const page = await renderHome();
     expect(page.querySelector("#join")).toBeNull();
@@ -475,6 +487,10 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid="past-link-past-cup"]')?.getAttribute("href")).toBe(
       "/tournaments/past-cup",
     );
+    expect(page.querySelector('[data-testid="latest-result-name"]')?.textContent).toBe("Old cup");
+    expect(page.querySelector('[data-testid="latest-result-name"]')?.getAttribute("href")).toBe(
+      "/tournaments/past-cup",
+    );
   });
 
   it("caps the home ongoing and upcoming widgets at two each", async () => {
@@ -539,6 +555,7 @@ describe("LeaderboardPage home", () => {
       count: 2,
     });
     listTournaments.mockResolvedValue({ tournaments: [ended], count: 1 });
+    fetchTournament.mockResolvedValue(archive(ended, []));
 
     try {
       const page = await renderHome();
@@ -615,6 +632,98 @@ describe("LeaderboardPage home", () => {
     );
     expect(homeSrc).not.toMatch(/DownloadBoardButton/);
     expect(homeSrc).not.toMatch(/Open →/);
+  });
+
+  it("shows the newest ended tournament name and podium above live boards", async () => {
+    const live = summary({
+      tournament_id: "creators",
+      name: "Creators Digging Tournament",
+      status: "active",
+      start_at: "2026-08-17T00:00:00.000Z",
+      end_at: "2026-08-24T00:00:00.000Z",
+      duration_days: 7,
+    });
+    const older = summary({
+      tournament_id: "july-cup",
+      name: "July cup",
+      status: "ended",
+      start_at: "2026-07-01T00:00:00.000Z",
+      end_at: "2026-07-08T00:00:00.000Z",
+      duration_days: 7,
+    });
+    const newer = summary({
+      tournament_id: "august-cup",
+      name: "August cup",
+      status: "ended",
+      start_at: "2026-08-01T00:00:00.000Z",
+      end_at: "2026-08-08T00:00:00.000Z",
+      duration_days: 7,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live, older, newer], count: 3 });
+    fetchTournament.mockImplementation(async (id: string) => {
+      if (id === "august-cup") {
+        return archive(newer, [
+          entry({ farm_id: "f1", rank: 1, score: 19.17, name: "Freako", digs_to_third_op: 115 }),
+          entry({ farm_id: "f2", rank: 2, score: 20.67, name: "Leauwuuu", digs_to_third_op: 124 }),
+          entry({ farm_id: "f3", rank: 3, score: 19.6, name: "Purikku22", digs_to_third_op: 98 }),
+        ]);
+      }
+      if (id === "july-cup") {
+        return archive(older, [
+          entry({ farm_id: "old1", rank: 1, score: 10, name: "OldWinner", digs_to_third_op: 70 }),
+        ]);
+      }
+      return archive(live, [entry({ farm_id: "live1", rank: 1, score: 8, name: "LiveLead" })]);
+    });
+
+    const page = await renderHome();
+    const hero = page.querySelector('[data-testid="home-hero"]') as HTMLElement;
+    const latest = page.querySelector('[data-testid="latest-result"]') as HTMLElement;
+    const liveBoard = page.querySelector('[data-testid="live-board-creators"]') as HTMLElement;
+    const name = page.querySelector('[data-testid="latest-result-name"]') as HTMLAnchorElement;
+    expect(latest).not.toBeNull();
+    expect(name?.textContent).toBe("August cup");
+    expect(name?.getAttribute("href")).toBe("/tournaments/august-cup");
+    expect(page.querySelector('[data-testid="latest-result-window"]')?.textContent).toMatch(
+      /1 Aug → 8 Aug · 7d/,
+    );
+    expect(latest.textContent).toMatch(/Latest result/);
+    expect(latest.textContent).not.toMatch(/July cup/);
+    expect(latest.textContent).not.toMatch(/OldWinner/);
+    expect(latest.textContent).not.toMatch(/Creators Digging Tournament/);
+    const podium = latest.querySelector('[data-testid="tournament-podium"]');
+    expect(podium).not.toBeNull();
+    expect(podium?.querySelector(".place-1")?.textContent).toMatch(/Freako/);
+    expect(podium?.querySelector(".place-1")?.textContent).toMatch(/115/);
+    expect(podium?.querySelector(".place-2")?.textContent).toMatch(/Leauwuuu/);
+    expect(podium?.querySelector(".place-3")?.textContent).toMatch(/Purikku22/);
+    expect(hero.compareDocumentPosition(latest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      latest.compareDocumentPosition(liveBoard) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const fetched = fetchTournament.mock.calls.map((call) => call[0]);
+    expect(fetched).toContain("august-cup");
+    expect(fetched).toContain("creators");
+    expect(fetched).not.toContain("july-cup");
+
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/a\.latest-result-name\s*\{[^}]*color:\s*var\(--cream\)/s);
+    expect(css).toMatch(/a\.latest-result-name:hover[^}]*color:\s*var\(--gold\)/s);
+    expect(css).not.toMatch(/#e8b923/);
+    expect(css).toMatch(
+      /\.latest-result \.podium\s*\{[^}]*grid-template-columns:\s*1fr 1\.15fr 1fr/s,
+    );
+    const sheet = document.createElement("style");
+    sheet.textContent = css;
+    document.head.appendChild(sheet);
+    try {
+      expect(getComputedStyle(latest.querySelector(".podium") as HTMLElement).display).toBe("grid");
+    } finally {
+      sheet.remove();
+    }
   });
 
   it("stretches the home tourney panel to the prize card height", () => {

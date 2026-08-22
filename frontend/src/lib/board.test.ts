@@ -3,6 +3,7 @@ import type { LeaderboardEntry, TournamentSummary } from "../api/public";
 import {
   homeTourneyPreview,
   joinableTournaments,
+  latestPastTournament,
   liveTournamentsSoonestFirst,
   nextScoreSort,
   pastTournaments,
@@ -196,6 +197,8 @@ describe("tournament section order", () => {
       "past-newer",
       "past-older",
     ]);
+    expect(latestPastTournament(mismatch)?.tournament_id).toBe("past-newer");
+    expect(latestPastTournament([])).toBeNull();
     expect(joinableTournaments(mismatch).map((row) => row.tournament_id)).toEqual([
       "live-soon-end",
       "up-soon",
