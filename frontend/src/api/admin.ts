@@ -184,11 +184,14 @@ export type TournamentWrite = {
   duration_days: number;
   prize_amount: string;
   status: string;
-  min_bumpkin_level?: number | null;
+  min_bumpkin_island?: string | null;
+  min_digging_streak?: number | null;
+  vip_required?: boolean;
   max_players?: number | null;
   join_mode?: string;
   description?: string;
-  prize_places?: { place: number; amount: string }[];
+  prize_places?: { place: number; amount: string; nft_name?: string }[];
+  nft_giveaway?: boolean;
 };
 
 export async function listAdminTournaments(): Promise<TournamentList> {
@@ -214,11 +217,14 @@ export async function createTournament(input: {
   end_at?: string;
   duration_days?: number;
   prize_amount: string;
-  min_bumpkin_level?: number | null;
+  min_bumpkin_island?: string | null;
+  min_digging_streak?: number | null;
+  vip_required?: boolean;
   max_players?: number | null;
   join_mode?: string;
   description?: string;
-  prize_places?: { place: number; amount: string }[];
+  prize_places?: { place: number; amount: string; nft_name?: string }[];
+  nft_giveaway?: boolean;
 }): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>("admin/tournaments", {
     method: "POST",
@@ -238,11 +244,14 @@ export async function updateTournament(
     end_at?: string;
     duration_days?: number;
     prize_amount?: string;
-    min_bumpkin_level?: number | null;
+    min_bumpkin_island?: string | null;
+    min_digging_streak?: number | null;
+    vip_required?: boolean;
     max_players?: number | null;
     join_mode?: string;
     description?: string;
-    prize_places?: { place: number; amount: string }[];
+    prize_places?: { place: number; amount: string; nft_name?: string }[];
+    nft_giveaway?: boolean;
   },
 ): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>(

@@ -460,7 +460,9 @@ def test_event_without_new_fields_still_creates_pending(aws_env, monkeypatch, li
         end="2026-08-20T00:00:00+00:00",
     )
     assert live["join_mode"] == "confirm"
-    assert live["min_bumpkin_level"] is None
+    assert live["min_bumpkin_island"] is None
+    assert live["min_digging_streak"] is None
+    assert live["vip_required"] is False
     assert live["max_players"] is None
     joined = app.lambda_handler(
         _event(
@@ -542,62 +544,74 @@ def test_pending_joins_do_not_occupy_max_player_slots(aws_env, monkeypatch, live
     assert _json(second)["submissions"][0]["status"] == "pending"
 
 
-def test_min_bumpkin_level_rejects_underleveled_farm(aws_env, monkeypatch, live_join_open):
+def _write_profile(app, farm_id, *, island="desert", vip=True, digging_streak=5):
+    app._get_store().write_snapshot(
+        farm_id,
+        {
+            "farm_id": farm_id,
+            "island": island,
+            "vip": vip,
+            "digging_streak": digging_streak,
+        },
+    )
+
+
+def test_island_streak_vip_gates_on_public_join(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
-        name="Level cup",
+        name="Gated cup",
         start="2026-08-10T00:00:00+00:00",
         end="2026-08-20T00:00:00+00:00",
-        min_bumpkin_level=20,
+        min_bumpkin_island="desert",
+        min_digging_streak=3,
+        vip_required=True,
     )
-    app._get_store().put_identity("1111111111111111", "low", nft_id=1)
-    app._get_store().put_identity("2222222222222222", "high", nft_id=2)
-    monkeypatch.setattr(
-        "tournament.membership.lookup_bumpkin_level",
-        lambda nft_id, **kwargs: {1: 5, 2: 30}[int(nft_id)],
-    )
-    low = app.lambda_handler(
-        _event(
-            "POST",
-            "/submissions",
-            {"farm_id": "1111111111111111", "name": "low", "tournament_id": live["tournament_id"]},
-        ),
-        None,
-    )
-    assert low["statusCode"] == 400
-    body = _json(low)
-    assert body["error"] == "VALIDATION_ERROR"
-    assert "minimum bumpkin level" in body["message"]
-    high = app.lambda_handler(
-        _event(
-            "POST",
-            "/submissions",
-            {"farm_id": "2222222222222222", "name": "high", "tournament_id": live["tournament_id"]},
-        ),
-        None,
-    )
-    assert high["statusCode"] == 201
-    assert _json(high)["submissions"][0]["status"] == "pending"
+    _write_profile(app, "1111111111111111", island="spring", vip=True, digging_streak=9)
+    _write_profile(app, "2222222222222222", island="volcano", vip=False, digging_streak=9)
+    _write_profile(app, "3333333333333333", island="desert", vip=True, digging_streak=1)
+    _write_profile(app, "4444444444444444", island="desert", vip=True, digging_streak=4)
+
+    def _join(farm_id, name):
+        return app.lambda_handler(
+            _event(
+                "POST",
+                "/submissions",
+                {"farm_id": farm_id, "name": name, "tournament_id": live["tournament_id"]},
+            ),
+            None,
+        )
+
+    island_low = _join("1111111111111111", "spring")
+    assert island_low["statusCode"] == 400
+    assert "minimum bumpkin island" in _json(island_low)["message"]
+
+    no_vip = _join("2222222222222222", "novip")
+    assert no_vip["statusCode"] == 400
+    assert "VIP" in _json(no_vip)["message"]
+
+    streak_low = _join("3333333333333333", "short")
+    assert streak_low["statusCode"] == 400
+    assert "minimum digging streak" in _json(streak_low)["message"]
+
+    ok = _join("4444444444444444", "ok")
+    assert ok["statusCode"] == 201
+    assert _json(ok)["submissions"][0]["status"] == "pending"
 
 
-def test_min_bumpkin_level_fails_closed_when_unread(aws_env, monkeypatch, live_join_open):
+def test_join_gates_fail_closed_when_snapshot_unread(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
-        name="Level cup",
+        name="Gated cup",
         start="2026-08-10T00:00:00+00:00",
         end="2026-08-20T00:00:00+00:00",
-        min_bumpkin_level=10,
+        min_bumpkin_island="basic",
+        min_digging_streak=1,
+        vip_required=True,
     )
-    from tournament.sfl_world import SflWorldError
-
-    def _fail(*args, **kwargs):
-        raise SflWorldError("nope")
-
-    monkeypatch.setattr("tournament.membership.lookup_farm_name", _fail)
     missing = app.lambda_handler(
         _event(
             "POST",
@@ -626,7 +640,9 @@ def test_admin_force_add_ignores_public_cap_and_level(aws_env, monkeypatch, live
         end="2026-08-20T00:00:00+00:00",
         join_mode="auto",
         max_players=1,
-        min_bumpkin_level=99,
+        min_bumpkin_island="volcano+",
+        min_digging_streak=99,
+        vip_required=True,
     )
     added = app.lambda_handler(
         _event("POST", "/admin/farms", {"farm_id": "3666918801844311", "name": "rmr"}),

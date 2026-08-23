@@ -97,7 +97,10 @@ describe("admin api", () => {
       start_at: "2026-10-01T00:00:00.000Z",
       duration_days: 7,
       prize_amount: "50",
-      min_bumpkin_level: 20,
+      min_bumpkin_island: "desert",
+      min_digging_streak: 3,
+      vip_required: true,
+      nft_giveaway: false,
       max_players: 32,
       join_mode: "auto",
       description: "Bring a shovel.",
@@ -122,7 +125,8 @@ describe("admin api", () => {
       body: JSON.stringify(input),
     });
     expect(created.join_mode).toBe("auto");
-    expect(created.min_bumpkin_level).toBe(20);
+    expect(created.min_bumpkin_island).toBe("desert");
+    expect(created.vip_required).toBe(true);
     mockRequest.mockResolvedValueOnce(
       ok({
         tournament: {

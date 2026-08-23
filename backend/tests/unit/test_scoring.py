@@ -8,7 +8,9 @@ from tournament.scoring import (
     STATUS_NOT_STARTED,
     assign_incomplete_official_scores,
     extract_grid,
+    extract_island,
     extract_streak,
+    extract_vip,
     flatten_grid,
     incomplete_official_score,
     is_finalize_clock,
@@ -342,6 +344,24 @@ def test_extract_streak_from_community_payload():
     assert extract_streak({})["count"] == 0
     assert extract_streak({"farm": {}})["count"] == 0
     assert extract_streak({"digging_streak": 4})["count"] == 4
+
+
+def test_extract_island_and_vip_from_community_payload():
+    later = int((NOW.timestamp() + 86_400) * 1000)
+    payload = {
+        "farm": {
+            "island": {"type": "desert"},
+            "vip": {"expiresAt": later, "bundles": ["1"]},
+        }
+    }
+    assert extract_island(payload) == "desert"
+    assert extract_vip(payload, now=NOW) is True
+    assert extract_island({"island": "spring"}) == "spring"
+    assert extract_island({}) is None
+    expired = int((NOW.timestamp() - 86_400) * 1000)
+    assert extract_vip({"farm": {"vip": {"expiresAt": expired}}}, now=NOW) is False
+    assert extract_vip({"vip": True}) is True
+    assert extract_vip({}) is False
 
 
 def _ms(year, month, day, hour, minute=0, second=0):

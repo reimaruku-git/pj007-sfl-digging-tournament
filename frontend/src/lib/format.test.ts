@@ -8,6 +8,8 @@ import {
   formatScore,
   formatWhenUtc,
   formatWindowRange,
+  inclusiveCalendarDays,
+  inclusiveFinalDayIso,
   isoToDateInput,
   opensLabel,
   remainingLabel,
@@ -70,6 +72,13 @@ describe("formatDateUtc", () => {
 describe("isoToDateInput", () => {
   it("keeps the UTC calendar date", () => {
     expect(isoToDateInput("2026-08-13T14:44:00.000Z")).toBe("2026-08-13");
+  });
+});
+
+describe("inclusive calendar days", () => {
+  it("counts August 23 through August 30 as 8 days", () => {
+    expect(inclusiveCalendarDays("2026-08-23", "2026-08-30")).toBe(8);
+    expect(isoToDateInput(inclusiveFinalDayIso("2026-08-23T00:00:00.000Z", 8))).toBe("2026-08-30");
   });
 });
 

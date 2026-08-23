@@ -404,17 +404,22 @@ def _http(method: str, path: str, body=None, path_parameters=None):
     }
 
 
-def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
+def test_http_create_inclusive_window_and_event_settings(aws_env, monkeypatch):
+    clock = datetime(2026, 8, 23, 12, tzinfo=timezone.utc)
+    monkeypatch.setattr("tournament.catalog._clock", lambda now=None: now or clock)
     app = _load_http(aws_env, monkeypatch)
     settings = {
         "name": "Settings cup",
-        "start_at": "2026-10-01T00:00:00+00:00",
-        "duration_days": 7,
-        "prize_amount": "50",
-        "min_bumpkin_level": 20,
+        "start_at": "2026-08-23T00:00:00+00:00",
+        "end_at": "2026-08-30T00:00:00+00:00",
+        "prize_amount": "80",
+        "min_bumpkin_island": "desert",
+        "min_digging_streak": 3,
+        "vip_required": True,
         "max_players": 32,
         "join_mode": "auto",
         "description": "Bring a shovel.",
+        "nft_giveaway": False,
         "prize_places": [
             {"place": 1, "amount": "50"},
             {"place": 2, "amount": "20"},
@@ -424,16 +429,29 @@ def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
     created = app.lambda_handler(_http("POST", "/admin/tournaments", settings), None)
     assert created["statusCode"] == 201, created
     row = json.loads(created["body"])["tournament"]
-    assert row["min_bumpkin_level"] == 20
+    assert row["duration_days"] == 8
+    assert row["start_at"].startswith("2026-08-23")
+    assert row["end_at"].startswith("2026-08-31")
+    from tournament.stats import iter_window_days
+    from tournament.window import parse_iso
+
+    window_days = list(iter_window_days(parse_iso(row["start_at"]), parse_iso(row["end_at"])))
+    assert window_days[0].isoformat() == "2026-08-23"
+    assert window_days[-1].isoformat() == "2026-08-30"
+    assert len(window_days) == 8
+    assert row["min_bumpkin_island"] == "desert"
+    assert row["min_digging_streak"] == 3
+    assert row["vip_required"] is True
     assert row["max_players"] == 32
     assert row["join_mode"] == "auto"
     assert row["description"] == "Bring a shovel."
+    assert row["nft_giveaway"] is False
     assert row["prize_places"] == [
         {"place": 1, "amount": "50"},
         {"place": 2, "amount": "20"},
         {"place": 3, "amount": "10"},
     ]
-    assert row["prize_amount"] == "50"
+    assert row["prize_amount"] == "80"
     tid = row["tournament_id"]
 
     listed = app.lambda_handler(_http("GET", "/tournaments"), None)
@@ -441,10 +459,12 @@ def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
     found = next(
         item for item in json.loads(listed["body"])["tournaments"] if item["tournament_id"] == tid
     )
-    assert found["min_bumpkin_level"] == 20
+    assert found["duration_days"] == 8
+    assert found["min_bumpkin_island"] == "desert"
+    assert found["min_digging_streak"] == 3
+    assert found["vip_required"] is True
     assert found["max_players"] == 32
-    assert found["join_mode"] == "auto"
-    assert found["description"] == "Bring a shovel."
+    assert found["nft_giveaway"] is False
     assert found["prize_places"][0]["amount"] == "50"
 
     detail = app.lambda_handler(
@@ -453,34 +473,40 @@ def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
     )
     assert detail["statusCode"] == 200
     config = json.loads(detail["body"])["tournament"]["config"]
-    assert config["min_bumpkin_level"] == 20
-    assert config["max_players"] == 32
-    assert config["join_mode"] == "auto"
-    assert config["description"] == "Bring a shovel."
+    assert config["min_bumpkin_island"] == "desert"
+    assert config["min_digging_streak"] == 3
+    assert config["vip_required"] is True
+    assert config["nft_giveaway"] is False
     assert config["prize_places"] == row["prize_places"]
 
-    edited = app.lambda_handler(
+    nft_edit = app.lambda_handler(
         _http(
             "PUT",
             f"/admin/tournaments/{tid}",
             {
-                "min_bumpkin_level": 25,
+                "nft_giveaway": True,
                 "join_mode": "confirm",
                 "description": "Updated blurb.",
-                "prize_places": [{"place": 1, "amount": "80"}],
+                "prize_places": [
+                    {"place": 1, "amount": "40", "nft_name": "Rare Key"},
+                    {"place": 2, "amount": "10", "nft_name": ""},
+                ],
             },
             path_parameters={"tournament_id": tid},
         ),
         None,
     )
-    assert edited["statusCode"] == 200, edited
-    updated = json.loads(edited["body"])["tournament"]
-    assert updated["min_bumpkin_level"] == 25
-    assert updated["max_players"] == 32
+    assert nft_edit["statusCode"] == 200, nft_edit
+    updated = json.loads(nft_edit["body"])["tournament"]
+    assert updated["nft_giveaway"] is True
     assert updated["join_mode"] == "confirm"
     assert updated["description"] == "Updated blurb."
-    assert updated["prize_places"] == [{"place": 1, "amount": "80"}]
-    assert updated["prize_amount"] == "50"
+    assert updated["prize_places"] == [
+        {"place": 1, "amount": "40", "nft_name": "Rare Key"},
+        {"place": 2, "amount": "10", "nft_name": ""},
+    ]
+    assert updated["prize_amount"] == "80"
+    assert updated["min_bumpkin_island"] == "desert"
 
     omitted = app.lambda_handler(
         _http(
@@ -497,11 +523,14 @@ def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
     )
     assert omitted["statusCode"] == 201, omitted
     plain = json.loads(omitted["body"])["tournament"]
-    assert plain["min_bumpkin_level"] is None
+    assert plain["min_bumpkin_island"] is None
+    assert plain["min_digging_streak"] is None
+    assert plain["vip_required"] is False
     assert plain["max_players"] is None
     assert plain["join_mode"] == "confirm"
     assert plain["description"] == ""
     assert plain["prize_places"] == []
+    assert plain["nft_giveaway"] is False
 
     public_plain = app.lambda_handler(
         _http(
@@ -513,10 +542,32 @@ def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
     )
     public_config = json.loads(public_plain["body"])["tournament"]["config"]
     assert public_config["join_mode"] == "confirm"
-    assert public_config["min_bumpkin_level"] is None
-    assert public_config["max_players"] is None
-    assert public_config["description"] == ""
-    assert public_config["prize_places"] == []
+    assert public_config["min_bumpkin_island"] is None
+    assert public_config["min_digging_streak"] is None
+    assert public_config["vip_required"] is False
+    assert public_config["nft_giveaway"] is False
+
+    mismatch = app.lambda_handler(
+        _http(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "Bad prizes",
+                "start_at": "2026-12-01T00:00:00+00:00",
+                "duration_days": 7,
+                "prize_amount": "50",
+                "nft_giveaway": False,
+                "prize_places": [
+                    {"place": 1, "amount": "40"},
+                    {"place": 2, "amount": "20"},
+                ],
+            },
+        ),
+        None,
+    )
+    assert mismatch["statusCode"] == 400
+    assert json.loads(mismatch["body"])["error"] == "VALIDATION_ERROR"
+    assert "sum" in json.loads(mismatch["body"])["message"]
 
     bad = app.lambda_handler(
         _http(

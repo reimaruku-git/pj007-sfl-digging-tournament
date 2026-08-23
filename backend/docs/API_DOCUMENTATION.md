@@ -38,11 +38,14 @@ is `scheduled`.
   "last_full_sync_at": "2026-08-14T13:00:00+00:00",
   "updated_at": "2026-08-14T13:00:00+00:00",
   "featured_tournament_id": "20260814T120000Z_7d",
-  "min_bumpkin_level": null,
+  "min_bumpkin_island": null,
+  "min_digging_streak": null,
+  "vip_required": false,
   "max_players": null,
   "join_mode": "confirm",
   "description": "",
-  "prize_places": []
+  "prize_places": [],
+  "nft_giveaway": false
 }
 ```
 
@@ -99,11 +102,14 @@ calls the SFL API. Public home uses `featured_tournament_id` from
     "last_full_sync_at": "2026-08-14T13:00:00+00:00",
     "updated_at": "2026-08-14T13:00:00+00:00",
     "featured_tournament_id": "20260814T120000Z_7d",
-    "min_bumpkin_level": null,
+    "min_bumpkin_island": null,
+    "min_digging_streak": null,
+    "vip_required": false,
     "max_players": null,
     "join_mode": "confirm",
     "description": "",
-    "prize_places": []
+    "prize_places": [],
+    "nft_giveaway": false
   }
 }
 ```
@@ -225,11 +231,15 @@ Scheduled, live, and ended events. Ended standings are frozen to S3
       "archived_at": null,
       "count": 0,
       "leader_farm_id": null,
-      "min_bumpkin_level": null,
+      "min_bumpkin_island": null,
+      "min_digging_streak": null,
+      "vip_required": false,
       "max_players": null,
       "join_mode": "confirm",
       "description": "",
-      "prize_places": []
+      "prize_places": [],
+      "nft_giveaway": false,
+      "enrolled_count": 0
     }
   ],
   "count": 1,
@@ -269,11 +279,15 @@ false. Already-enrolled farms stay on the board.
       "duration_days": 7,
       "prize_amount": "30",
       "status": "ended",
-      "min_bumpkin_level": null,
+      "min_bumpkin_island": null,
+      "min_digging_streak": null,
+      "vip_required": false,
       "max_players": null,
       "join_mode": "confirm",
       "description": "",
-      "prize_places": []
+      "prize_places": [],
+      "nft_giveaway": false,
+      "enrolled_count": 0
     },
     "entries": [],
     "count": 0,
@@ -385,11 +399,13 @@ Must-confirm (`join_mode: "confirm"`, the default when omitted) creates
 `400` if no joinable `tournament_id` is sent, or if the event is
 **active** and the clock is 22:30 UTC or later on that event's first
 UTC day (`join closed after 22:30 UTC on the first day`). Scheduled
-events stay joinable. `400` `VALIDATION_ERROR` if the farm's bumpkin
-level is below `min_bumpkin_level`, if that level cannot be read from
-sfl.world, or if enrolled players already equal `max_players`. Pending
-joins do not occupy a cap slot. Admin force-add and approve are not
-blocked by the public cap or level gates. `409` if that
+events stay joinable. `400` `VALIDATION_ERROR` if the farm's stored island is below
+`min_bumpkin_island` (`basic` < `spring` < `desert` < `volcano+`), if
+digging streak is below `min_digging_streak`, if `vip_required` is true
+and the farm is not VIP, if a set gate cannot be read from the stored
+FarmSync snapshot, or if enrolled players already equal `max_players`.
+Pending joins do not occupy a cap slot. Admin force-add and approve are
+not blocked by the public cap or island/streak/VIP gates. `409` if that
 `(farm_id, tournament_id)` pair is already pending or enrolled.
 Approving tournament A does not enroll the farm in tournament B.
 Already-enrolled farms are not dropped when the join window closes.
@@ -622,13 +638,16 @@ is required (1–80 chars). `end_at` or `duration_days` is required.
 ```json
 {
   "name": "Late August Otter Cup",
-  "start_at": "2026-08-22T14:00:00+00:00",
-  "end_at": "2026-08-29T14:00:00+00:00",
-  "prize_amount": "50",
-  "min_bumpkin_level": 20,
+  "start_at": "2026-08-23T00:00:00+00:00",
+  "end_at": "2026-08-30T00:00:00+00:00",
+  "prize_amount": "80",
+  "min_bumpkin_island": "desert",
+  "min_digging_streak": 3,
+  "vip_required": true,
   "max_players": 32,
   "join_mode": "auto",
   "description": "Bring a shovel.",
+  "nft_giveaway": false,
   "prize_places": [
     { "place": 1, "amount": "50" },
     { "place": 2, "amount": "20" },
@@ -637,27 +656,40 @@ is required (1–80 chars). `end_at` or `duration_days` is required.
 }
 ```
 
-Omitted extras keep today's defaults: `min_bumpkin_level` / `max_players`
-null (no gate), `join_mode` `"confirm"` (pending until admin approve),
-empty `description`, empty `prize_places`. `prize_amount` stays the
-headline Flower string. Per-place amounts are extra JSON strings.
-`join_mode` is `auto` or `confirm`.
+`start_at` and `end_at` are UTC calendar dates. Both days count:
+August 23 through August 30 is `duration_days` 8, and scoring includes
+those dates. The stored `end_at` is the exclusive midnight after the
+final day (`2026-08-31T00:00:00+00:00`). Sending `duration_days` still
+sets `end_at = start_at + duration_days` (same exclusive convention).
+
+Omitted extras keep today's defaults: `min_bumpkin_island` /
+`min_digging_streak` / `max_players` null (no gate), `vip_required`
+false, `join_mode` `"confirm"` (pending until admin approve), empty
+`description`, empty `prize_places`, `nft_giveaway` false. `prize_amount`
+is the prize-pool Flower string. Flower-only `prize_places` amounts
+must sum to `prize_amount` (`400` otherwise). When `nft_giveaway` is
+true, each place may include `nft_name` and Flower amounts need not
+sum. `join_mode` is `auto` or `confirm`. `min_bumpkin_island` is
+`basic`, `spring`, `desert`, or `volcano+`.
 
 ```json
 {
   "tournament": {
-    "tournament_id": "20260822T140000Z_7d",
+    "tournament_id": "20260823T000000Z_8d",
     "name": "Late August Otter Cup",
-    "start_at": "2026-08-22T14:00:00+00:00",
-    "end_at": "2026-08-29T14:00:00+00:00",
-    "duration_days": 7,
-    "prize_amount": "50",
+    "start_at": "2026-08-23T00:00:00+00:00",
+    "end_at": "2026-08-31T00:00:00+00:00",
+    "duration_days": 8,
+    "prize_amount": "80",
     "status": "scheduled",
     "archived_at": null,
-    "min_bumpkin_level": 20,
+    "min_bumpkin_island": "desert",
+    "min_digging_streak": 3,
+    "vip_required": true,
     "max_players": 32,
     "join_mode": "auto",
     "description": "Bring a shovel.",
+    "nft_giveaway": false,
     "prize_places": [
       { "place": 1, "amount": "50" },
       { "place": 2, "amount": "20" },
@@ -674,12 +706,13 @@ event has its own board at `GET /tournaments/{id}`.
 
 ### `PUT /admin/tournaments/{tournament_id}`
 
-Scheduled or live: name, `start_at`, `duration_days` (or `end_at`),
-prize, and the same extra settings as create (`min_bumpkin_level`,
-`max_players`, `join_mode`, `description`, `prize_places`). Omitted
-keys keep the stored values; send `null` / `[]` to clear an optional
-gate, description, or prize list. Changing the live window re-scores
-farms from snapshots. Ended: `409`.
+Scheduled or live: name, `start_at`, `duration_days` (or inclusive
+`end_at`), prize, and the same extra settings as create
+(`min_bumpkin_island`, `min_digging_streak`, `vip_required`,
+`max_players`, `join_mode`, `description`, `nft_giveaway`,
+`prize_places`). Omitted keys keep the stored values; send `null` /
+`[]` to clear an optional gate, description, or prize list. Changing
+the live window re-scores farms from snapshots. Ended: `409`.
 
 ### `DELETE /admin/tournaments/{tournament_id}`
 

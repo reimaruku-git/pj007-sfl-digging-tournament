@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from tournament.store import MIN_TOURNAMENT_DAYS
@@ -27,6 +27,25 @@ def duration_days(start: datetime | None, end: datetime | None) -> int:
     if start is None or end is None or end <= start:
         return MIN_TOURNAMENT_DAYS
     return max(1, int((end - start).total_seconds() // 86_400))
+
+
+def inclusive_calendar_days(start: datetime | None, last_day: datetime | None) -> int:
+    """UTC calendar dates from ``start`` through ``last_day``, both included.
+
+    August 23 through August 30 is 8. The same calendar day is 1.
+    """
+    if start is None or last_day is None:
+        return 0
+    start_d = start.date()
+    last_d = last_day.date()
+    if last_d < start_d:
+        return 0
+    return (last_d - start_d).days + 1
+
+
+def last_inclusive_date(start: datetime, days: int):
+    """Last UTC calendar date scored for a window of ``days`` exclusive length."""
+    return (start + timedelta(days=max(int(days), 1) - 1)).date()
 
 
 def tournament_days_for_average(

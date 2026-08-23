@@ -32,8 +32,11 @@ class FakeClient:
 
 
 def _grid_payload(tiles, streak_count=3):
+    later = int((NOW.timestamp() + 86_400) * 1000)
     return {
         "farm": {
+            "island": {"type": "desert"},
+            "vip": {"expiresAt": later},
             "desert": {
                 "digging": {
                     "grid": tiles,
@@ -43,7 +46,7 @@ def _grid_payload(tiles, streak_count=3):
                         "totalClaimed": streak_count,
                     },
                 }
-            }
+            },
         }
     }
 
@@ -88,6 +91,8 @@ def test_sync_one_farm_writes_score_and_snapshot(aws_env):
     assert snapshot["score"]["digs_to_third_op"] == 6
     assert snapshot["streak"]["count"] == 3
     assert snapshot["digging_streak"] == 3
+    assert snapshot["island"] == "desert"
+    assert snapshot["vip"] is True
 
 
 def test_sync_all_records_failures_and_rebuilds_cache(aws_env):

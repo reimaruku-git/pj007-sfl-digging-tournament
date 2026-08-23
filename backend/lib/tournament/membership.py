@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from tournament.event_settings import JOIN_MODE_AUTO, public_event_settings
+from tournament.event_settings import JOIN_MODE_AUTO, island_meets_minimum, public_event_settings
 from tournament.farms import FarmRegistry, utc_now_iso
-from tournament.sfl_world import SflWorldError, lookup_bumpkin_level, lookup_farm_name
+from tournament.scoring import extract_streak
 from tournament.store import Store
 from tournament.window import parse_iso
 
@@ -23,8 +23,12 @@ JOINABLE_STATUSES = {STATUS_SCHEDULED, STATUS_ACTIVE}
 FIRST_DAY_JOIN_CLOSE_HOUR_UTC = 22
 FIRST_DAY_JOIN_CLOSE_MINUTE_UTC = 30
 JOIN_CLOSED_MESSAGE = "join closed after 22:30 UTC on the first day"
-LEVEL_TOO_LOW_MESSAGE = "farm does not meet the minimum bumpkin level"
-LEVEL_UNREADABLE_MESSAGE = "bumpkin level could not be read"
+ISLAND_TOO_LOW_MESSAGE = "farm does not meet the minimum bumpkin island"
+ISLAND_UNREADABLE_MESSAGE = "bumpkin island could not be read"
+STREAK_TOO_LOW_MESSAGE = "farm does not meet the minimum digging streak"
+STREAK_UNREADABLE_MESSAGE = "digging streak could not be read"
+VIP_REQUIRED_MESSAGE = "farm does not have VIP"
+VIP_UNREADABLE_MESSAGE = "VIP status could not be read"
 TOURNAMENT_FULL_MESSAGE = "tournament is full"
 
 
@@ -177,25 +181,44 @@ def is_joinable(row: dict[str, Any] | None, *, now: datetime | None = None) -> b
     return utc_clock(now) < cutoff
 
 
-def resolve_bumpkin_level(store: Store, farm_id: str) -> int | None:
-    """sfl.world land summary via stored nft_id (or land-info if identity is missing)."""
-    identity = store.get_identity(farm_id) or {}
-    nft_id = identity.get("nft_id")
-    if nft_id in (None, ""):
-        try:
-            looked = lookup_farm_name(farm_id)
-        except SflWorldError:
-            return None
-        nft_id = looked.get("nft_id")
-        looked_name = str(looked.get("name") or identity.get("name") or "").strip()
-        if looked_name:
-            store.put_identity(farm_id, looked_name, nft_id=nft_id)
-    if nft_id in (None, ""):
-        return None
-    try:
-        return lookup_bumpkin_level(nft_id)
-    except SflWorldError:
-        return None
+def stored_farm_snapshot(store: Store, farm_id: str) -> dict[str, Any] | None:
+    snapshot = store.read_snapshot(farm_id)
+    return snapshot if isinstance(snapshot, dict) else None
+
+
+def enforce_public_join_gates(store: Store, farm_id: str, settings: dict[str, Any]) -> None:
+    min_island = settings.get("min_bumpkin_island")
+    min_streak = settings.get("min_digging_streak")
+    vip_required = bool(settings.get("vip_required"))
+    if min_island is None and min_streak is None and not vip_required:
+        return
+    snapshot = stored_farm_snapshot(store, farm_id)
+    if snapshot is None:
+        if min_island is not None:
+            raise MembershipError(ISLAND_UNREADABLE_MESSAGE)
+        if min_streak is not None:
+            raise MembershipError(STREAK_UNREADABLE_MESSAGE)
+        raise MembershipError(VIP_UNREADABLE_MESSAGE)
+
+    if min_island is not None:
+        island = snapshot.get("island")
+        if island in (None, ""):
+            raise MembershipError(ISLAND_UNREADABLE_MESSAGE)
+        if not island_meets_minimum(island, min_island):
+            raise MembershipError(ISLAND_TOO_LOW_MESSAGE)
+
+    if min_streak is not None:
+        if "digging_streak" not in snapshot and "streak" not in snapshot:
+            raise MembershipError(STREAK_UNREADABLE_MESSAGE)
+        streak = extract_streak(snapshot)["count"]
+        if streak < int(min_streak):
+            raise MembershipError(STREAK_TOO_LOW_MESSAGE)
+
+    if vip_required:
+        if "vip" not in snapshot:
+            raise MembershipError(VIP_UNREADABLE_MESSAGE)
+        if not snapshot.get("vip"):
+            raise MembershipError(VIP_REQUIRED_MESSAGE)
 
 
 def enroll_member(
@@ -260,13 +283,7 @@ def request_joins(
                 status=409,
             )
         settings = public_event_settings(row or {})
-        min_level = settings.get("min_bumpkin_level")
-        if min_level is not None:
-            level = resolve_bumpkin_level(store, farm_id)
-            if level is None:
-                raise MembershipError(LEVEL_UNREADABLE_MESSAGE)
-            if level < int(min_level):
-                raise MembershipError(LEVEL_TOO_LOW_MESSAGE)
+        enforce_public_join_gates(store, farm_id, settings)
         max_players = settings.get("max_players")
         if max_players is not None and len(enrolled_farm_ids(store, tid)) >= int(max_players):
             raise MembershipError(TOURNAMENT_FULL_MESSAGE)

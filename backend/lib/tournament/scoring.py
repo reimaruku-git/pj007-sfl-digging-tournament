@@ -460,6 +460,54 @@ def extract_streak(farm_payload: Any) -> dict[str, Any]:
     return empty
 
 
+def extract_island(farm_payload: Any) -> str | None:
+    """Pull ``farm.island.type`` (or a stored snapshot ``island`` string)."""
+    farm = _farm_section(farm_payload)
+    island = farm.get("island") if isinstance(farm, dict) else None
+    if island is None and isinstance(farm_payload, dict):
+        island = farm_payload.get("island")
+    if isinstance(island, str):
+        token = island.strip().lower()
+        return token or None
+    if isinstance(island, dict):
+        token = str(island.get("type") or island.get("name") or "").strip().lower()
+        return token or None
+    return None
+
+
+def extract_vip(farm_payload: Any, *, now: datetime | None = None) -> bool:
+    """True when stored/community VIP is present and unexpired."""
+    farm = _farm_section(farm_payload)
+    raw = None
+    if isinstance(farm, dict) and "vip" in farm:
+        raw = farm.get("vip")
+    elif isinstance(farm_payload, dict) and "vip" in farm_payload:
+        raw = farm_payload.get("vip")
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, dict):
+        expires = raw.get("expiresAt", raw.get("expires_at"))
+        if expires is None:
+            return False
+        try:
+            stamp = float(expires)
+        except (TypeError, ValueError):
+            return False
+        clock = now or datetime.now(timezone.utc)
+        if clock.tzinfo is None:
+            clock = clock.replace(tzinfo=timezone.utc)
+        if stamp > 1e12:
+            expires_at = datetime.fromtimestamp(stamp / 1000, tz=timezone.utc)
+        else:
+            expires_at = datetime.fromtimestamp(stamp, tz=timezone.utc)
+        return expires_at > clock
+    if isinstance(farm, dict):
+        for key in ("isVIP", "is_vip"):
+            if key in farm:
+                return bool(farm.get(key))
+    return False
+
+
 def iter_raw_tiles(grid: Any) -> Iterable[dict[str, Any]]:
     """Yield original tile dicts (no padding) for debug snapshots."""
     if not isinstance(grid, list):

@@ -145,7 +145,7 @@ describe("public api", () => {
             prize_amount: "45",
             status: "scheduled",
             last_full_sync_at: null,
-            min_bumpkin_level: 20,
+            min_bumpkin_island: "desert",
             max_players: 32,
             join_mode: "auto",
             description: "Bring a shovel.",
@@ -162,7 +162,7 @@ describe("public api", () => {
     expect(mockRequest).toHaveBeenCalledWith("tournaments/cup-1");
     expect(tournament.config.prize_amount).toBe("45");
     expect(tournament.config.join_mode).toBe("auto");
-    expect(tournament.config.min_bumpkin_level).toBe(20);
+    expect(tournament.config.min_bumpkin_island).toBe("desert");
     expect(tournament.config.description).toBe("Bring a shovel.");
     expect(tournament.config.prize_places?.[0]?.amount).toBe("45");
     expect(tournament.count).toBe(1);

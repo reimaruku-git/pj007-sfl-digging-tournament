@@ -32,6 +32,7 @@ from tournament.window import (
     configured_duration_days,
     default_tournament_name,
     duration_days,
+    inclusive_calendar_days,
     parse_iso,
     tournament_id,
 )
@@ -83,13 +84,14 @@ def parse_window(body: dict[str, Any]) -> tuple[datetime, datetime, int]:
         if days < MIN_TOURNAMENT_DAYS:
             raise CatalogError(f"tournament must run at least {MIN_TOURNAMENT_DAYS} days")
         end = start + timedelta(days=days)
+        return start, end, days
     if end is None:
         raise CatalogError("duration_days or end_at is required")
-    if end <= start:
-        raise CatalogError("end_at must be after start_at")
-    if end - start < timedelta(days=MIN_TOURNAMENT_DAYS):
+    days = inclusive_calendar_days(start, end)
+    if days < MIN_TOURNAMENT_DAYS:
         raise CatalogError(f"tournament must run at least {MIN_TOURNAMENT_DAYS} days")
-    return start, end, days or duration_days(start, end)
+    end = start + timedelta(days=days)
+    return start, end, days
 
 
 def active_tournaments(store: Store) -> list[dict[str, Any]]:
@@ -548,6 +550,11 @@ def public_summary(row: dict[str, Any], *, archive: dict[str, Any] | None = None
         "leader_farm_id": payload.get("leader_farm_id") or row.get("leader_farm_id"),
     }
     summary.update(public_event_settings(row))
+    if "enrolled_count" in row:
+        try:
+            summary["enrolled_count"] = int(row.get("enrolled_count") or 0)
+        except (TypeError, ValueError):
+            summary["enrolled_count"] = 0
     return summary
 
 
@@ -570,6 +577,7 @@ def list_public_tournaments(store: Store, *, now: datetime | None = None) -> lis
             }
         summary = public_summary(row, archive=archive)
         summary.update({key: value for key, value in extra.items() if value is not None})
+        summary["enrolled_count"] = len(enrolled_farm_ids(store, tid)) if tid else 0
         items.append(summary)
     items.sort(key=lambda item: str(item.get("start_at") or ""), reverse=True)
     return items
@@ -611,13 +619,15 @@ def get_public_tournament(
             _hydrate_entry(entry, int(row.get("duration_days") or configured_duration_days(row)))
             for entry in (archive.get("entries") or [])
         ]
+        ended_config = {
+            **public_config({**row, "status": STATUS_ENDED}),
+            **(archive.get("config") or {}),
+            "enrolled_count": len(enrolled_farm_ids(store, tournament_id_value)),
+        }
         return _public_tournament_payload(
             tournament_id_value=tournament_id_value,
             archived_at=archive.get("archived_at") or row.get("archived_at"),
-            config={
-                **public_config({**row, "status": STATUS_ENDED}),
-                **(archive.get("config") or {}),
-            },
+            config=ended_config,
             entries=entries,
             count=len(entries),
             leader_farm_id=archive.get("leader_farm_id"),
@@ -625,10 +635,12 @@ def get_public_tournament(
         )
     if row and row.get("status") == STATUS_ACTIVE:
         board = live_board_payload(store, now=clock, tournament_id=tournament_id_value)
+        live_config = public_config({**row, "current_tournament_id": tournament_id_value})
+        live_config["enrolled_count"] = len(enrolled_farm_ids(store, tournament_id_value))
         return _public_tournament_payload(
             tournament_id_value=tournament_id_value,
             archived_at=None,
-            config=public_config({**row, "current_tournament_id": tournament_id_value}),
+            config=live_config,
             entries=board.get("entries") or [],
             count=int(board.get("count") or 0),
             leader_farm_id=board.get("leader_farm_id"),
@@ -640,10 +652,12 @@ def get_public_tournament(
             tournament_id_value,
             days=int(row.get("duration_days") or configured_duration_days(row)),
         )
+        scheduled_config = public_config({**row, "current_tournament_id": tournament_id_value})
+        scheduled_config["enrolled_count"] = len(enrolled_farm_ids(store, tournament_id_value))
         return _public_tournament_payload(
             tournament_id_value=tournament_id_value,
             archived_at=None,
-            config=public_config({**row, "current_tournament_id": tournament_id_value}),
+            config=scheduled_config,
             entries=board.get("entries") or [],
             count=int(board.get("count") or 0),
             leader_farm_id=board.get("leader_farm_id"),

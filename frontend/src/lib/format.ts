@@ -48,6 +48,26 @@ export function isoToDateInput(value: string | null | undefined): string {
   return `${year}-${month}-${day}`;
 }
 
+export function inclusiveCalendarDays(startDate: string, endDate: string): number {
+  if (!startDate || !endDate) return 0;
+  const start = Date.parse(`${startDate}T00:00:00.000Z`);
+  const end = Date.parse(`${endDate}T00:00:00.000Z`);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
+  return Math.round((end - start) / 86_400_000) + 1;
+}
+
+export function inclusiveFinalDayIso(
+  startAt: string | null | undefined,
+  durationDays: number | null | undefined,
+): string {
+  if (!startAt) return "";
+  const date = new Date(startAt);
+  if (Number.isNaN(date.getTime())) return "";
+  const days = Math.max(Number(durationDays) || 1, 1);
+  date.setUTCDate(date.getUTCDate() + days - 1);
+  return date.toISOString();
+}
+
 const SHORT_MONTHS = [
   "Jan",
   "Feb",

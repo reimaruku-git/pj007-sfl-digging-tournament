@@ -19,24 +19,41 @@ import {
 } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
 import {
-  formatDateRangeUtc,
+  formatDateUtc,
   formatDurationDays,
   formatScore,
-  formatWindowRange,
+  inclusiveFinalDayIso,
   opensLabel,
   remainingLabel,
   statusLabel,
   windowStatusLabel,
 } from "../lib/format";
 
-function formatPrizePlaces(places: PrizePlace[]): string {
-  return places
-    .map((item) => {
-      const suffix =
-        item.place === 1 ? "st" : item.place === 2 ? "nd" : item.place === 3 ? "rd" : "th";
-      return `${item.place}${suffix} ${item.amount} Flower`;
-    })
-    .join(" · ");
+function placeSuffix(place: number): string {
+  if (place === 1) return "st";
+  if (place === 2) return "nd";
+  if (place === 3) return "rd";
+  return "th";
+}
+
+function formatPrizePlace(item: PrizePlace): string {
+  const flower = `${item.place}${placeSuffix(item.place)} ${item.amount} Flower`;
+  return item.nft_name ? `${flower} · ${item.nft_name}` : flower;
+}
+
+function islandLabel(island: string | null | undefined): string {
+  if (!island) return "None";
+  if (island === "volcano+") return "Volcano+";
+  return island.charAt(0).toUpperCase() + island.slice(1);
+}
+
+function joinedTotal(
+  enrolled: number | null | undefined,
+  max: number | null | undefined,
+  fallback = 0,
+): string {
+  const joined = enrolled ?? fallback;
+  return `${joined}/${max == null ? "None" : max}`;
 }
 
 export function TournamentsPage() {
@@ -147,7 +164,8 @@ function CatalogWindow({
       </div>
       <div className="window-card-name">{row.name || `${row.duration_days}d event`}</div>
       <p className="window-card-dates">
-        {formatWindowRange(row.start_at, row.end_at)}
+        {formatDateUtc(row.start_at)} –{" "}
+        {formatDateUtc(inclusiveFinalDayIso(row.start_at, row.duration_days))}
         {when ? ` · ${when}` : ""}
       </p>
       {row.description ? (
@@ -156,34 +174,33 @@ function CatalogWindow({
         </p>
       ) : null}
       <dl className="window-card-facts">
-        <div>
-          <dt>Prize</dt>
-          <dd>
-            {row.prize_amount} Flower
-          </dd>
+        <div data-testid={`tourney-participants-${row.tournament_id}`}>
+          <dt>Joined</dt>
+          <dd>{joinedTotal(row.enrolled_count, row.max_players, row.count)}</dd>
         </div>
-        <div>
-          <dt>Farms</dt>
-          <dd>
-            {row.max_players != null ? `${row.count} / ${row.max_players}` : row.count}
-          </dd>
+        <div data-testid={`tourney-island-${row.tournament_id}`}>
+          <dt>Island</dt>
+          <dd>{islandLabel(row.min_bumpkin_island)}</dd>
         </div>
-        {row.min_bumpkin_level != null ? (
-          <div data-testid={`tourney-min-level-${row.tournament_id}`}>
-            <dt>Min level</dt>
-            <dd>{row.min_bumpkin_level}</dd>
-          </div>
-        ) : null}
-        <div data-testid={`tourney-join-mode-${row.tournament_id}`}>
-          <dt>Join</dt>
-          <dd>{row.join_mode === "auto" ? "Auto join" : "Must confirm"}</dd>
+        <div data-testid={`tourney-streak-${row.tournament_id}`}>
+          <dt>Streak</dt>
+          <dd>{row.min_digging_streak == null ? "None" : row.min_digging_streak}</dd>
+        </div>
+        <div data-testid={`tourney-vip-${row.tournament_id}`}>
+          <dt>VIP</dt>
+          <dd>{row.vip_required ? "Yes" : "No"}</dd>
         </div>
       </dl>
       {row.prize_places && row.prize_places.length > 0 ? (
         <p className="window-card-prizes" data-testid={`tourney-prizes-${row.tournament_id}`}>
-          {formatPrizePlaces(row.prize_places)}
+          {row.prize_places.slice(0, 3).map(formatPrizePlace).join(" · ")}
+          {row.prize_places.length > 3 ? " · more" : ""}
         </p>
-      ) : null}
+      ) : (
+        <p className="window-card-prizes" data-testid={`tourney-prizes-${row.tournament_id}`}>
+          {row.prize_amount} Flower
+        </p>
+      )}
     </Link>
   );
 }
@@ -194,6 +211,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const from = (location.state as { from?: string } | null)?.from;
   const back = tournamentBackTarget(from);
   const [notice, setNotice] = useState<string | null>(null);
+  const [prizesOpen, setPrizesOpen] = useState(false);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
     queryFn: () => fetchTournament(tournamentId),
@@ -231,10 +249,9 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             <div>
               <div className="kicker">{data.config.name || "Tournament"}</div>
               <p className="meta" data-testid="tournament-window">
-                {formatDateRangeUtc(
-                  data.config.start_at,
-                  data.config.end_at,
-                  data.config.duration_days,
+                {formatDateUtc(data.config.start_at)} –{" "}
+                {formatDateUtc(
+                  inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
                 )}
               </p>
             </div>
@@ -253,37 +270,104 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               {data.config.description}
             </p>
           ) : null}
-          <div className="tourney-facts">
-            <div data-testid="tournament-prize">
-              <span className="muted">Prize</span>
-              <b>{data.config.prize_amount} Flower</b>
+          <div className="tourney-facts tourney-facts-compact">
+            <div data-testid="tournament-start-day">
+              <span className="muted">Start day</span>
+              <b>{formatDateUtc(data.config.start_at)}</b>
+            </div>
+            <div data-testid="tournament-final-day">
+              <span className="muted">Final day</span>
+              <b>
+                {formatDateUtc(
+                  inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
+                )}
+              </b>
             </div>
             <div data-testid="tournament-participants">
               <span className="muted">Participants</span>
               <b>
-                {data.config.max_players != null
-                  ? `${data.count} / ${data.config.max_players}`
-                  : data.count}
+                {joinedTotal(data.config.enrolled_count, data.config.max_players, data.count)}
               </b>
             </div>
+            <div data-testid="tournament-island">
+              <span className="muted">Min bumpkin island</span>
+              <b>{islandLabel(data.config.min_bumpkin_island)}</b>
+            </div>
+            <div data-testid="tournament-streak">
+              <span className="muted">Min digging streak</span>
+              <b>
+                {data.config.min_digging_streak == null ? "None" : data.config.min_digging_streak}
+              </b>
+            </div>
+            <div data-testid="tournament-vip">
+              <span className="muted">VIP status</span>
+              <b>{data.config.vip_required ? "Yes" : "No"}</b>
+            </div>
+            <div data-testid="tournament-prize">
+              <span className="muted">Prize pool</span>
+              <b>{data.config.prize_amount} Flower</b>
+            </div>
             <div data-testid="tournament-overall-avg">
-              <span className="muted">Overall average per day</span>
+              <span className="muted">Avg / day</span>
               <b>{formatScore(data.overall_average_per_day)}</b>
             </div>
-            {data.config.min_bumpkin_level != null ? (
-              <div data-testid="tournament-min-level">
-                <span className="muted">Min bumpkin level</span>
-                <b>{data.config.min_bumpkin_level}</b>
-              </div>
-            ) : null}
             <div data-testid="tournament-join-mode">
               <span className="muted">Join</span>
               <b>{autoJoin ? "Auto join" : "Must confirm"}</b>
             </div>
           </div>
           {data.config.prize_places && data.config.prize_places.length > 0 ? (
-            <div className="tourney-prize-places" data-testid="tournament-prize-places">
-              {formatPrizePlaces(data.config.prize_places)}
+            <div className="tourney-prize-peek" data-testid="tournament-prize-places">
+              {data.config.prize_places.slice(0, 3).map(formatPrizePlace).join(" · ")}
+              {data.config.prize_places.length > 3 ? (
+                <button
+                  className="prize-more"
+                  type="button"
+                  data-testid="tournament-more-prizes"
+                  onClick={() => setPrizesOpen(true)}
+                >
+                  More prizes
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {prizesOpen && data.config.prize_places && data.config.prize_places.length > 3 ? (
+            <div
+              className="confirm-overlay"
+              data-testid="tournament-prize-table"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="confirm-card prize-table-card">
+                <p className="confirm-title">Prizes</p>
+                <table className="prize-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Prize</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.config.prize_places.map((item) => (
+                      <tr key={item.place}>
+                        <td>
+                          {item.place}
+                          {placeSuffix(item.place)}
+                        </td>
+                        <td>
+                          {item.amount} Flower
+                          {item.nft_name ? ` · ${item.nft_name}` : ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="toolbar confirm-actions">
+                  <button className="btn" type="button" onClick={() => setPrizesOpen(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
           {joinable && identity && (

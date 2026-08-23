@@ -317,7 +317,7 @@ describe("TournamentsPage", () => {
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-detail"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toMatch(
-      /16–17 Aug/,
+      /16 Aug – 16 Aug/,
     );
     expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).not.toMatch(
       /→|· 1d/,
@@ -327,7 +327,7 @@ describe("TournamentsPage", () => {
     );
     expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(/2/);
     expect(page.querySelector('[data-testid="tournament-overall-avg"]')?.textContent).toMatch(
-      /Overall average per day/,
+      /Avg \/ day/,
     );
     expect(page.querySelector('[data-testid="tournament-overall-avg"]')?.textContent).toMatch(
       /4\.50/,
@@ -441,20 +441,28 @@ describe("TournamentsPage", () => {
     expect(download.disabled).toBe(true);
   });
 
-  it("shows description, prize places, and auto-join copy on public detail", async () => {
+  it("shows compact pre-join details, top 3 prizes, and extra prize table", async () => {
     const live = summary({
       tournament_id: "live",
       name: "Settings cup",
       status: "active",
       description: "Bring a shovel.",
-      min_bumpkin_level: 20,
+      start_at: "2026-08-23T00:00:00.000Z",
+      end_at: "2026-08-31T00:00:00.000Z",
+      duration_days: 8,
+      min_bumpkin_island: "desert",
+      min_digging_streak: null,
+      vip_required: true,
       max_players: 32,
+      enrolled_count: 4,
       join_mode: "auto",
       prize_places: [
-        { place: 1, amount: "50" },
+        { place: 1, amount: "50", nft_name: "Rare Key" },
         { place: 2, amount: "20" },
+        { place: 3, amount: "10" },
+        { place: 4, amount: "5" },
       ],
-      prize_amount: "50",
+      prize_amount: "85",
       count: 4,
     });
     fetchTournament.mockResolvedValue({
@@ -462,13 +470,13 @@ describe("TournamentsPage", () => {
       config: {
         ...archive(live, []).config,
         description: "Bring a shovel.",
-        min_bumpkin_level: 20,
+        min_bumpkin_island: "desert",
+        min_digging_streak: null,
+        vip_required: true,
         max_players: 32,
+        enrolled_count: 4,
         join_mode: "auto",
-        prize_places: [
-          { place: 1, amount: "50" },
-          { place: 2, amount: "20" },
-        ],
+        prize_places: live.prize_places,
       },
       accepts_joins: true,
     });
@@ -476,16 +484,28 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-description"]')?.textContent).toMatch(
       /Bring a shovel/,
     );
-    expect(page.querySelector('[data-testid="tournament-prize-places"]')?.textContent).toMatch(
-      /1st 50 Flower/,
+    expect(page.querySelector('[data-testid="tournament-start-day"]')?.textContent).toMatch(/23 Aug/);
+    expect(page.querySelector('[data-testid="tournament-final-day"]')?.textContent).toMatch(/30 Aug/);
+    expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(
+      /4\/32/,
     );
-    expect(page.querySelector('[data-testid="tournament-prize-places"]')?.textContent).toMatch(
-      /2nd 20 Flower/,
-    );
-    expect(page.querySelector('[data-testid="tournament-min-level"]')?.textContent).toMatch(/20/);
-    expect(page.querySelector('[data-testid="tournament-join-mode"]')?.textContent).toMatch(
-      /Auto join/,
-    );
+    expect(page.querySelector('[data-testid="tournament-island"]')?.textContent).toMatch(/Desert/);
+    expect(page.querySelector('[data-testid="tournament-streak"]')?.textContent).toMatch(/None/);
+    expect(page.querySelector('[data-testid="tournament-vip"]')?.textContent).toMatch(/Yes/);
+    expect(page.querySelector('[data-testid="tournament-min-level"]')).toBeNull();
+    const peek = page.querySelector('[data-testid="tournament-prize-places"]')?.textContent || "";
+    expect(peek).toMatch(/1st 50 Flower · Rare Key/);
+    expect(peek).toMatch(/2nd 20 Flower/);
+    expect(peek).toMatch(/3rd 10 Flower/);
+    expect(peek).not.toMatch(/4th/);
+    expect(page.querySelector('[data-testid="tournament-prize-table"]')).toBeNull();
+    act(() => {
+      (page.querySelector('[data-testid="tournament-more-prizes"]') as HTMLButtonElement).click();
+    });
+    const table = page.querySelector('[data-testid="tournament-prize-table"]');
+    expect(table).not.toBeNull();
+    expect(table?.textContent).toMatch(/4th/);
+    expect(table?.textContent).toMatch(/5 Flower/);
     expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
       /enrolled immediately/,
     );
@@ -516,14 +536,17 @@ describe("TournamentsPage", () => {
     );
   });
 
-  it("lists description, prize places, min level, and join mode on catalog cards", async () => {
+  it("lists compact island, streak, VIP, and joined/total on catalog cards", async () => {
     const live = summary({
       tournament_id: "live",
       name: "Settings cup",
       status: "active",
       description: "Bring a shovel.",
-      min_bumpkin_level: 15,
+      min_bumpkin_island: "spring",
+      min_digging_streak: null,
+      vip_required: false,
       max_players: 8,
+      enrolled_count: 2,
       join_mode: "auto",
       prize_places: [{ place: 1, amount: "40" }],
     });
@@ -535,10 +558,13 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tourney-prizes-live"]')?.textContent).toMatch(
       /1st 40 Flower/,
     );
-    expect(page.querySelector('[data-testid="tourney-min-level-live"]')?.textContent).toMatch(/15/);
-    expect(page.querySelector('[data-testid="tourney-join-mode-live"]')?.textContent).toMatch(
-      /Auto join/,
+    expect(page.querySelector('[data-testid="tourney-island-live"]')?.textContent).toMatch(/Spring/);
+    expect(page.querySelector('[data-testid="tourney-streak-live"]')?.textContent).toMatch(/None/);
+    expect(page.querySelector('[data-testid="tourney-vip-live"]')?.textContent).toMatch(/No/);
+    expect(page.querySelector('[data-testid="tourney-participants-live"]')?.textContent).toMatch(
+      /2\/8/,
     );
+    expect(page.querySelector('[data-testid="tourney-min-level-live"]')).toBeNull();
   });
 
   it("joins from the detail using the stored farm id and sfl.world name", async () => {

@@ -1,20 +1,33 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
-import type { JoinMode, PrizePlace, TournamentSummary } from "../api/public";
+import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
+import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
 import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
-import { formatDateRangeUtc, isoToDateInput } from "../lib/format";
+import {
+  formatDateRangeUtc,
+  inclusiveCalendarDays,
+  inclusiveFinalDayIso,
+  isoToDateInput,
+} from "../lib/format";
 
 export type TournamentDraft = {
   name: string;
   start_at: string;
-  duration_days: number;
+  end_at: string;
   prize_amount: string;
   description: string;
-  min_bumpkin_level: number | null;
+  min_bumpkin_island: BumpkinIsland | null;
+  min_digging_streak: number | null;
+  vip_required: boolean;
   max_players: number | null;
   join_mode: JoinMode;
+  nft_giveaway: boolean;
   prize_places: PrizePlace[];
+};
+
+export type TournamentSavePayload = TournamentDraft & {
+  duration_days: number;
 };
 
 type Editor = { mode: "create" } | { mode: "edit"; id: string } | null;
@@ -42,8 +55,8 @@ export function AdminTournaments({
   selectedId?: string | null;
   roster?: RosterMember[];
   onSelect?: (id: string | null) => void;
-  onCreate: (draft: TournamentDraft) => Promise<void>;
-  onUpdate: (id: string, draft: TournamentDraft) => Promise<void>;
+  onCreate: (draft: TournamentSavePayload) => Promise<void>;
+  onUpdate: (id: string, draft: TournamentSavePayload) => Promise<void>;
   onDelete: (row: TournamentSummary) => Promise<void>;
   onAddFarms?: (id: string, farmIds: string[]) => Promise<void>;
   onRemoveFarm?: (id: string, farmId: string) => Promise<void>;
@@ -90,15 +103,19 @@ export function AdminTournaments({
     setDraft({
       name: row.name || "",
       start_at: isoToDateInput(row.start_at),
-      duration_days: row.duration_days || 7,
+      end_at: isoToDateInput(inclusiveFinalDayIso(row.start_at, row.duration_days)),
       prize_amount: row.prize_amount || "30",
       description: row.description || "",
-      min_bumpkin_level: row.min_bumpkin_level ?? null,
+      min_bumpkin_island: row.min_bumpkin_island ?? null,
+      min_digging_streak: row.min_digging_streak ?? null,
+      vip_required: Boolean(row.vip_required),
       max_players: row.max_players ?? null,
       join_mode: row.join_mode === "auto" ? "auto" : "confirm",
+      nft_giveaway: Boolean(row.nft_giveaway),
       prize_places: (row.prize_places ?? []).map((item) => ({
         place: item.place,
         amount: item.amount,
+        nft_name: item.nft_name || "",
       })),
     });
     setError(null);
@@ -107,26 +124,42 @@ export function AdminTournaments({
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!draft.name.trim() || !draft.start_at) {
-      setError("Name and start date are required.");
+    if (!draft.name.trim() || !draft.start_at || !draft.end_at) {
+      setError("Title, start date, and end date are required.");
       return;
     }
-    if (draft.duration_days < 1) {
+    const days = inclusiveCalendarDays(draft.start_at, draft.end_at);
+    if (days < 1) {
       setError("Tournament must run at least 1 day.");
       return;
     }
-    const payload: TournamentDraft = {
+    const prizeAmount = draft.prize_amount.trim() || "30";
+    const prizePlaces = draft.prize_places.map((item) => {
+      const row: PrizePlace = { place: item.place, amount: item.amount.trim() || "0" };
+      if (draft.nft_giveaway) row.nft_name = (item.nft_name || "").trim();
+      return row;
+    });
+    if (!draft.nft_giveaway && prizePlaces.length > 0) {
+      const sum = prizePlaces.reduce((total, item) => total + Number(item.amount || 0), 0);
+      if (sum !== Number(prizeAmount)) {
+        setError("Winner Flower prizes must sum to the prize pool.");
+        return;
+      }
+    }
+    const payload: TournamentSavePayload = {
       name: draft.name.trim(),
       start_at: `${draft.start_at}T00:00:00.000Z`,
-      duration_days: draft.duration_days,
-      prize_amount: draft.prize_amount.trim() || "30",
+      end_at: `${draft.end_at}T00:00:00.000Z`,
+      duration_days: days,
+      prize_amount: prizeAmount,
       description: draft.description.trim(),
-      min_bumpkin_level: draft.min_bumpkin_level,
+      min_bumpkin_island: draft.min_bumpkin_island,
+      min_digging_streak: draft.min_digging_streak,
+      vip_required: draft.vip_required,
       max_players: draft.max_players,
       join_mode: draft.join_mode,
-      prize_places: draft.prize_places
-        .map((item) => ({ place: item.place, amount: item.amount.trim() }))
-        .filter((item) => item.amount),
+      nft_giveaway: draft.nft_giveaway,
+      prize_places: prizePlaces,
     };
     setBusy(true);
     setError(null);
@@ -212,146 +245,236 @@ export function AdminTournaments({
       {loading && <p className="muted">Loading tournaments…</p>}
 
       {editor && (
-        <form className="form-grid admin-tourney-form" onSubmit={(event) => void submit(event)}>
-          <div className="kicker">
-            {editor.mode === "edit" ? "Edit tournament" : "Create new tournament"}
-          </div>
-          {error && <div className="flash err">{error}</div>}
-          <label>
-            Name
-            <input
-              value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-              placeholder="Late August Otter Cup"
-              required
-            />
-          </label>
-          <label>
-            From
-            <input
-              type="date"
-              value={draft.start_at}
-              onChange={(event) => setDraft({ ...draft, start_at: event.target.value })}
-              required
-            />
-          </label>
-          <label>
-            Length (days)
-            <input
-              type="number"
-              min={1}
-              data-testid="duration-days"
-              value={draft.duration_days}
-              onChange={(event) =>
-                setDraft({ ...draft, duration_days: Number(event.target.value) })
-              }
-              required
-            />
-          </label>
-          <label>
-            Prize (Flower)
-            <input
-              value={draft.prize_amount}
-              onChange={(event) => setDraft({ ...draft, prize_amount: event.target.value })}
-            />
-          </label>
-          <label>
-            Description
-            <textarea
-              data-testid="tournament-description-input"
-              value={draft.description}
-              maxLength={2000}
-              rows={3}
-              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-              placeholder="Optional rules or flavour text"
-            />
-          </label>
-          <label>
-            Min bumpkin level
-            <input
-              type="number"
-              min={1}
-              data-testid="min-bumpkin-level"
-              value={draft.min_bumpkin_level ?? ""}
-              onChange={(event) =>
-                setDraft({ ...draft, min_bumpkin_level: optionalPositiveInt(event.target.value) })
-              }
-              placeholder="None"
-            />
-          </label>
-          <label>
-            Maximum players
-            <input
-              type="number"
-              min={1}
-              data-testid="max-players"
-              value={draft.max_players ?? ""}
-              onChange={(event) =>
-                setDraft({ ...draft, max_players: optionalPositiveInt(event.target.value) })
-              }
-              placeholder="None"
-            />
-          </label>
-          <label>
-            Join mode
-            <select
-              data-testid="join-mode"
-              value={draft.join_mode}
-              onChange={(event) =>
-                setDraft({ ...draft, join_mode: event.target.value === "auto" ? "auto" : "confirm" })
-              }
-            >
-              <option value="confirm">Must confirm</option>
-              <option value="auto">Auto join</option>
-            </select>
-          </label>
-          <label>
-            How many players can win
-            <input
-              type="number"
-              min={0}
-              data-testid="winner-count"
-              value={draft.prize_places.length}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  prize_places: resizePrizePlaces(
-                    draft.prize_places,
-                    Number(event.target.value),
-                    draft.prize_amount,
-                  ),
-                })
-              }
-            />
-          </label>
-          {draft.prize_places.map((item, index) => (
-            <label key={item.place}>
-              {placeLabel(item.place)} prize (Flower)
+        <div
+          className="create-overlay"
+          data-testid="create-tournament-window"
+          role="dialog"
+          aria-modal="true"
+        >
+          <form className="form-grid create-window" onSubmit={(event) => void submit(event)}>
+            <div className="kicker">
+              {editor.mode === "edit" ? "Edit tournament" : "Create new tournament"}
+            </div>
+            {error && <div className="flash err">{error}</div>}
+            <label>
+              Title
               <input
-                data-testid={`prize-place-${item.place}`}
-                value={item.amount}
-                onChange={(event) => {
-                  const next = draft.prize_places.map((row, rowIndex) =>
-                    rowIndex === index ? { ...row, amount: event.target.value } : row,
-                  );
-                  setDraft({ ...draft, prize_places: next });
-                }}
+                value={draft.name}
+                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                placeholder="Late August Otter Cup"
+                required
               />
             </label>
-          ))}
-          <div className="toolbar">
-            <button
-              className="btn primary"
-              type="submit"
-              disabled={busy || !draft.name.trim() || !draft.start_at}
-            >
-              {editor.mode === "edit" ? "Save changes" : "Create tournament"}
-            </button>
-            <button className="btn" type="button" onClick={() => setEditor(null)} disabled={busy}>
-              Cancel
-            </button>
-          </div>
-        </form>
+            <label>
+              Description
+              <textarea
+                data-testid="tournament-description-input"
+                value={draft.description}
+                maxLength={2000}
+                rows={3}
+                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                placeholder="Optional rules or flavour text"
+              />
+            </label>
+            <div className="form-row dates-row">
+              <label>
+                Start date
+                <input
+                  type="date"
+                  data-testid="start-date"
+                  value={draft.start_at}
+                  onChange={(event) => setDraft({ ...draft, start_at: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                End date
+                <input
+                  type="date"
+                  data-testid="end-date"
+                  value={draft.end_at}
+                  onChange={(event) => setDraft({ ...draft, end_at: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Total days
+                <input
+                  data-testid="duration-days"
+                  value={
+                    inclusiveCalendarDays(draft.start_at, draft.end_at) || ""
+                  }
+                  readOnly
+                />
+              </label>
+            </div>
+            <label>
+              Min bumpkin island
+              <select
+                data-testid="min-bumpkin-island"
+                value={draft.min_bumpkin_island ?? ""}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    min_bumpkin_island: parseIsland(event.target.value),
+                  })
+                }
+              >
+                <option value="">None</option>
+                {MIN_BUMPKIN_ISLANDS.map((island) => (
+                  <option key={island} value={island}>
+                    {islandLabel(island)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Min digging streak
+              <input
+                type="number"
+                min={1}
+                data-testid="min-digging-streak"
+                value={draft.min_digging_streak ?? ""}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    min_digging_streak: optionalPositiveInt(event.target.value),
+                  })
+                }
+                placeholder="None"
+              />
+            </label>
+            <label>
+              VIP status
+              <select
+                data-testid="vip-status"
+                value={draft.vip_required ? "true" : "false"}
+                onChange={(event) =>
+                  setDraft({ ...draft, vip_required: event.target.value === "true" })
+                }
+              >
+                <option value="false">False</option>
+                <option value="true">True</option>
+              </select>
+            </label>
+            <label>
+              Maximum players
+              <input
+                type="number"
+                min={1}
+                data-testid="max-players"
+                value={draft.max_players ?? ""}
+                onChange={(event) =>
+                  setDraft({ ...draft, max_players: optionalPositiveInt(event.target.value) })
+                }
+                placeholder="None"
+              />
+            </label>
+            <label>
+              How many players can win
+              <input
+                type="number"
+                min={0}
+                data-testid="winner-count"
+                value={draft.prize_places.length}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    prize_places: resizePrizePlaces(
+                      draft.prize_places,
+                      Number(event.target.value),
+                      draft.prize_amount,
+                    ),
+                  })
+                }
+              />
+            </label>
+            <div className="form-row prize-pool-row">
+              <label>
+                Prize pool
+                <input
+                  data-testid="prize-pool"
+                  value={draft.prize_amount}
+                  onChange={(event) => setDraft({ ...draft, prize_amount: event.target.value })}
+                />
+              </label>
+              <label className="nft-toggle">
+                <input
+                  type="checkbox"
+                  data-testid="nft-giveaway"
+                  checked={draft.nft_giveaway}
+                  onChange={(event) => setDraft({ ...draft, nft_giveaway: event.target.checked })}
+                />
+                NFTs given away
+              </label>
+            </div>
+            {draft.prize_places.map((item, index) => (
+              <div
+                key={item.place}
+                className={draft.nft_giveaway ? "form-row winner-row is-nft" : "form-row winner-row"}
+              >
+                <label>
+                  {placeLabel(item.place)} prize
+                  <input
+                    data-testid={`prize-place-${item.place}`}
+                    value={item.amount}
+                    onChange={(event) => {
+                      const next = draft.prize_places.map((row, rowIndex) =>
+                        rowIndex === index ? { ...row, amount: event.target.value } : row,
+                      );
+                      setDraft({ ...draft, prize_places: next });
+                    }}
+                    placeholder="Flower"
+                  />
+                </label>
+                {draft.nft_giveaway ? (
+                  <label>
+                    NFT
+                    <input
+                      data-testid={`prize-place-${item.place}-nft`}
+                      value={item.nft_name || ""}
+                      onChange={(event) => {
+                        const next = draft.prize_places.map((row, rowIndex) =>
+                          rowIndex === index ? { ...row, nft_name: event.target.value } : row,
+                        );
+                        setDraft({ ...draft, prize_places: next });
+                      }}
+                      placeholder="NFT name"
+                    />
+                  </label>
+                ) : null}
+              </div>
+            ))}
+            <label>
+              Join mode
+              <select
+                data-testid="join-mode"
+                value={draft.join_mode}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    join_mode: event.target.value === "auto" ? "auto" : "confirm",
+                  })
+                }
+              >
+                <option value="confirm">Must confirm</option>
+                <option value="auto">Auto join</option>
+              </select>
+            </label>
+            <div className="toolbar">
+              <button
+                className="btn primary"
+                type="submit"
+                disabled={busy || !draft.name.trim() || !draft.start_at || !draft.end_at}
+              >
+                {editor.mode === "edit" ? "Save changes" : "Create tournament"}
+              </button>
+              <button className="btn" type="button" onClick={() => setEditor(null)} disabled={busy}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </section>
   );
@@ -361,14 +484,26 @@ function emptyDraft(): TournamentDraft {
   return {
     name: "",
     start_at: "",
-    duration_days: 7,
+    end_at: "",
     prize_amount: "30",
     description: "",
-    min_bumpkin_level: null,
+    min_bumpkin_island: null,
+    min_digging_streak: null,
+    vip_required: false,
     max_players: null,
     join_mode: "confirm",
+    nft_giveaway: false,
     prize_places: [],
   };
+}
+
+function parseIsland(raw: string): BumpkinIsland | null {
+  return MIN_BUMPKIN_ISLANDS.find((item) => item === raw) ?? null;
+}
+
+function islandLabel(island: string): string {
+  if (island === "volcano+") return "Volcano+";
+  return island.charAt(0).toUpperCase() + island.slice(1);
 }
 
 function optionalPositiveInt(raw: string): number | null {
@@ -388,11 +523,13 @@ function resizePrizePlaces(
   const next = current.slice(0, n).map((item, index) => ({
     place: index + 1,
     amount: item.amount,
+    nft_name: item.nft_name || "",
   }));
   while (next.length < n) {
     next.push({
       place: next.length + 1,
       amount: next.length === 0 ? headline.trim() || "30" : "",
+      nft_name: "",
     });
   }
   return next;
@@ -452,7 +589,7 @@ function AdminGroup({
             <div className="tourney-card-meta">
               {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
               Flower
-              {row.min_bumpkin_level ? ` · min lv ${row.min_bumpkin_level}` : ""}
+              {row.min_bumpkin_island ? ` · ${islandLabel(row.min_bumpkin_island)}` : ""}
               {row.max_players ? ` · max ${row.max_players}` : ""}
               {` · ${row.join_mode === "auto" ? "Auto join" : "Must confirm"}`}
               {featuredId === row.tournament_id ? " · Featured on home" : ""}

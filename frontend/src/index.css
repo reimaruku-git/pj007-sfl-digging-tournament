@@ -788,6 +788,54 @@ a.tourney-window:hover {
   margin: 14px 0 18px;
 }
 
+.tourney-facts-compact {
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 8px 12px;
+  margin: 10px 0 14px;
+}
+
+.tourney-facts-compact b {
+  font-size: 14px;
+}
+
+.tourney-prize-peek {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: var(--mute);
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.prize-more {
+  background: transparent;
+  border: 0;
+  color: var(--gold);
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.prize-table-card {
+  width: min(28rem, 100%);
+}
+
+.prize-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.prize-table th,
+.prize-table td {
+  text-align: left;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
 .tourney-description,
 .tourney-prize-places {
   color: var(--sand);
@@ -938,7 +986,8 @@ a.live-board-open:focus-visible .kicker {
   margin-bottom: 12px;
 }
 
-.confirm-overlay {
+.confirm-overlay,
+.create-overlay {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -947,6 +996,53 @@ a.live-board-open:focus-visible .kicker {
   justify-content: center;
   padding: 16px;
   background: rgba(12, 11, 9, 0.62);
+}
+
+.create-window {
+  width: min(42rem, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px 18px 14px;
+}
+
+.form-row {
+  display: grid;
+  gap: 10px;
+}
+
+.dates-row {
+  grid-template-columns: 1fr 1fr 7rem;
+}
+
+.prize-pool-row {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+.nft-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  color: var(--sand);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.nft-toggle input {
+  width: auto;
+  min-width: 0;
+}
+
+.winner-row {
+  grid-template-columns: 1fr;
+}
+
+.winner-row.is-nft {
+  grid-template-columns: 1fr 1fr;
 }
 
 .confirm-card {
@@ -1702,7 +1798,10 @@ a.past-card:hover {
   .farm-stats,
   .farm-hero,
   .tourney-facts,
-  .catalog-board {
+  .catalog-board,
+  .dates-row,
+  .prize-pool-row,
+  .winner-row.is-nft {
     grid-template-columns: 1fr;
   }
 
