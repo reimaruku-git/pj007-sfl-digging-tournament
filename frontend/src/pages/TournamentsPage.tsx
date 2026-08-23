@@ -5,6 +5,7 @@ import {
   fetchTournament,
   listTournaments,
   submitFarm,
+  type PrizePlace,
   type TournamentSummary,
 } from "../api/public";
 import { DownloadBoardButton } from "../components/DownloadBoardButton";
@@ -27,6 +28,16 @@ import {
   statusLabel,
   windowStatusLabel,
 } from "../lib/format";
+
+function formatPrizePlaces(places: PrizePlace[]): string {
+  return places
+    .map((item) => {
+      const suffix =
+        item.place === 1 ? "st" : item.place === 2 ? "nd" : item.place === 3 ? "rd" : "th";
+      return `${item.place}${suffix} ${item.amount} Flower`;
+    })
+    .join(" · ");
+}
 
 export function TournamentsPage() {
   const { tournamentId } = useParams();
@@ -139,6 +150,11 @@ function CatalogWindow({
         {formatWindowRange(row.start_at, row.end_at)}
         {when ? ` · ${when}` : ""}
       </p>
+      {row.description ? (
+        <p className="window-card-desc" data-testid={`tourney-desc-${row.tournament_id}`}>
+          {row.description}
+        </p>
+      ) : null}
       <dl className="window-card-facts">
         <div>
           <dt>Prize</dt>
@@ -149,10 +165,25 @@ function CatalogWindow({
         <div>
           <dt>Farms</dt>
           <dd>
-            {row.count}
+            {row.max_players != null ? `${row.count} / ${row.max_players}` : row.count}
           </dd>
         </div>
+        {row.min_bumpkin_level != null ? (
+          <div data-testid={`tourney-min-level-${row.tournament_id}`}>
+            <dt>Min level</dt>
+            <dd>{row.min_bumpkin_level}</dd>
+          </div>
+        ) : null}
+        <div data-testid={`tourney-join-mode-${row.tournament_id}`}>
+          <dt>Join</dt>
+          <dd>{row.join_mode === "auto" ? "Auto join" : "Must confirm"}</dd>
+        </div>
       </dl>
+      {row.prize_places && row.prize_places.length > 0 ? (
+        <p className="window-card-prizes" data-testid={`tourney-prizes-${row.tournament_id}`}>
+          {formatPrizePlaces(row.prize_places)}
+        </p>
+      ) : null}
     </Link>
   );
 }
@@ -172,11 +203,19 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
       if (!identity) throw new Error("Connect your farm first");
       return submitFarm(identity.farm_id, identity.name, [tournamentId]);
     },
-    onSuccess: () => setNotice("Join request sent. An admin will approve it."),
+    onSuccess: (result) => {
+      const enrolled = result.submissions.some((item) => item.status === "enrolled");
+      setNotice(
+        enrolled
+          ? "You're in. Welcome to the tournament."
+          : "Join request sent. An admin will approve it.",
+      );
+    },
     onError: (error: Error) => setNotice(error.message),
   });
   const data = query.data;
   const joinable = Boolean(data?.accepts_joins);
+  const autoJoin = data?.config.join_mode === "auto";
   return (
     <section className="card table-wrap page-inner" data-testid="tournament-detail">
       <p className="meta">
@@ -209,6 +248,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               totalCount={data.count}
             />
           </div>
+          {data.config.description ? (
+            <p className="tourney-description" data-testid="tournament-description">
+              {data.config.description}
+            </p>
+          ) : null}
           <div className="tourney-facts">
             <div data-testid="tournament-prize">
               <span className="muted">Prize</span>
@@ -216,16 +260,40 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             </div>
             <div data-testid="tournament-participants">
               <span className="muted">Participants</span>
-              <b>{data.count}</b>
+              <b>
+                {data.config.max_players != null
+                  ? `${data.count} / ${data.config.max_players}`
+                  : data.count}
+              </b>
             </div>
             <div data-testid="tournament-overall-avg">
               <span className="muted">Overall average per day</span>
               <b>{formatScore(data.overall_average_per_day)}</b>
             </div>
+            {data.config.min_bumpkin_level != null ? (
+              <div data-testid="tournament-min-level">
+                <span className="muted">Min bumpkin level</span>
+                <b>{data.config.min_bumpkin_level}</b>
+              </div>
+            ) : null}
+            <div data-testid="tournament-join-mode">
+              <span className="muted">Join</span>
+              <b>{autoJoin ? "Auto join" : "Must confirm"}</b>
+            </div>
           </div>
+          {data.config.prize_places && data.config.prize_places.length > 0 ? (
+            <div className="tourney-prize-places" data-testid="tournament-prize-places">
+              {formatPrizePlaces(data.config.prize_places)}
+            </div>
+          ) : null}
           {joinable && identity && (
             <div className="join-detail" data-testid="join-detail">
               {notice && <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>}
+              <p className="meta" data-testid="join-copy">
+                {autoJoin
+                  ? "You'll be enrolled immediately."
+                  : "An admin will approve your join request."}
+              </p>
               <p className="meta">
                 Joining as <strong>{identity.name}</strong> · {identity.farm_id}
               </p>

@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
-import type { TournamentSummary } from "../api/public";
+import type { JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
 import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
 import { formatDateRangeUtc, isoToDateInput } from "../lib/format";
@@ -10,6 +10,11 @@ export type TournamentDraft = {
   start_at: string;
   duration_days: number;
   prize_amount: string;
+  description: string;
+  min_bumpkin_level: number | null;
+  max_players: number | null;
+  join_mode: JoinMode;
+  prize_places: PrizePlace[];
 };
 
 type Editor = { mode: "create" } | { mode: "edit"; id: string } | null;
@@ -87,6 +92,14 @@ export function AdminTournaments({
       start_at: isoToDateInput(row.start_at),
       duration_days: row.duration_days || 7,
       prize_amount: row.prize_amount || "30",
+      description: row.description || "",
+      min_bumpkin_level: row.min_bumpkin_level ?? null,
+      max_players: row.max_players ?? null,
+      join_mode: row.join_mode === "auto" ? "auto" : "confirm",
+      prize_places: (row.prize_places ?? []).map((item) => ({
+        place: item.place,
+        amount: item.amount,
+      })),
     });
     setError(null);
     setEditor({ mode: "edit", id: row.tournament_id });
@@ -107,6 +120,13 @@ export function AdminTournaments({
       start_at: `${draft.start_at}T00:00:00.000Z`,
       duration_days: draft.duration_days,
       prize_amount: draft.prize_amount.trim() || "30",
+      description: draft.description.trim(),
+      min_bumpkin_level: draft.min_bumpkin_level,
+      max_players: draft.max_players,
+      join_mode: draft.join_mode,
+      prize_places: draft.prize_places
+        .map((item) => ({ place: item.place, amount: item.amount.trim() }))
+        .filter((item) => item.amount),
     };
     setBusy(true);
     setError(null);
@@ -220,6 +240,7 @@ export function AdminTournaments({
             <input
               type="number"
               min={1}
+              data-testid="duration-days"
               value={draft.duration_days}
               onChange={(event) =>
                 setDraft({ ...draft, duration_days: Number(event.target.value) })
@@ -234,6 +255,90 @@ export function AdminTournaments({
               onChange={(event) => setDraft({ ...draft, prize_amount: event.target.value })}
             />
           </label>
+          <label>
+            Description
+            <textarea
+              data-testid="tournament-description-input"
+              value={draft.description}
+              maxLength={2000}
+              rows={3}
+              onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+              placeholder="Optional rules or flavour text"
+            />
+          </label>
+          <label>
+            Min bumpkin level
+            <input
+              type="number"
+              min={1}
+              data-testid="min-bumpkin-level"
+              value={draft.min_bumpkin_level ?? ""}
+              onChange={(event) =>
+                setDraft({ ...draft, min_bumpkin_level: optionalPositiveInt(event.target.value) })
+              }
+              placeholder="None"
+            />
+          </label>
+          <label>
+            Maximum players
+            <input
+              type="number"
+              min={1}
+              data-testid="max-players"
+              value={draft.max_players ?? ""}
+              onChange={(event) =>
+                setDraft({ ...draft, max_players: optionalPositiveInt(event.target.value) })
+              }
+              placeholder="None"
+            />
+          </label>
+          <label>
+            Join mode
+            <select
+              data-testid="join-mode"
+              value={draft.join_mode}
+              onChange={(event) =>
+                setDraft({ ...draft, join_mode: event.target.value === "auto" ? "auto" : "confirm" })
+              }
+            >
+              <option value="confirm">Must confirm</option>
+              <option value="auto">Auto join</option>
+            </select>
+          </label>
+          <label>
+            How many players can win
+            <input
+              type="number"
+              min={0}
+              data-testid="winner-count"
+              value={draft.prize_places.length}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  prize_places: resizePrizePlaces(
+                    draft.prize_places,
+                    Number(event.target.value),
+                    draft.prize_amount,
+                  ),
+                })
+              }
+            />
+          </label>
+          {draft.prize_places.map((item, index) => (
+            <label key={item.place}>
+              {placeLabel(item.place)} prize (Flower)
+              <input
+                data-testid={`prize-place-${item.place}`}
+                value={item.amount}
+                onChange={(event) => {
+                  const next = draft.prize_places.map((row, rowIndex) =>
+                    rowIndex === index ? { ...row, amount: event.target.value } : row,
+                  );
+                  setDraft({ ...draft, prize_places: next });
+                }}
+              />
+            </label>
+          ))}
           <div className="toolbar">
             <button
               className="btn primary"
@@ -253,7 +358,51 @@ export function AdminTournaments({
 }
 
 function emptyDraft(): TournamentDraft {
-  return { name: "", start_at: "", duration_days: 7, prize_amount: "30" };
+  return {
+    name: "",
+    start_at: "",
+    duration_days: 7,
+    prize_amount: "30",
+    description: "",
+    min_bumpkin_level: null,
+    max_players: null,
+    join_mode: "confirm",
+    prize_places: [],
+  };
+}
+
+function optionalPositiveInt(raw: string): number | null {
+  const text = raw.trim();
+  if (!text) return null;
+  const value = Number(text);
+  if (!Number.isFinite(value)) return null;
+  return value;
+}
+
+function resizePrizePlaces(
+  current: PrizePlace[],
+  count: number,
+  headline: string,
+): PrizePlace[] {
+  const n = Math.max(0, Number.isFinite(count) ? Math.floor(count) : 0);
+  const next = current.slice(0, n).map((item, index) => ({
+    place: index + 1,
+    amount: item.amount,
+  }));
+  while (next.length < n) {
+    next.push({
+      place: next.length + 1,
+      amount: next.length === 0 ? headline.trim() || "30" : "",
+    });
+  }
+  return next;
+}
+
+function placeLabel(place: number): string {
+  if (place === 1) return "1st";
+  if (place === 2) return "2nd";
+  if (place === 3) return "3rd";
+  return `${place}th`;
 }
 
 function AdminGroup({
@@ -303,8 +452,20 @@ function AdminGroup({
             <div className="tourney-card-meta">
               {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
               Flower
+              {row.min_bumpkin_level ? ` · min lv ${row.min_bumpkin_level}` : ""}
+              {row.max_players ? ` · max ${row.max_players}` : ""}
+              {` · ${row.join_mode === "auto" ? "Auto join" : "Must confirm"}`}
               {featuredId === row.tournament_id ? " · Featured on home" : ""}
             </div>
+            {row.description ? <p className="tourney-card-desc">{row.description}</p> : null}
+            {row.prize_places && row.prize_places.length > 0 ? (
+              <p className="tourney-card-desc" data-testid={`admin-prizes-${row.tournament_id}`}>
+                {row.prize_places
+                  .map((item) => `${placeLabel(item.place)} ${item.amount}`)
+                  .join(" · ")}{" "}
+                Flower
+              </p>
+            ) : null}
           </button>
           <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
             {canFeature && (

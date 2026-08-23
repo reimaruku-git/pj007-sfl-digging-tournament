@@ -1,6 +1,12 @@
 import responses
 
-from tournament.sfl_world import SflWorldError, land_info_url, lookup_farm_name
+from tournament.sfl_world import (
+    SflWorldError,
+    land_info_url,
+    land_summary_url,
+    lookup_bumpkin_level,
+    lookup_farm_name,
+)
 import pytest
 
 
@@ -52,3 +58,31 @@ def test_lookup_404_is_not_found():
         lookup_farm_name("999999")
     assert exc.value.status_code == 404
     assert exc.value.code == "NOT_FOUND"
+
+
+def test_land_summary_url_uses_nft_id():
+    assert land_summary_url(220411) == "https://sfl.world/api/v1.1/land/220411"
+
+
+@responses.activate
+def test_lookup_bumpkin_level_reads_summary():
+    responses.add(
+        responses.GET,
+        "https://sfl.world/api/v1.1/land/220411",
+        json={"land": {}, "bumpkin": {"level": 42, "experience": 1000}},
+        status=200,
+    )
+    assert lookup_bumpkin_level(220411) == 42
+
+
+@responses.activate
+def test_lookup_bumpkin_level_fails_when_missing():
+    responses.add(
+        responses.GET,
+        "https://sfl.world/api/v1.1/land/9",
+        json={"land": {}, "bumpkin": {}},
+        status=200,
+    )
+    with pytest.raises(SflWorldError) as exc:
+        lookup_bumpkin_level(9)
+    assert exc.value.status_code == 404

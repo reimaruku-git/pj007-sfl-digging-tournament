@@ -6,6 +6,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from tournament.cleanup import purge_archived_event_live_cache
+from tournament.event_settings import (
+    EventSettingsError,
+    parse_event_settings,
+    public_event_settings,
+)
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard, public_entry
 from tournament.membership import (
@@ -159,11 +164,12 @@ def tournament_record(
     status: str,
     archived_at: str | None = None,
     tournament_id_value: str | None = None,
+    settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     tid = tournament_id_value or tournament_id(
         {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
     )
-    return {
+    row = {
         "tournament_id": tid,
         "name": name,
         "start_at": start.isoformat(),
@@ -173,26 +179,28 @@ def tournament_record(
         "status": status,
         "archived_at": archived_at,
     }
+    row.update(public_event_settings(settings or {}))
+    return row
 
 
 def apply_live_config(
     store: Store, row: dict[str, Any], *, existing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     current = existing if existing is not None else store.get_config()
-    return store.put_config(
-        {
-            "start_at": row["start_at"],
-            "end_at": row["end_at"],
-            "duration_days": row["duration_days"],
-            "prize_amount": row["prize_amount"],
-            "name": row.get("name") or "",
-            "status": row.get("status") or STATUS_ACTIVE,
-            "current_tournament_id": row["tournament_id"],
-            "last_full_sync_at": current.get("last_full_sync_at"),
-            "leader_farm_id": current.get("leader_farm_id"),
-            "featured_tournament_id": current.get("featured_tournament_id"),
-        }
-    )
+    payload = {
+        "start_at": row["start_at"],
+        "end_at": row["end_at"],
+        "duration_days": row["duration_days"],
+        "prize_amount": row["prize_amount"],
+        "name": row.get("name") or "",
+        "status": row.get("status") or STATUS_ACTIVE,
+        "current_tournament_id": row["tournament_id"],
+        "last_full_sync_at": current.get("last_full_sync_at"),
+        "leader_farm_id": current.get("leader_farm_id"),
+        "featured_tournament_id": current.get("featured_tournament_id"),
+    }
+    payload.update(public_event_settings(row))
+    return store.put_config(payload)
 
 
 def seed_catalog(store: Store, *, now: datetime | None = None) -> dict[str, Any]:
@@ -230,6 +238,7 @@ def seed_catalog(store: Store, *, now: datetime | None = None) -> dict[str, Any]
         status=status,
         archived_at=archived_at,
         tournament_id_value=tid,
+        settings=public_event_settings(existing or config),
     )
     store.put_tournament(row)
     if status != STATUS_ENDED:
@@ -258,6 +267,7 @@ def _import_legacy_archives(store: Store) -> None:
                 status=STATUS_ENDED,
                 archived_at=summary.get("archived_at") or utc_now_iso(),
                 tournament_id_value=tid,
+                settings=public_event_settings(summary),
             )
         )
         known.add(tid)
@@ -330,7 +340,13 @@ def create_tournament(
         status = STATUS_SCHEDULED
     else:
         raise CatalogError("that window has already ended", code="CONFLICT", status=409)
-    row = tournament_record(start=start, end=end, days=days, name=name, prize=prize, status=status)
+    try:
+        settings = parse_event_settings(body)
+    except EventSettingsError as exc:
+        raise CatalogError(exc.message, code=exc.code, status=exc.status) from exc
+    row = tournament_record(
+        start=start, end=end, days=days, name=name, prize=prize, status=status, settings=settings
+    )
     row["roster_seeded"] = True
     store.put_tournament(row)
     if status == STATUS_ACTIVE:
@@ -401,6 +417,10 @@ def update_tournament(
         migrate_members(store, tournament_id_value, new_id)
         store.delete_tournament(tournament_id_value)
 
+    try:
+        settings = parse_event_settings(body, existing=existing)
+    except EventSettingsError as exc:
+        raise CatalogError(exc.message, code=exc.code, status=exc.status) from exc
     updated = tournament_record(
         start=start,
         end=end,
@@ -409,6 +429,7 @@ def update_tournament(
         prize=prize,
         status=next_status,
         tournament_id_value=new_id,
+        settings=settings,
     )
     store.put_tournament(updated)
     if new_id != tournament_id_value:
@@ -424,20 +445,20 @@ def update_tournament(
 
 def clear_live_config(store: Store) -> dict[str, Any]:
     current = store.get_config()
-    return store.put_config(
-        {
-            "start_at": "",
-            "end_at": "",
-            "duration_days": 0,
-            "prize_amount": str(current.get("prize_amount") or "30"),
-            "name": "",
-            "status": STATUS_SCHEDULED,
-            "current_tournament_id": None,
-            "last_full_sync_at": current.get("last_full_sync_at"),
-            "leader_farm_id": None,
-            "featured_tournament_id": current.get("featured_tournament_id"),
-        }
-    )
+    payload = {
+        "start_at": "",
+        "end_at": "",
+        "duration_days": 0,
+        "prize_amount": str(current.get("prize_amount") or "30"),
+        "name": "",
+        "status": STATUS_SCHEDULED,
+        "current_tournament_id": None,
+        "last_full_sync_at": current.get("last_full_sync_at"),
+        "leader_farm_id": None,
+        "featured_tournament_id": current.get("featured_tournament_id"),
+    }
+    payload.update(public_event_settings({}))
+    return store.put_config(payload)
 
 
 def active_tournament(store: Store) -> dict[str, Any] | None:
@@ -514,7 +535,7 @@ def public_summary(row: dict[str, Any], *, archive: dict[str, Any] | None = None
     start = parse_iso(row.get("start_at"))
     days = int(row.get("duration_days") or 0) or configured_duration_days(row)
     payload = archive or {}
-    return {
+    summary = {
         "tournament_id": row.get("tournament_id"),
         "name": row.get("name") or default_tournament_name(start),
         "start_at": row.get("start_at"),
@@ -526,6 +547,8 @@ def public_summary(row: dict[str, Any], *, archive: dict[str, Any] | None = None
         "count": int(payload.get("count") or row.get("count") or 0),
         "leader_farm_id": payload.get("leader_farm_id") or row.get("leader_farm_id"),
     }
+    summary.update(public_event_settings(row))
+    return summary
 
 
 def list_public_tournaments(store: Store, *, now: datetime | None = None) -> list[dict[str, Any]]:

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib import error, request
 
+from tournament.event_settings import public_event_settings
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.history import (
     recover_daily_history,
@@ -72,8 +73,9 @@ def tournament_status(start: datetime, end: datetime, now: datetime) -> str:
 def public_config(config: dict[str, Any]) -> dict[str, Any]:
     start = parse_iso(config.get("start_at"))
     end = parse_iso(config.get("end_at"))
+    extras = public_event_settings(config)
     if start is None or end is None or end <= start:
-        return {
+        payload = {
             "tournament_id": str(config.get("current_tournament_id") or "").strip(),
             "name": str(config.get("name") or "").strip(),
             "start_at": None,
@@ -86,6 +88,8 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
             "featured_tournament_id": str(config.get("featured_tournament_id") or "").strip()
             or None,
         }
+        payload.update(extras)
+        return payload
     days = int(config.get("duration_days") or 0) or duration_days(start, end)
     tid = str(config.get("current_tournament_id") or config.get("tournament_id") or "").strip()
     if not tid:
@@ -97,7 +101,7 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
             }
         )
     name = str(config.get("name") or "").strip() or default_tournament_name(start)
-    return {
+    payload = {
         "tournament_id": tid,
         "name": name,
         "start_at": config.get("start_at"),
@@ -109,6 +113,8 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
         "updated_at": config.get("updated_at"),
         "featured_tournament_id": str(config.get("featured_tournament_id") or "").strip() or None,
     }
+    payload.update(extras)
+    return payload
 
 
 def drop_untracked_scores(store: Store, registry) -> list[str]:

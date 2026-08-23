@@ -586,7 +586,17 @@ a.tourney-card-link:hover {
   font-size: 12px;
   margin-top: 0;
   flex: 0 0 auto;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.tourney-card-desc {
+  color: var(--mute);
+  font-size: 12px;
+  margin: 6px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .tourney-next {
@@ -773,9 +783,22 @@ a.tourney-window:hover {
 
 .tourney-facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
   margin: 14px 0 18px;
+}
+
+.tourney-description,
+.tourney-prize-places {
+  color: var(--sand);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0 0 12px;
+}
+
+.tourney-prize-places {
+  color: var(--mute);
+  font-size: 13px;
 }
 
 .tourney-facts span {
@@ -1507,6 +1530,13 @@ a.you-farm:focus-visible {
   gap: 6px;
   color: var(--sand);
   font-size: 13px;
+}
+
+.form-grid textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  font: inherit;
 }
 
 .row-actions {
@@ -2322,7 +2352,9 @@ a.past-card:hover {
   grid-template-areas:
     "top facts"
     "name facts"
-    "dates facts";
+    "dates facts"
+    "desc facts"
+    "prizes facts";
   column-gap: 24px;
   row-gap: 4px;
   align-items: center;
@@ -2369,6 +2401,22 @@ a.past-card:hover {
   grid-template-columns: auto auto;
   gap: 18px 28px;
   text-align: right;
+}
+
+.window-card-desc,
+.window-card-prizes {
+  grid-area: desc;
+  color: var(--mute);
+  font-size: 13px;
+  margin: 8px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.window-card-prizes {
+  grid-area: prizes;
 }
 
 .tourney-status.ongoing {
@@ -2444,6 +2492,8 @@ a.past-card:hover {
       "top"
       "name"
       "dates"
+      "desc"
+      "prizes"
       "facts";
   }
 

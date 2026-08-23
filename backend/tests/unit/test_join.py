@@ -48,17 +48,19 @@ def _json(response):
     return json.loads(response["body"])
 
 
-def _create_joinable(app, *, name, start, end):
+def _create_joinable(app, *, name, start, end, **extra):
+    body = {
+        "name": name,
+        "start_at": start,
+        "end_at": end,
+        "prize_amount": "30",
+    }
+    body.update(extra)
     created = app.lambda_handler(
         _event(
             "POST",
             "/admin/tournaments",
-            {
-                "name": name,
-                "start_at": start,
-                "end_at": end,
-                "prize_amount": "30",
-            },
+            body,
         ),
         None,
     )
@@ -377,3 +379,287 @@ def test_public_tournament_hides_joins_after_first_day_2230(aws_env, monkeypatch
         store, live["tournament_id"], now=datetime(2026, 8, 17, 22, 30, tzinfo=timezone.utc)
     )
     assert closed_payload["accepts_joins"] is False
+
+
+def test_auto_join_enrolls_immediately(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Auto cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="auto",
+    )
+    joined = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert joined["statusCode"] == 201, joined
+    payload = _json(joined)
+    assert payload["count"] == 1
+    assert payload["submissions"][0]["status"] == "enrolled"
+    assert payload["submissions"][0]["approved_at"]
+    roster = _json(
+        app.lambda_handler(
+            _event("GET", f"/admin/tournaments/{live['tournament_id']}/roster"), None
+        )
+    )
+    assert roster["members"][0]["status"] == "enrolled"
+    assert roster["members"][0]["farm_id"] == "3666918801844311"
+
+
+def test_must_confirm_stays_pending_until_approve(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Confirm cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="confirm",
+    )
+    joined = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "3666918801844311", "name": "rmr", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert joined["statusCode"] == 201
+    assert _json(joined)["submissions"][0]["status"] == "pending"
+    approved = app.lambda_handler(
+        _event("POST", f"/admin/submissions/3666918801844311/{live['tournament_id']}/approve"),
+        None,
+    )
+    assert approved["statusCode"] == 200
+    roster = _json(
+        app.lambda_handler(
+            _event("GET", f"/admin/tournaments/{live['tournament_id']}/roster"), None
+        )
+    )
+    assert roster["members"][0]["status"] == "enrolled"
+
+
+def test_event_without_new_fields_still_creates_pending(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Legacy cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+    )
+    assert live["join_mode"] == "confirm"
+    assert live["min_bumpkin_level"] is None
+    assert live["max_players"] is None
+    joined = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "3666918801844311", "name": "rmr", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert joined["statusCode"] == 201
+    assert _json(joined)["submissions"][0]["status"] == "pending"
+
+
+def test_full_roster_rejects_next_public_join(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Cap cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="auto",
+        max_players=1,
+    )
+    first = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "1111111111111111", "name": "one", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert first["statusCode"] == 201
+    assert _json(first)["submissions"][0]["status"] == "enrolled"
+    second = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "2222222222222222", "name": "two", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert second["statusCode"] == 400
+    body = _json(second)
+    assert body["error"] == "VALIDATION_ERROR"
+    assert "full" in body["message"]
+
+
+def test_pending_joins_do_not_occupy_max_player_slots(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Pending cap",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="confirm",
+        max_players=1,
+    )
+    first = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "1111111111111111", "name": "one", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert first["statusCode"] == 201
+    assert _json(first)["submissions"][0]["status"] == "pending"
+    second = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "2222222222222222", "name": "two", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert second["statusCode"] == 201
+    assert _json(second)["submissions"][0]["status"] == "pending"
+
+
+def test_min_bumpkin_level_rejects_underleveled_farm(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Level cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        min_bumpkin_level=20,
+    )
+    app._get_store().put_identity("1111111111111111", "low", nft_id=1)
+    app._get_store().put_identity("2222222222222222", "high", nft_id=2)
+    monkeypatch.setattr(
+        "tournament.membership.lookup_bumpkin_level",
+        lambda nft_id, **kwargs: {1: 5, 2: 30}[int(nft_id)],
+    )
+    low = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "1111111111111111", "name": "low", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert low["statusCode"] == 400
+    body = _json(low)
+    assert body["error"] == "VALIDATION_ERROR"
+    assert "minimum bumpkin level" in body["message"]
+    high = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {"farm_id": "2222222222222222", "name": "high", "tournament_id": live["tournament_id"]},
+        ),
+        None,
+    )
+    assert high["statusCode"] == 201
+    assert _json(high)["submissions"][0]["status"] == "pending"
+
+
+def test_min_bumpkin_level_fails_closed_when_unread(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Level cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        min_bumpkin_level=10,
+    )
+    from tournament.sfl_world import SflWorldError
+
+    def _fail(*args, **kwargs):
+        raise SflWorldError("nope")
+
+    monkeypatch.setattr("tournament.membership.lookup_farm_name", _fail)
+    missing = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3333333333333333",
+                "name": "ghost",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert missing["statusCode"] == 400
+    body = _json(missing)
+    assert body["error"] == "VALIDATION_ERROR"
+    assert "could not be read" in body["message"]
+
+
+def test_admin_force_add_ignores_public_cap_and_level(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Gated cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="auto",
+        max_players=1,
+        min_bumpkin_level=99,
+    )
+    added = app.lambda_handler(
+        _event("POST", "/admin/farms", {"farm_id": "3666918801844311", "name": "rmr"}),
+        None,
+    )
+    assert added["statusCode"] == 201
+    extra = app.lambda_handler(
+        _event("POST", "/admin/farms", {"farm_id": "2791164672544774", "name": "bob"}),
+        None,
+    )
+    assert extra["statusCode"] == 201
+    first = app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/tournaments/{live['tournament_id']}/farms",
+            {"farm_ids": ["3666918801844311"]},
+        ),
+        None,
+    )
+    assert first["statusCode"] == 200, first
+    second = app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/tournaments/{live['tournament_id']}/farms",
+            {"farm_ids": ["2791164672544774"]},
+        ),
+        None,
+    )
+    assert second["statusCode"] == 200, second
+    roster = _json(
+        app.lambda_handler(
+            _event("GET", f"/admin/tournaments/{live['tournament_id']}/roster"), None
+        )
+    )
+    ids = {row["farm_id"] for row in roster["members"]}
+    assert ids == {"3666918801844311", "2791164672544774"}

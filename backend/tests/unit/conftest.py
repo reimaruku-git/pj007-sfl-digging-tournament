@@ -22,6 +22,24 @@ def live_join_open(monkeypatch):
         assert start_at is not None
         clock = start_at.replace(hour=16, minute=0, second=0, microsecond=0)
         monkeypatch.setattr("tournament.membership.utc_clock", lambda now=None: clock)
+
+        def _catalog_clock(now=None):
+            if now is None:
+                return clock
+            if now.tzinfo is None:
+                return now.replace(tzinfo=timezone.utc)
+            return now.astimezone(timezone.utc)
+
+        monkeypatch.setattr("tournament.catalog._clock", _catalog_clock)
+
+        from tournament import archive as archive_mod
+
+        original_archive = archive_mod.archive_current
+
+        def _archive_current(store, *, now=None, force=False):
+            return original_archive(store, now=now or clock, force=force)
+
+        monkeypatch.setattr("tournament.archive.archive_current", _archive_current)
         return clock
 
     return _freeze

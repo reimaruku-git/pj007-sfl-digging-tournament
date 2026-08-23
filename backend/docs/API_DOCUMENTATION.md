@@ -37,7 +37,12 @@ is `scheduled`.
   "status": "active",
   "last_full_sync_at": "2026-08-14T13:00:00+00:00",
   "updated_at": "2026-08-14T13:00:00+00:00",
-  "featured_tournament_id": "20260814T120000Z_7d"
+  "featured_tournament_id": "20260814T120000Z_7d",
+  "min_bumpkin_level": null,
+  "max_players": null,
+  "join_mode": "confirm",
+  "description": "",
+  "prize_places": []
 }
 ```
 
@@ -93,7 +98,12 @@ calls the SFL API. Public home uses `featured_tournament_id` from
     "status": "active",
     "last_full_sync_at": "2026-08-14T13:00:00+00:00",
     "updated_at": "2026-08-14T13:00:00+00:00",
-    "featured_tournament_id": "20260814T120000Z_7d"
+    "featured_tournament_id": "20260814T120000Z_7d",
+    "min_bumpkin_level": null,
+    "max_players": null,
+    "join_mode": "confirm",
+    "description": "",
+    "prize_places": []
   }
 }
 ```
@@ -214,7 +224,12 @@ Scheduled, live, and ended events. Ended standings are frozen to S3
       "status": "scheduled",
       "archived_at": null,
       "count": 0,
-      "leader_farm_id": null
+      "leader_farm_id": null,
+      "min_bumpkin_level": null,
+      "max_players": null,
+      "join_mode": "confirm",
+      "description": "",
+      "prize_places": []
     }
   ],
   "count": 1,
@@ -253,7 +268,12 @@ false. Already-enrolled farms stay on the board.
       "end_at": "2026-08-21T00:00:00+00:00",
       "duration_days": 7,
       "prize_amount": "30",
-      "status": "ended"
+      "status": "ended",
+      "min_bumpkin_level": null,
+      "max_players": null,
+      "join_mode": "confirm",
+      "description": "",
+      "prize_places": []
     },
     "entries": [],
     "count": 0,
@@ -343,13 +363,36 @@ is required.
 }
 ```
 
+Must-confirm (`join_mode: "confirm"`, the default when omitted) creates
+`pending` rows. Auto-join (`join_mode: "auto"`) enrolls immediately:
+
+```json
+{
+  "submissions": [
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "tournament_id": "20260822T140000Z_7d",
+      "status": "enrolled",
+      "submitted_at": "2026-08-14T13:00:00+00:00",
+      "approved_at": "2026-08-14T13:00:00+00:00"
+    }
+  ],
+  "count": 1
+}
+```
+
 `400` if no joinable `tournament_id` is sent, or if the event is
 **active** and the clock is 22:30 UTC or later on that event's first
 UTC day (`join closed after 22:30 UTC on the first day`). Scheduled
-events stay joinable. `409` if that `(farm_id, tournament_id)` pair is
-already pending or enrolled. Approving tournament A does not enroll
-the farm in tournament B. Already-enrolled farms are not dropped when
-the join window closes.
+events stay joinable. `400` `VALIDATION_ERROR` if the farm's bumpkin
+level is below `min_bumpkin_level`, if that level cannot be read from
+sfl.world, or if enrolled players already equal `max_players`. Pending
+joins do not occupy a cap slot. Admin force-add and approve are not
+blocked by the public cap or level gates. `409` if that
+`(farm_id, tournament_id)` pair is already pending or enrolled.
+Approving tournament A does not enroll the farm in tournament B.
+Already-enrolled farms are not dropped when the join window closes.
 
 ## Admin
 
@@ -581,7 +624,46 @@ is required (1–80 chars). `end_at` or `duration_days` is required.
   "name": "Late August Otter Cup",
   "start_at": "2026-08-22T14:00:00+00:00",
   "end_at": "2026-08-29T14:00:00+00:00",
-  "prize_amount": "30"
+  "prize_amount": "50",
+  "min_bumpkin_level": 20,
+  "max_players": 32,
+  "join_mode": "auto",
+  "description": "Bring a shovel.",
+  "prize_places": [
+    { "place": 1, "amount": "50" },
+    { "place": 2, "amount": "20" },
+    { "place": 3, "amount": "10" }
+  ]
+}
+```
+
+Omitted extras keep today's defaults: `min_bumpkin_level` / `max_players`
+null (no gate), `join_mode` `"confirm"` (pending until admin approve),
+empty `description`, empty `prize_places`. `prize_amount` stays the
+headline Flower string. Per-place amounts are extra JSON strings.
+`join_mode` is `auto` or `confirm`.
+
+```json
+{
+  "tournament": {
+    "tournament_id": "20260822T140000Z_7d",
+    "name": "Late August Otter Cup",
+    "start_at": "2026-08-22T14:00:00+00:00",
+    "end_at": "2026-08-29T14:00:00+00:00",
+    "duration_days": 7,
+    "prize_amount": "50",
+    "status": "scheduled",
+    "archived_at": null,
+    "min_bumpkin_level": 20,
+    "max_players": 32,
+    "join_mode": "auto",
+    "description": "Bring a shovel.",
+    "prize_places": [
+      { "place": 1, "amount": "50" },
+      { "place": 2, "amount": "20" },
+      { "place": 3, "amount": "10" }
+    ]
+  }
 }
 ```
 
@@ -592,9 +674,12 @@ event has its own board at `GET /tournaments/{id}`.
 
 ### `PUT /admin/tournaments/{tournament_id}`
 
-Scheduled or live: name, `start_at`, `duration_days` (or `end_at`), and
-prize. Changing the live window re-scores farms from snapshots. Ended:
-`409`.
+Scheduled or live: name, `start_at`, `duration_days` (or `end_at`),
+prize, and the same extra settings as create (`min_bumpkin_level`,
+`max_players`, `join_mode`, `description`, `prize_places`). Omitted
+keys keep the stored values; send `null` / `[]` to clear an optional
+gate, description, or prize list. Changing the live window re-scores
+farms from snapshots. Ended: `409`.
 
 ### `DELETE /admin/tournaments/{tournament_id}`
 

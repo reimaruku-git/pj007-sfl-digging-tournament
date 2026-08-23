@@ -9,7 +9,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from tournament.event_settings import JOIN_MODE_AUTO, public_event_settings
 from tournament.farms import FarmRegistry, utc_now_iso
+from tournament.sfl_world import SflWorldError, lookup_bumpkin_level, lookup_farm_name
 from tournament.store import Store
 from tournament.window import parse_iso
 
@@ -21,6 +23,9 @@ JOINABLE_STATUSES = {STATUS_SCHEDULED, STATUS_ACTIVE}
 FIRST_DAY_JOIN_CLOSE_HOUR_UTC = 22
 FIRST_DAY_JOIN_CLOSE_MINUTE_UTC = 30
 JOIN_CLOSED_MESSAGE = "join closed after 22:30 UTC on the first day"
+LEVEL_TOO_LOW_MESSAGE = "farm does not meet the minimum bumpkin level"
+LEVEL_UNREADABLE_MESSAGE = "bumpkin level could not be read"
+TOURNAMENT_FULL_MESSAGE = "tournament is full"
 
 
 class MembershipError(Exception):
@@ -172,6 +177,64 @@ def is_joinable(row: dict[str, Any] | None, *, now: datetime | None = None) -> b
     return utc_clock(now) < cutoff
 
 
+def resolve_bumpkin_level(store: Store, farm_id: str) -> int | None:
+    """sfl.world land summary via stored nft_id (or land-info if identity is missing)."""
+    identity = store.get_identity(farm_id) or {}
+    nft_id = identity.get("nft_id")
+    if nft_id in (None, ""):
+        try:
+            looked = lookup_farm_name(farm_id)
+        except SflWorldError:
+            return None
+        nft_id = looked.get("nft_id")
+        looked_name = str(looked.get("name") or identity.get("name") or "").strip()
+        if looked_name:
+            store.put_identity(farm_id, looked_name, nft_id=nft_id)
+    if nft_id in (None, ""):
+        return None
+    try:
+        return lookup_bumpkin_level(nft_id)
+    except SflWorldError:
+        return None
+
+
+def enroll_member(
+    store: Store,
+    registry: FarmRegistry,
+    *,
+    farm_id: str,
+    tournament_id: str,
+    name: str,
+    submitted_at: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    existing = store.get_member(tournament_id, farm_id)
+    tracked = registry.get(farm_id)
+    join_name = str(name or (existing or {}).get("name") or "").strip()
+    if tracked:
+        saved = registry.upsert(
+            farm_id,
+            name=tracked.get("name") or join_name,
+            active=bool(tracked.get("active")),
+        )
+    else:
+        saved = registry.upsert(farm_id, name=join_name, active=True)
+    now = utc_now_iso()
+    member = store.put_member(
+        {
+            "farm_id": farm_id,
+            "tournament_id": tournament_id,
+            "name": join_name or (tracked or {}).get("name") or "",
+            "status": STATUS_ENROLLED,
+            "submitted_at": submitted_at or (existing or {}).get("submitted_at") or now,
+            "approved_at": now,
+        }
+    )
+    farm = next(item for item in saved["farms"] if item["farm_id"] == farm_id)
+    if not store.get_score(farm_id):
+        store.put_score(store.empty_score(farm_id, farm.get("name") or ""))
+    return member, farm
+
+
 def request_joins(
     store: Store,
     *,
@@ -179,8 +242,10 @@ def request_joins(
     name: str,
     tournament_ids: list[str],
     now: datetime | None = None,
+    registry: FarmRegistry | None = None,
 ) -> list[dict[str, Any]]:
     clock = utc_clock(now)
+    rows: list[tuple[str, dict[str, Any]]] = []
     for tid in tournament_ids:
         row = store.get_tournament(tid)
         if not is_joinable(row, now=clock):
@@ -194,9 +259,34 @@ def request_joins(
                 code="CONFLICT",
                 status=409,
             )
+        settings = public_event_settings(row or {})
+        min_level = settings.get("min_bumpkin_level")
+        if min_level is not None:
+            level = resolve_bumpkin_level(store, farm_id)
+            if level is None:
+                raise MembershipError(LEVEL_UNREADABLE_MESSAGE)
+            if level < int(min_level):
+                raise MembershipError(LEVEL_TOO_LOW_MESSAGE)
+        max_players = settings.get("max_players")
+        if max_players is not None and len(enrolled_farm_ids(store, tid)) >= int(max_players):
+            raise MembershipError(TOURNAMENT_FULL_MESSAGE)
+        rows.append((tid, row or {}))
     created: list[dict[str, Any]] = []
     submitted_at = utc_now_iso()
-    for tid in tournament_ids:
+    for tid, row in rows:
+        settings = public_event_settings(row)
+        auto = settings.get("join_mode") == JOIN_MODE_AUTO and registry is not None
+        if auto:
+            member, _farm = enroll_member(
+                store,
+                registry,
+                farm_id=farm_id,
+                tournament_id=tid,
+                name=name,
+                submitted_at=submitted_at,
+            )
+            created.append(public_member(member))
+            continue
         item = store.put_member(
             {
                 "farm_id": farm_id,
@@ -223,21 +313,14 @@ def approve_join(
         raise MembershipError("submission not found", code="NOT_FOUND", status=404)
     if not is_open_event(store.get_tournament(tournament_id)):
         raise MembershipError("tournament is not joinable")
-    tracked = registry.get(farm_id)
-    join_name = str(member.get("name") or "").strip()
-    if tracked:
-        name = tracked.get("name") or join_name
-        saved = registry.upsert(farm_id, name=name, active=bool(tracked.get("active")))
-    else:
-        saved = registry.upsert(farm_id, name=join_name, active=True)
-    member["status"] = STATUS_ENROLLED
-    member["approved_at"] = utc_now_iso()
-    if join_name and not member.get("name"):
-        member["name"] = join_name
-    store.put_member(member)
-    farm = next(item for item in saved["farms"] if item["farm_id"] == farm_id)
-    if not store.get_score(farm_id):
-        store.put_score(store.empty_score(farm_id, farm.get("name") or ""))
+    _member, farm = enroll_member(
+        store,
+        registry,
+        farm_id=farm_id,
+        tournament_id=tournament_id,
+        name=str(member.get("name") or ""),
+        submitted_at=member.get("submitted_at"),
+    )
     return farm
 
 

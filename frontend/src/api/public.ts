@@ -2,6 +2,12 @@ import { errorMessage, requestJson } from "./client";
 
 export type TournamentStatus = "scheduled" | "active" | "ended";
 export type FarmStatus = "not_started" | "in_progress" | "completed" | "invalidated";
+export type JoinMode = "auto" | "confirm";
+
+export type PrizePlace = {
+  place: number;
+  amount: string;
+};
 
 export type TournamentConfig = {
   tournament_id?: string;
@@ -14,6 +20,11 @@ export type TournamentConfig = {
   last_full_sync_at: string | null;
   updated_at?: string;
   featured_tournament_id?: string | null;
+  min_bumpkin_level?: number | null;
+  max_players?: number | null;
+  join_mode?: JoinMode;
+  description?: string;
+  prize_places?: PrizePlace[];
 };
 
 export type FarmDayRecord = {
@@ -128,6 +139,11 @@ export type TournamentSummary = {
   archived_at: string | null;
   count: number;
   leader_farm_id: string | null;
+  min_bumpkin_level?: number | null;
+  max_players?: number | null;
+  join_mode?: JoinMode;
+  description?: string;
+  prize_places?: PrizePlace[];
 };
 
 export type TournamentArchive = {

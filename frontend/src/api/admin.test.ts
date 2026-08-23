@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addTournamentFarms,
   approveSubmission,
+  createTournament,
   fetchAdminConfig,
   fetchAdminFarm,
   fetchTournamentRoster,
@@ -10,6 +11,7 @@ import {
   rejectSubmission,
   saveConfig,
   setFeaturedTournament,
+  updateTournament,
 } from "./admin";
 
 vi.mock("./client", () => ({
@@ -87,6 +89,57 @@ describe("admin api", () => {
     });
     expect(saved.config.prize_amount).toBe("30");
     expect(saved.rescore?.rescored).toBe(2);
+  });
+
+  it("creates and updates a tournament with extra snake_case settings", async () => {
+    const input = {
+      name: "Settings cup",
+      start_at: "2026-10-01T00:00:00.000Z",
+      duration_days: 7,
+      prize_amount: "50",
+      min_bumpkin_level: 20,
+      max_players: 32,
+      join_mode: "auto",
+      description: "Bring a shovel.",
+      prize_places: [
+        { place: 1, amount: "50" },
+        { place: 2, amount: "20" },
+      ],
+    };
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        tournament: {
+          tournament_id: "cup-1",
+          ...input,
+          end_at: "2026-10-08T00:00:00.000Z",
+          status: "scheduled",
+        },
+      }),
+    );
+    const created = await createTournament(input);
+    expect(mockRequest).toHaveBeenCalledWith("admin/tournaments", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    expect(created.join_mode).toBe("auto");
+    expect(created.min_bumpkin_level).toBe(20);
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        tournament: {
+          tournament_id: "cup-1",
+          ...input,
+          join_mode: "confirm",
+          end_at: "2026-10-08T00:00:00.000Z",
+          status: "scheduled",
+        },
+      }),
+    );
+    const updated = await updateTournament("cup-1", { join_mode: "confirm" });
+    expect(mockRequest).toHaveBeenCalledWith("admin/tournaments/cup-1", {
+      method: "PUT",
+      body: JSON.stringify({ join_mode: "confirm" }),
+    });
+    expect(updated.join_mode).toBe("confirm");
   });
 
   it("sets the home showcase through PUT admin/featured", async () => {

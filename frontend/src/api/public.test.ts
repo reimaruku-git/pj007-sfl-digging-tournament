@@ -145,6 +145,11 @@ describe("public api", () => {
             prize_amount: "45",
             status: "scheduled",
             last_full_sync_at: null,
+            min_bumpkin_level: 20,
+            max_players: 32,
+            join_mode: "auto",
+            description: "Bring a shovel.",
+            prize_places: [{ place: 1, amount: "45" }],
           },
           entries: [{ farm_id: "42", name: "Ada", score: null }],
           count: 1,
@@ -156,6 +161,10 @@ describe("public api", () => {
     const tournament = await fetchTournament("cup-1");
     expect(mockRequest).toHaveBeenCalledWith("tournaments/cup-1");
     expect(tournament.config.prize_amount).toBe("45");
+    expect(tournament.config.join_mode).toBe("auto");
+    expect(tournament.config.min_bumpkin_level).toBe(20);
+    expect(tournament.config.description).toBe("Bring a shovel.");
+    expect(tournament.config.prize_places?.[0]?.amount).toBe("45");
     expect(tournament.count).toBe(1);
     expect(tournament.overall_average_per_day).toBeNull();
   });

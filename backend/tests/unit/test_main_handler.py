@@ -185,7 +185,7 @@ def test_admin_override_score(aws_env, monkeypatch):
             {
                 "name": "Override cup",
                 "start_at": "2026-08-10T00:00:00+00:00",
-                "end_at": "2026-08-20T00:00:00+00:00",
+                "end_at": "2026-09-20T00:00:00+00:00",
                 "prize_amount": "30",
             },
         ),
@@ -211,7 +211,7 @@ def _open_live_cup(app):
             {
                 "name": "Live cup",
                 "start_at": "2026-08-10T00:00:00+00:00",
-                "end_at": "2026-08-20T00:00:00+00:00",
+                "end_at": "2026-09-20T00:00:00+00:00",
                 "prize_amount": "30",
             },
         ),

@@ -284,10 +284,16 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
         name = str(identity.get("name") or "").strip() or name
     try:
         submissions = request_joins(
-            store, farm_id=farm_id, name=name, tournament_ids=tournament_ids
+            store,
+            farm_id=farm_id,
+            name=name,
+            tournament_ids=tournament_ids,
+            registry=_get_registry(),
         )
     except MembershipError as exc:
         return _membership_error(exc)
+    if any(item.get("status") == "enrolled" for item in submissions):
+        _refresh_public_board(store)
     return create_response(201, {"submissions": submissions, "count": len(submissions)})
 
 

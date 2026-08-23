@@ -61,7 +61,7 @@ def _create(app, name, start, end):
 def test_approve_enrolls_only_named_tournament(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
+    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
     submitted = app.lambda_handler(
         _event(
@@ -110,7 +110,7 @@ def test_approve_enrolls_only_named_tournament(aws_env, monkeypatch, live_join_o
 def test_reject_leaves_other_pending_and_enrolled_rows(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
+    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
     app.lambda_handler(
         _event(
@@ -155,7 +155,7 @@ def test_reject_leaves_other_pending_and_enrolled_rows(aws_env, monkeypatch, liv
 
 def test_multi_add_and_remove_from_one_tournament_only(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
+    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
     for farm_id, name in (("111111", "alpha"), ("222222", "bravo"), ("333333", "charlie")):
         added = app.lambda_handler(
@@ -213,7 +213,7 @@ def test_multi_add_and_remove_from_one_tournament_only(aws_env, monkeypatch):
 
 def test_public_board_lists_only_enrolled_active_farms(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
+    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "111111", "name": "in"}), None)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "222222", "name": "out"}), None)
@@ -248,7 +248,7 @@ def test_public_board_lists_only_enrolled_active_farms(aws_env, monkeypatch):
 
 def test_scheduled_tournament_does_not_leak_live_score(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-08-20T00:00:00+00:00")
+    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
     later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "111111", "name": "Ada"}), None)
     app.lambda_handler(

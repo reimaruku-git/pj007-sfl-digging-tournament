@@ -441,6 +441,106 @@ describe("TournamentsPage", () => {
     expect(download.disabled).toBe(true);
   });
 
+  it("shows description, prize places, and auto-join copy on public detail", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Settings cup",
+      status: "active",
+      description: "Bring a shovel.",
+      min_bumpkin_level: 20,
+      max_players: 32,
+      join_mode: "auto",
+      prize_places: [
+        { place: 1, amount: "50" },
+        { place: 2, amount: "20" },
+      ],
+      prize_amount: "50",
+      count: 4,
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(live, []),
+      config: {
+        ...archive(live, []).config,
+        description: "Bring a shovel.",
+        min_bumpkin_level: 20,
+        max_players: 32,
+        join_mode: "auto",
+        prize_places: [
+          { place: 1, amount: "50" },
+          { place: 2, amount: "20" },
+        ],
+      },
+      accepts_joins: true,
+    });
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="tournament-description"]')?.textContent).toMatch(
+      /Bring a shovel/,
+    );
+    expect(page.querySelector('[data-testid="tournament-prize-places"]')?.textContent).toMatch(
+      /1st 50 Flower/,
+    );
+    expect(page.querySelector('[data-testid="tournament-prize-places"]')?.textContent).toMatch(
+      /2nd 20 Flower/,
+    );
+    expect(page.querySelector('[data-testid="tournament-min-level"]')?.textContent).toMatch(/20/);
+    expect(page.querySelector('[data-testid="tournament-join-mode"]')?.textContent).toMatch(
+      /Auto join/,
+    );
+    expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
+      /enrolled immediately/,
+    );
+  });
+
+  it("uses must-confirm join copy when join_mode is confirm", async () => {
+    const next = summary({
+      tournament_id: "next",
+      name: "Confirm cup",
+      status: "scheduled",
+      join_mode: "confirm",
+      description: "Wait for approval.",
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(next, []),
+      config: {
+        ...archive(next, []).config,
+        join_mode: "confirm",
+        description: "Wait for approval.",
+      },
+    });
+    const page = await renderAt("/tournaments/next");
+    expect(page.querySelector('[data-testid="tournament-description"]')?.textContent).toMatch(
+      /Wait for approval/,
+    );
+    expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
+      /admin will approve/,
+    );
+  });
+
+  it("lists description, prize places, min level, and join mode on catalog cards", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Settings cup",
+      status: "active",
+      description: "Bring a shovel.",
+      min_bumpkin_level: 15,
+      max_players: 8,
+      join_mode: "auto",
+      prize_places: [{ place: 1, amount: "40" }],
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    const page = await renderAt("/tournaments");
+    expect(page.querySelector('[data-testid="tourney-desc-live"]')?.textContent).toMatch(
+      /Bring a shovel/,
+    );
+    expect(page.querySelector('[data-testid="tourney-prizes-live"]')?.textContent).toMatch(
+      /1st 40 Flower/,
+    );
+    expect(page.querySelector('[data-testid="tourney-min-level-live"]')?.textContent).toMatch(/15/);
+    expect(page.querySelector('[data-testid="tourney-join-mode-live"]')?.textContent).toMatch(
+      /Auto join/,
+    );
+  });
+
   it("joins from the detail using the stored farm id and sfl.world name", async () => {
     const next = summary({
       tournament_id: "next",

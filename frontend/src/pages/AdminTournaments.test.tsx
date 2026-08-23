@@ -69,8 +69,15 @@ describe("AdminTournaments", () => {
     expect(container.textContent).toMatch(/Length \(days\)/);
     expect(container.textContent).not.toMatch(/Custom days/);
     expect(container.textContent).not.toMatch(/To \(optional\)/);
-    expect(container.querySelectorAll('input[type="number"]')).toHaveLength(1);
-    expect((container.querySelector('input[type="number"]') as HTMLInputElement).min).toBe("1");
+    expect(container.querySelector('[data-testid="duration-days"]')).not.toBeNull();
+    expect((container.querySelector('[data-testid="duration-days"]') as HTMLInputElement).min).toBe(
+      "1",
+    );
+    expect(container.textContent).toMatch(/Min bumpkin level/);
+    expect(container.textContent).toMatch(/Maximum players/);
+    expect(container.textContent).toMatch(/Join mode/);
+    expect(container.textContent).toMatch(/How many players can win/);
+    expect(container.textContent).toMatch(/Description/);
   });
 
   it("lets admin feature a live or past tournament, not upcoming", async () => {
@@ -153,7 +160,7 @@ describe("AdminTournaments", () => {
     const name = container.querySelector(
       'input[placeholder="Late August Otter Cup"]',
     ) as HTMLInputElement;
-    const days = container.querySelector('input[type="number"]') as HTMLInputElement;
+    const days = container.querySelector('[data-testid="duration-days"]') as HTMLInputElement;
     expect(name.value).toBe("Live cup");
     expect(days.value).toBe("10");
 
@@ -384,6 +391,114 @@ describe("AdminTournaments", () => {
     });
     expect(onApprove).toHaveBeenCalledWith("11", "live");
     expect(container.querySelector('[data-testid="confirm-dialog"]')).toBeNull();
+  });
+
+  it("submits snake_case extra settings on create and edit", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "live",
+          name: "Live cup",
+          status: "active",
+          description: "Old blurb",
+          min_bumpkin_level: 10,
+          max_players: 16,
+          join_mode: "confirm",
+          prize_places: [{ place: 1, amount: "30" }],
+        }),
+      ],
+      { onCreate, onUpdate },
+    );
+
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    const setValue = (selector: string, value: string) => {
+      const input = container.querySelector(selector) as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    setValue('input[placeholder="Late August Otter Cup"]', "Autumn cup");
+    setValue('input[type="date"]', "2026-10-01");
+    setValue('[data-testid="duration-days"]', "7");
+    const desc = container.querySelector(
+      '[data-testid="tournament-description-input"]',
+    ) as HTMLTextAreaElement;
+    const descSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    descSetter?.call(desc, "Bring a shovel.");
+    desc.dispatchEvent(new Event("input", { bubbles: true }));
+    setValue('[data-testid="min-bumpkin-level"]', "20");
+    setValue('[data-testid="max-players"]', "32");
+    act(() => {
+      const select = container.querySelector('[data-testid="join-mode"]') as HTMLSelectElement;
+      select.value = "auto";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    setValue('[data-testid="winner-count"]', "2");
+    setValue('[data-testid="prize-place-1"]', "50");
+    setValue('[data-testid="prize-place-2"]', "20");
+    await act(async () => {
+      const save = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Create tournament",
+      );
+      save?.click();
+    });
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Autumn cup",
+        duration_days: 7,
+        prize_amount: "30",
+        description: "Bring a shovel.",
+        min_bumpkin_level: 20,
+        max_players: 32,
+        join_mode: "auto",
+        prize_places: [
+          { place: 1, amount: "50" },
+          { place: 2, amount: "20" },
+        ],
+      }),
+    );
+
+    act(() => {
+      const edit = [...container.querySelectorAll('[data-testid="admin-card-live"] button')].find(
+        (node) => node.textContent === "Edit",
+      );
+      (edit as HTMLButtonElement | null)?.click();
+    });
+    expect(
+      (container.querySelector('[data-testid="tournament-description-input"]') as HTMLTextAreaElement)
+        .value,
+    ).toBe("Old blurb");
+    expect((container.querySelector('[data-testid="min-bumpkin-level"]') as HTMLInputElement).value).toBe(
+      "10",
+    );
+    expect((container.querySelector('[data-testid="join-mode"]') as HTMLSelectElement).value).toBe(
+      "confirm",
+    );
+    setValue('[data-testid="min-bumpkin-level"]', "25");
+    await act(async () => {
+      const save = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Save changes",
+      );
+      save?.click();
+    });
+    expect(onUpdate).toHaveBeenCalledWith(
+      "live",
+      expect.objectContaining({
+        name: "Live cup",
+        description: "Old blurb",
+        min_bumpkin_level: 25,
+        max_players: 16,
+        join_mode: "confirm",
+        prize_places: [{ place: 1, amount: "30" }],
+      }),
+    );
   });
 
   it("lets admin groups size to their content in the shipped stylesheet", () => {

@@ -302,7 +302,7 @@ def test_admin_http_create_and_cancel(aws_env, monkeypatch):
                 {
                     "name": "Live now",
                     "start_at": "2026-08-10T00:00:00+00:00",
-                    "end_at": "2026-08-20T00:00:00+00:00",
+                    "end_at": "2026-09-20T00:00:00+00:00",
                     "prize_amount": "30",
                 }
             ),
@@ -370,3 +370,167 @@ def test_admin_http_create_and_cancel(aws_env, monkeypatch):
         None,
     )
     assert public_create["statusCode"] == 404
+
+
+def _load_http(aws_env, monkeypatch):
+    root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(root / "lambda_functions" / "main_function"))
+    monkeypatch.setenv("DATA_BUCKET", aws_env["bucket"])
+    monkeypatch.setenv("CONFIG_TABLE", aws_env["config_table"])
+    monkeypatch.setenv("SCORES_TABLE", aws_env["scores_table"])
+    monkeypatch.setenv("SUBMISSIONS_TABLE", aws_env["submissions_table"])
+    monkeypatch.setenv("ALLOWED_ORIGIN", "*")
+    monkeypatch.setenv("FARM_SYNC_FUNCTION", "")
+    if "app" in sys.modules:
+        del sys.modules["app"]
+    app = importlib.import_module("app")
+    app.DATA_BUCKET = aws_env["bucket"]
+    app.CONFIG_TABLE = aws_env["config_table"]
+    app.SCORES_TABLE = aws_env["scores_table"]
+    app.SUBMISSIONS_TABLE = aws_env["submissions_table"]
+    app.FARM_SYNC_FUNCTION = ""
+    app._store = None
+    app._registry = None
+    return app
+
+
+def _http(method: str, path: str, body=None, path_parameters=None):
+    return {
+        "rawPath": path,
+        "requestContext": {"http": {"method": method}, "stage": "dev"},
+        "headers": {},
+        "body": json.dumps(body) if body is not None else None,
+        "pathParameters": path_parameters or {},
+    }
+
+
+def test_http_create_and_edit_round_trip_event_settings(aws_env, monkeypatch):
+    app = _load_http(aws_env, monkeypatch)
+    settings = {
+        "name": "Settings cup",
+        "start_at": "2026-10-01T00:00:00+00:00",
+        "duration_days": 7,
+        "prize_amount": "50",
+        "min_bumpkin_level": 20,
+        "max_players": 32,
+        "join_mode": "auto",
+        "description": "Bring a shovel.",
+        "prize_places": [
+            {"place": 1, "amount": "50"},
+            {"place": 2, "amount": "20"},
+            {"place": 3, "amount": "10"},
+        ],
+    }
+    created = app.lambda_handler(_http("POST", "/admin/tournaments", settings), None)
+    assert created["statusCode"] == 201, created
+    row = json.loads(created["body"])["tournament"]
+    assert row["min_bumpkin_level"] == 20
+    assert row["max_players"] == 32
+    assert row["join_mode"] == "auto"
+    assert row["description"] == "Bring a shovel."
+    assert row["prize_places"] == [
+        {"place": 1, "amount": "50"},
+        {"place": 2, "amount": "20"},
+        {"place": 3, "amount": "10"},
+    ]
+    assert row["prize_amount"] == "50"
+    tid = row["tournament_id"]
+
+    listed = app.lambda_handler(_http("GET", "/tournaments"), None)
+    assert listed["statusCode"] == 200
+    found = next(
+        item for item in json.loads(listed["body"])["tournaments"] if item["tournament_id"] == tid
+    )
+    assert found["min_bumpkin_level"] == 20
+    assert found["max_players"] == 32
+    assert found["join_mode"] == "auto"
+    assert found["description"] == "Bring a shovel."
+    assert found["prize_places"][0]["amount"] == "50"
+
+    detail = app.lambda_handler(
+        _http("GET", f"/tournaments/{tid}", path_parameters={"tournament_id": tid}),
+        None,
+    )
+    assert detail["statusCode"] == 200
+    config = json.loads(detail["body"])["tournament"]["config"]
+    assert config["min_bumpkin_level"] == 20
+    assert config["max_players"] == 32
+    assert config["join_mode"] == "auto"
+    assert config["description"] == "Bring a shovel."
+    assert config["prize_places"] == row["prize_places"]
+
+    edited = app.lambda_handler(
+        _http(
+            "PUT",
+            f"/admin/tournaments/{tid}",
+            {
+                "min_bumpkin_level": 25,
+                "join_mode": "confirm",
+                "description": "Updated blurb.",
+                "prize_places": [{"place": 1, "amount": "80"}],
+            },
+            path_parameters={"tournament_id": tid},
+        ),
+        None,
+    )
+    assert edited["statusCode"] == 200, edited
+    updated = json.loads(edited["body"])["tournament"]
+    assert updated["min_bumpkin_level"] == 25
+    assert updated["max_players"] == 32
+    assert updated["join_mode"] == "confirm"
+    assert updated["description"] == "Updated blurb."
+    assert updated["prize_places"] == [{"place": 1, "amount": "80"}]
+    assert updated["prize_amount"] == "50"
+
+    omitted = app.lambda_handler(
+        _http(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "Plain cup",
+                "start_at": "2026-11-01T00:00:00+00:00",
+                "duration_days": 7,
+                "prize_amount": "30",
+            },
+        ),
+        None,
+    )
+    assert omitted["statusCode"] == 201, omitted
+    plain = json.loads(omitted["body"])["tournament"]
+    assert plain["min_bumpkin_level"] is None
+    assert plain["max_players"] is None
+    assert plain["join_mode"] == "confirm"
+    assert plain["description"] == ""
+    assert plain["prize_places"] == []
+
+    public_plain = app.lambda_handler(
+        _http(
+            "GET",
+            f"/tournaments/{plain['tournament_id']}",
+            path_parameters={"tournament_id": plain["tournament_id"]},
+        ),
+        None,
+    )
+    public_config = json.loads(public_plain["body"])["tournament"]["config"]
+    assert public_config["join_mode"] == "confirm"
+    assert public_config["min_bumpkin_level"] is None
+    assert public_config["max_players"] is None
+    assert public_config["description"] == ""
+    assert public_config["prize_places"] == []
+
+    bad = app.lambda_handler(
+        _http(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "Bad mode",
+                "start_at": "2026-12-01T00:00:00+00:00",
+                "duration_days": 7,
+                "prize_amount": "30",
+                "join_mode": "maybe",
+            },
+        ),
+        None,
+    )
+    assert bad["statusCode"] == 400
+    assert json.loads(bad["body"])["error"] == "VALIDATION_ERROR"
