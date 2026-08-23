@@ -312,8 +312,8 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               <b>{formatScore(data.overall_average_per_day)}</b>
             </div>
             <div data-testid="tournament-join-mode">
-              <span className="muted">Join</span>
-              <b>{autoJoin ? "Auto join" : "Must confirm"}</b>
+              <span className="muted">Approval</span>
+              <b>{autoJoin ? "No" : "Yes"}</b>
             </div>
           </div>
           {data.config.prize_places && data.config.prize_places.length > 0 ? (

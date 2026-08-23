@@ -492,6 +492,9 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-island"]')?.textContent).toMatch(/Desert/);
     expect(page.querySelector('[data-testid="tournament-streak"]')?.textContent).toMatch(/None/);
     expect(page.querySelector('[data-testid="tournament-vip"]')?.textContent).toMatch(/Yes/);
+    expect(page.querySelector('[data-testid="tournament-join-mode"]')?.textContent).toMatch(
+      /Approval\s*No/,
+    );
     expect(page.querySelector('[data-testid="tournament-min-level"]')).toBeNull();
     const peek = page.querySelector('[data-testid="tournament-prize-places"]')?.textContent || "";
     expect(peek).toMatch(/1st 50 Flower · Rare Key/);
@@ -530,6 +533,9 @@ describe("TournamentsPage", () => {
     const page = await renderAt("/tournaments/next");
     expect(page.querySelector('[data-testid="tournament-description"]')?.textContent).toMatch(
       /Wait for approval/,
+    );
+    expect(page.querySelector('[data-testid="tournament-join-mode"]')?.textContent).toMatch(
+      /Approval\s*Yes/,
     );
     expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
       /admin will approve/,
