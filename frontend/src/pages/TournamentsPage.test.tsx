@@ -3,7 +3,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../api/public";
+import type {
+  LeaderboardEntry,
+  PrizePlace,
+  TournamentArchive,
+  TournamentSummary,
+} from "../api/public";
 
 const listTournaments = vi.fn();
 const fetchTournament = vi.fn();
@@ -80,6 +85,14 @@ function archive(row: TournamentSummary, entries: LeaderboardEntry[]): Tournamen
       prize_amount: row.prize_amount,
       status: row.status,
       last_full_sync_at: null,
+      description: row.description,
+      min_bumpkin_island: row.min_bumpkin_island,
+      min_digging_streak: row.min_digging_streak,
+      vip_required: row.vip_required,
+      max_players: row.max_players,
+      enrolled_count: row.enrolled_count,
+      join_mode: row.join_mode,
+      prize_places: row.prize_places,
     },
     entries,
     count: entries.length,
@@ -87,6 +100,10 @@ function archive(row: TournamentSummary, entries: LeaderboardEntry[]): Tournamen
     overall_average_per_day: 4.5,
     accepts_joins: row.status === "scheduled" || row.status === "active",
   };
+}
+
+function places(...items: PrizePlace[]): PrizePlace[] {
+  return items;
 }
 
 async function renderAt(path: string, state?: { from?: string }) {
@@ -285,12 +302,16 @@ describe("TournamentsPage", () => {
     expect(page.textContent).toMatch(/Creators Digging Tournament/);
     expect(page.querySelector('[data-testid="tourney-window-live"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="tourney-window-next"]')).not.toBeNull();
-    expect(page.querySelector('[data-testid="catalog-ongoing"]')?.contains(
-      page.querySelector('[data-testid="tourney-window-live"]'),
-    )).toBe(true);
-    expect(page.querySelector('[data-testid="catalog-upcoming"]')?.contains(
-      page.querySelector('[data-testid="tourney-window-next"]'),
-    )).toBe(true);
+    expect(
+      page
+        .querySelector('[data-testid="catalog-ongoing"]')
+        ?.contains(page.querySelector('[data-testid="tourney-window-live"]')),
+    ).toBe(true);
+    expect(
+      page
+        .querySelector('[data-testid="catalog-upcoming"]')
+        ?.contains(page.querySelector('[data-testid="tourney-window-next"]')),
+    ).toBe(true);
     expect(page.querySelector('[data-testid="catalog-ended"]')?.textContent).toMatch(
       /No past tournaments yet/,
     );
@@ -327,11 +348,19 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).not.toMatch(
       /→|· 1d/,
     );
+    expect(page.querySelector("h1")?.textContent).toMatch(/Test Tournament 2/);
     expect(page.querySelector('[data-testid="tournament-prize"]')?.textContent).toMatch(
-      /30 Flower/,
+      /30 \$Flower/,
     );
     expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(/2/);
     expect(page.querySelector('[data-testid="tournament-overall-avg"]')).toBeNull();
+    const body = page.querySelector('[data-testid="tournament-detail-body"]');
+    expect(body).not.toBeNull();
+    expect(body?.textContent).not.toMatch(/Avg\s*\/\s*day/i);
+    expect(body?.textContent).not.toMatch(/average per day/i);
+    expect(page.querySelector('[data-testid="prize-place-card-1"]')).toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-2"]')).toBeNull();
+    expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
     expect(page.textContent).toMatch(/Ada/);
     expect(page.textContent).toMatch(/Bea/);
     expect(page.textContent).toMatch(/Total/);
@@ -344,15 +373,8 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="back-link"]')?.textContent).toMatch(/Back to home/);
     expect(page.querySelector('[data-testid="back-link"]')?.getAttribute("href")).toBe("/");
     expect(page.textContent).not.toMatch(/All windows/);
-    const podium = page.querySelector('[data-testid="tournament-podium"]');
     expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
-    expect(podium).not.toBeNull();
-    expect(podium?.textContent).toMatch(/Ada/);
-    expect(podium?.textContent).toMatch(/Bea/);
-    expect(podium?.querySelector(".place-1")?.textContent).toMatch(/Ada/);
-    expect(podium?.querySelector(".place-2")?.textContent).toMatch(/Bea/);
-    expect(page.querySelector(".place-1")?.getAttribute("href")).toBe("/tournaments/live/farm/1");
-    expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
     const download = page.querySelector('[data-testid="download-board"]') as HTMLButtonElement;
     expect(download).not.toBeNull();
     expect(download.disabled).toBe(false);
@@ -376,7 +398,7 @@ describe("TournamentsPage", () => {
     expect(payload.entries.map((row) => row.name)).toEqual(["Ada", "Bea"]);
   });
 
-  it("shows each event's own podium from that event's standings", async () => {
+  it("shows each event's own standings, not another event's farms", async () => {
     const cupA = summary({ tournament_id: "cup-a", name: "Cup A", status: "active" });
     const cupB = summary({ tournament_id: "cup-b", name: "Cup B", status: "active" });
     fetchTournament.mockImplementation(async (id: string) => {
@@ -394,21 +416,19 @@ describe("TournamentsPage", () => {
       ]);
     });
     const first = await renderAt("/tournaments/cup-a");
-    const podiumA = first.querySelector('[data-testid="tournament-podium"]');
-    expect(podiumA?.querySelector(".place-1")?.textContent).toMatch(/AlphaLead/);
-    expect(podiumA?.querySelector(".place-2")?.textContent).toMatch(/AlphaTwo/);
-    expect(podiumA?.querySelector(".place-3")?.textContent).toMatch(/AlphaThree/);
-    expect(podiumA?.textContent).not.toMatch(/BravoLead/);
+    expect(first.textContent).toMatch(/AlphaLead/);
+    expect(first.textContent).toMatch(/AlphaTwo/);
+    expect(first.textContent).toMatch(/AlphaThree/);
+    expect(first.textContent).not.toMatch(/BravoLead/);
     act(() => {
       root.unmount();
     });
     container.remove();
     const second = await renderAt("/tournaments/cup-b");
-    const podiumB = second.querySelector('[data-testid="tournament-podium"]');
-    expect(podiumB?.querySelector(".place-1")?.textContent).toMatch(/BravoLead/);
-    expect(podiumB?.querySelector(".place-2")?.textContent).toMatch(/BravoTwo/);
-    expect(podiumB?.querySelector(".place-3")?.textContent).toMatch(/BravoThree/);
-    expect(podiumB?.textContent).not.toMatch(/AlphaLead/);
+    expect(second.textContent).toMatch(/BravoLead/);
+    expect(second.textContent).toMatch(/BravoTwo/);
+    expect(second.textContent).toMatch(/BravoThree/);
+    expect(second.textContent).not.toMatch(/AlphaLead/);
   });
 
   it("hides the join button when accepts_joins is false", async () => {
@@ -443,7 +463,7 @@ describe("TournamentsPage", () => {
     expect(download.disabled).toBe(true);
   });
 
-  it("shows compact pre-join details, prize place cards with NFT, and extra prize table", async () => {
+  it("shows two-column winners and stats, NFT medals, and view-all for more than three places", async () => {
     const live = summary({
       tournament_id: "live",
       name: "Settings cup",
@@ -467,65 +487,68 @@ describe("TournamentsPage", () => {
       prize_amount: "85",
       count: 4,
     });
-    fetchTournament.mockResolvedValue({
-      ...archive(live, []),
-      config: {
-        ...archive(live, []).config,
-        description: "Bring a shovel.",
-        min_bumpkin_island: "desert",
-        min_digging_streak: null,
-        vip_required: true,
-        max_players: 32,
-        enrolled_count: 4,
-        join_mode: "auto",
-        prize_places: live.prize_places,
-      },
-      accepts_joins: true,
-    });
+    fetchTournament.mockResolvedValue(archive(live, []));
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-description"]')?.textContent).toMatch(
       /Bring a shovel/,
     );
-    expect(page.querySelector('[data-testid="tournament-start-day"]')?.textContent).toMatch(/23 Aug/);
-    expect(page.querySelector('[data-testid="tournament-final-day"]')?.textContent).toMatch(/30 Aug/);
+    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toMatch(
+      /23 Aug – 30 Aug/,
+    );
+    expect(page.querySelector('[data-testid="tournament-start-day"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-final-day"]')).toBeNull();
+    const body = page.querySelector('[data-testid="tournament-detail-body"]');
+    expect(body).not.toBeNull();
+    expect(body?.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
+    expect(body?.querySelector(".detail-stat-list")).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(
-      /4\/32/,
+      /4 \/ 32/,
     );
-    expect(page.querySelector('[data-testid="tournament-island"]')?.textContent).toMatch(/Desert/);
-    expect(page.querySelector('[data-testid="tournament-streak"]')?.textContent).toMatch(/None/);
-    expect(page.querySelector('[data-testid="tournament-vip"]')?.textContent).toMatch(/Yes/);
+    expect(page.querySelector('[data-testid="tournament-island"]')?.textContent).toMatch(
+      /Min island\s*Desert/,
+    );
+    expect(page.querySelector('[data-testid="tournament-streak"]')?.textContent).toMatch(
+      /Min dig streak\s*None/,
+    );
+    expect(page.querySelector('[data-testid="tournament-vip"]')?.textContent).toMatch(
+      /VIP status\s*Yes/,
+    );
+    expect(page.querySelector('[data-testid="tournament-vip"] .yes')).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-join-mode"]')?.textContent).toMatch(
-      /Approval\s*No/,
+      /Needs approval\s*No/,
     );
+    expect(page.querySelector('[data-testid="tournament-join-mode"] .no')).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-min-level"]')).toBeNull();
     expect(page.querySelector('[data-testid="tournament-overall-avg"]')).toBeNull();
+    expect(body?.textContent).not.toMatch(/Avg\s*\/\s*day/i);
     const prizes = page.querySelector('[data-testid="tournament-prize-places"]');
+    expect(prizes?.querySelector('[data-testid="prize-place-card-1"]')?.textContent).toMatch(/1st/);
     expect(prizes?.querySelector('[data-testid="prize-place-card-1"]')?.textContent).toMatch(
-      /1st/,
-    );
-    expect(prizes?.querySelector('[data-testid="prize-place-card-1"]')?.textContent).toMatch(
-      /50 Flower/,
+      /50 \$Flower/,
     );
     expect(prizes?.querySelector('[data-testid="prize-place-card-1"]')?.textContent).toMatch(
       /Rare Key/,
     );
     expect(prizes?.querySelector('[data-testid="prize-place-card-2"]')?.textContent).toMatch(
-      /20 Flower/,
+      /20 \$Flower/,
     );
     expect(prizes?.querySelector('[data-testid="prize-place-card-3"]')?.textContent).toMatch(
-      /10 Flower/,
+      /10 \$Flower/,
     );
     expect(prizes?.querySelector('[data-testid="prize-place-card-4"]')).toBeNull();
-    expect(page.querySelector('[data-testid="tournament-prize-table"]')).toBeNull();
-    expect(page.querySelector('[data-testid="tournament-winners"]')).toBeNull();
-    expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
+    const viewAll = page.querySelector('[data-testid="view-all-winners"]') as HTMLButtonElement;
+    expect(viewAll).not.toBeNull();
+    expect(page.querySelector('[data-testid="tournament-winners-modal"]')).toBeNull();
     act(() => {
-      (page.querySelector('[data-testid="tournament-more-prizes"]') as HTMLButtonElement).click();
+      viewAll.click();
     });
-    const table = page.querySelector('[data-testid="tournament-prize-table"]');
-    expect(table).not.toBeNull();
-    expect(table?.textContent).toMatch(/4th/);
-    expect(table?.textContent).toMatch(/5 Flower/);
+    const modal = page.querySelector('[data-testid="tournament-winners-modal"]');
+    expect(modal).not.toBeNull();
+    expect(modal?.textContent).toMatch(/4th/);
+    expect(modal?.textContent).toMatch(/5 \$Flower/);
+    expect(modal?.textContent).not.toMatch(/Avg\s*\/\s*day/i);
+    expect(modal?.textContent).not.toMatch(/average per day/i);
     expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
       /enrolled immediately/,
     );
@@ -574,48 +597,103 @@ describe("TournamentsPage", () => {
     );
     expect(css).toMatch(/\.prize-place-reward\s*\{[^}]*-webkit-line-clamp:\s*2/s);
     expect(css).toMatch(/\.prize-place-reward\.is-long\s*\{[^}]*font-size:\s*12px/s);
+    expect(css).toMatch(/\.winners-card\s*\{/);
+    expect(css).toMatch(/\.medal\.gold\s+\.medal-dot/);
+    expect(css).toMatch(/\.medal\.silver\s+\.medal-dot/);
+    expect(css).toMatch(/\.medal\.bronze\s+\.medal-dot/);
+    expect(css).toMatch(/\.view-all-winners\s*\{[^}]*border:\s*1px dashed/s);
+    expect(css).toMatch(/\.detail-stat-list\s*\{/);
   });
 
-  it("hides winners strip and view-all when ranked winners are fewer than 2", async () => {
-    const live = summary({ tournament_id: "live", name: "Solo", status: "active" });
+  it("renders min dig streak and max players as None when unset", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Open cup",
+      status: "active",
+      min_digging_streak: null,
+      max_players: null,
+      enrolled_count: 6,
+      prize_places: [{ place: 1, amount: "30" }],
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="tournament-streak"]')?.textContent).toMatch(/None/);
+    expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(
+      /6 \/ None/,
+    );
+    expect(page.querySelector('[data-testid="prize-place-card-1"]')).toBeNull();
+    expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
+  });
+
+  it("hides medals and view-all when there are fewer than 2 prize places", async () => {
+    const none = places();
+    const one = places({ place: 1, amount: "30" });
+    expect(showWinnersStrip(none)).toBe(false);
+    expect(showViewAllWinners(none)).toBe(false);
+    expect(showWinnersStrip(one)).toBe(false);
+    expect(showViewAllWinners(one)).toBe(false);
+    const live = summary({
+      tournament_id: "live",
+      name: "Solo",
+      status: "active",
+      prize_places: one,
+    });
     fetchTournament.mockResolvedValue(
       archive(live, [entry({ farm_id: "1", rank: 1, score: 10, name: "OnlyOne" })]),
     );
-    expect(showWinnersStrip([entry({ farm_id: "1", rank: 1, score: 10 })])).toBe(false);
-    expect(showViewAllWinners([entry({ farm_id: "1", rank: 1, score: 10 })])).toBe(false);
     const page = await renderAt("/tournaments/live");
-    expect(page.querySelector('[data-testid="tournament-winners"]')).toBeNull();
-    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-1"]')).toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-2"]')).toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-3"]')).toBeNull();
     expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
     expect(page.textContent).toMatch(/OnlyOne/);
   });
 
-  it("shows winners strip without view-all for 2–3 ranked winners", async () => {
-    const live = summary({ tournament_id: "live", name: "Trio", status: "active" });
-    const three = [
-      entry({ farm_id: "1", rank: 1, score: 10, name: "A" }),
-      entry({ farm_id: "2", rank: 2, score: 12, name: "B" }),
-      entry({ farm_id: "3", rank: 3, score: 14, name: "C" }),
-    ];
+  it("shows medals without view-all for 2–3 prize places", async () => {
+    const two = places({ place: 1, amount: "20" }, { place: 2, amount: "10" });
+    const three = places(
+      { place: 1, amount: "20" },
+      { place: 2, amount: "10" },
+      { place: 3, amount: "5" },
+    );
+    expect(showWinnersStrip(two)).toBe(true);
+    expect(showViewAllWinners(two)).toBe(false);
     expect(showWinnersStrip(three)).toBe(true);
     expect(showViewAllWinners(three)).toBe(false);
-    fetchTournament.mockResolvedValue(archive(live, three));
+    const live = summary({
+      tournament_id: "live",
+      name: "Trio",
+      status: "active",
+      prize_places: three,
+      prize_amount: "35",
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
-    expect(page.querySelector('[data-testid="tournament-podium"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-1"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-2"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="prize-place-card-3"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-winners-modal"]')).toBeNull();
   });
 
-  it("shows view-all winners modal without avg/day when ranked winners exceed 3", async () => {
-    const live = summary({ tournament_id: "live", name: "Crowd", status: "active" });
-    const four = [
-      entry({ farm_id: "1", rank: 1, score: 10, name: "A", digs_to_third_op: 10 }),
-      entry({ farm_id: "2", rank: 2, score: 12, name: "B", digs_to_third_op: 12 }),
-      entry({ farm_id: "3", rank: 3, score: 14, name: "C", digs_to_third_op: 14 }),
-      entry({ farm_id: "4", rank: 4, score: 16, name: "D", digs_to_third_op: 16 }),
-    ];
+  it("shows view-all winners overlay without avg/day when prize places exceed 3", async () => {
+    const four = places(
+      { place: 1, amount: "40" },
+      { place: 2, amount: "20" },
+      { place: 3, amount: "10" },
+      { place: 4, amount: "5", nft_name: "Dusty Pick" },
+    );
     expect(showViewAllWinners(four)).toBe(true);
-    fetchTournament.mockResolvedValue(archive(live, four));
+    const live = summary({
+      tournament_id: "live",
+      name: "Crowd",
+      status: "active",
+      prize_places: four,
+      prize_amount: "75",
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
     const viewAll = page.querySelector('[data-testid="view-all-winners"]') as HTMLButtonElement;
@@ -626,8 +704,8 @@ describe("TournamentsPage", () => {
     });
     const modal = page.querySelector('[data-testid="tournament-winners-modal"]');
     expect(modal).not.toBeNull();
-    expect(modal?.textContent).toMatch(/A/);
-    expect(modal?.textContent).toMatch(/D/);
+    expect(modal?.textContent).toMatch(/4th/);
+    expect(modal?.textContent).toMatch(/Dusty Pick/);
     expect(modal?.textContent).not.toMatch(/Avg\s*\/\s*day/i);
     expect(modal?.textContent).not.toMatch(/average per day/i);
   });
@@ -653,8 +731,9 @@ describe("TournamentsPage", () => {
       /Wait for approval/,
     );
     expect(page.querySelector('[data-testid="tournament-join-mode"]')?.textContent).toMatch(
-      /Approval\s*Yes/,
+      /Needs approval\s*Yes/,
     );
+    expect(page.querySelector('[data-testid="tournament-join-mode"] .yes')).not.toBeNull();
     expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
       /admin will approve/,
     );
@@ -682,7 +761,9 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tourney-prizes-live"]')?.textContent).toMatch(
       /1st 40 Flower/,
     );
-    expect(page.querySelector('[data-testid="tourney-island-live"]')?.textContent).toMatch(/Spring/);
+    expect(page.querySelector('[data-testid="tourney-island-live"]')?.textContent).toMatch(
+      /Spring/,
+    );
     expect(page.querySelector('[data-testid="tourney-streak-live"]')?.textContent).toMatch(/None/);
     expect(page.querySelector('[data-testid="tourney-vip-live"]')?.textContent).toMatch(/No/);
     expect(page.querySelector('[data-testid="tourney-participants-live"]')?.textContent).toMatch(

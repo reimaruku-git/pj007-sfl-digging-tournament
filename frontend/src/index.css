@@ -808,54 +808,184 @@ a.tourney-window:hover {
   margin: 0 0 12px;
 }
 
-.prize-place-section {
-  margin: 0 0 16px;
+.tournament-detail {
+  max-width: 1000px;
 }
 
-.prize-place-cards {
+.detail-crumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  margin: 0 0 18px;
+}
+
+.detail-crumb svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+}
+
+.detail-panel {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border: 1px solid rgba(184, 154, 86, 0.1);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.detail-panel-top {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 40px 1fr;
+}
+
+.detail-ruler {
+  position: relative;
+  border-right: 1px solid rgba(184, 154, 86, 0.14);
+  padding: 26px 0 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.detail-ruler-track {
+  position: relative;
+  flex: 1;
+  width: 2px;
+  min-height: 140px;
+  background: rgba(184, 154, 86, 0.12);
+  border-radius: 2px;
+}
+
+.detail-ruler-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--gold) 0%, #c06a3a 100%);
+  border-radius: 2px;
+  opacity: 0.55;
+}
+
+.detail-content {
+  padding: 22px 26px 24px 20px;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 10px;
-  margin: 0 0 8px;
+  margin-bottom: 22px;
 }
 
-.prize-place-card {
+.detail-title-block h1 {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 600;
+  font-size: 32px;
+  color: var(--cream);
+  margin: 0 0 6px;
+  letter-spacing: 0.005em;
+  line-height: 1.15;
+}
+
+.detail-range {
+  font-size: 12px;
+  color: var(--mute);
+  letter-spacing: 0.03em;
+}
+
+.detail-body-grid {
   display: grid;
-  gap: 8px;
-  padding: 14px 12px;
-  background: linear-gradient(180deg, rgba(184, 154, 86, 0.07), transparent 60%), var(--panel-2);
-  border: 1px solid var(--line);
+  grid-template-columns: 1.3fr 1px 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.winners-card {
+  background: rgba(184, 154, 86, 0.05);
+  border: 1px solid rgba(184, 154, 86, 0.16);
   border-radius: 12px;
-  min-width: 0;
+  padding: 16px 18px 14px;
 }
 
-.prize-place-card.place-1 {
-  border-color: rgba(184, 154, 86, 0.45);
-  background: linear-gradient(180deg, rgba(184, 154, 86, 0.14), transparent 60%), var(--panel-2);
+.winners-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.prize-place-card.place-2 {
-  border-color: rgba(180, 184, 191, 0.35);
+.winners-head.is-solo {
+  margin-bottom: 0;
 }
 
-.prize-place-card.place-3 {
-  border-color: rgba(184, 136, 92, 0.35);
-}
-
-.prize-place-ordinal {
+.winners-head .lbl {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  color: var(--mute);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.winners-head .pool {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 600;
+  font-size: 16px;
   color: var(--gold);
 }
 
-.prize-place-card.place-2 .prize-place-ordinal {
-  color: var(--rank2);
+.medals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.prize-place-card.place-3 .prize-place-ordinal {
-  color: var(--rank3);
+.medal {
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(184, 154, 86, 0.14);
+  border-radius: 10px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.medal-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--bg);
+  background: linear-gradient(160deg, #d4c08a, var(--gold));
+}
+
+.medal.gold .medal-dot {
+  background: linear-gradient(160deg, #d4c08a, var(--gold));
+}
+
+.medal.silver .medal-dot {
+  background: linear-gradient(160deg, #eef0f4, #9aa1af);
+}
+
+.medal.bronze .medal-dot {
+  background: linear-gradient(160deg, #dd9c6b, #8f5227);
+}
+
+.medal-rank {
+  font-size: 9px;
+  color: var(--mute);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 .prize-place-reward {
@@ -864,10 +994,13 @@ a.tourney-window:hover {
   -webkit-line-clamp: 2;
   overflow: hidden;
   line-height: 1.3;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--cream);
   word-break: break-word;
+  margin-left: auto;
+  text-align: right;
+  max-width: min(16rem, 62%);
 }
 
 .prize-place-reward.is-long {
@@ -876,20 +1009,118 @@ a.tourney-window:hover {
 }
 
 .prize-place-amount {
-  font-family: Fraunces, Georgia, serif;
+  font-family: "Source Sans 3", sans-serif;
   font-variant-numeric: tabular-nums;
 }
 
 .prize-place-nft {
   margin-top: 2px;
   font-family: "Source Sans 3", sans-serif;
-  font-size: 0.85em;
-  font-weight: 600;
+  font-size: 0.9em;
+  font-weight: 500;
   color: var(--sand);
 }
 
 .prize-place-reward.is-long .prize-place-nft {
   font-size: 0.92em;
+}
+
+.medal-tbd {
+  color: var(--mute);
+  font-weight: 400;
+}
+
+.view-all-winners {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 12px;
+  background: none;
+  border: 1px dashed rgba(184, 154, 86, 0.3);
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gold);
+  cursor: pointer;
+}
+
+.view-all-winners:hover {
+  border-color: var(--gold);
+}
+
+.view-all-winners svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+}
+
+.detail-divider {
+  background: rgba(184, 154, 86, 0.14);
+}
+
+.detail-stat-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.detail-stat {
+  padding: 11px 4px;
+  border-bottom: 1px dashed rgba(184, 154, 86, 0.14);
+}
+
+.detail-stat.span2 {
+  grid-column: 1 / -1;
+}
+
+.detail-stat-list .detail-stat:nth-last-child(1):not(.span2) {
+  border-bottom: none;
+}
+
+.detail-stat-list .detail-stat:nth-last-child(2):not(.span2) {
+  border-bottom: none;
+}
+
+.detail-stat.span2:last-child {
+  border-bottom: none;
+}
+
+.detail-stat .lbl {
+  font-size: 10px;
+  color: var(--mute);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.detail-stat .lbl svg {
+  width: 11px;
+  height: 11px;
+  stroke: var(--gold);
+  flex-shrink: 0;
+}
+
+.detail-stat .val {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--cream);
+}
+
+.detail-stat .val.no {
+  color: var(--mute);
+  font-weight: 400;
+}
+
+.detail-stat .val.yes {
+  color: var(--green);
 }
 
 .prize-more {
@@ -907,30 +1138,17 @@ a.tourney-window:hover {
 }
 
 .winners-modal-card {
-  width: min(36rem, 100%);
+  width: min(28rem, 100%);
   max-height: 85vh;
   overflow: auto;
 }
 
-.tournament-winners {
-  margin: 0 0 16px;
+.winners-modal-medals {
+  margin-bottom: 14px;
 }
 
-.tournament-winners-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 10px;
-}
-
-.tournament-winners-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--sand);
+.detail-standings {
+  margin-top: 20px;
 }
 
 .prize-table {
@@ -1916,12 +2134,29 @@ a.past-card:hover {
     grid-template-columns: 1fr;
   }
 
-  .prize-place-cards {
-    gap: 8px;
+  .detail-panel-top {
+    grid-template-columns: 1fr;
   }
 
-  .prize-place-card {
-    padding: 12px 10px;
+  .detail-ruler {
+    display: none;
+  }
+
+  .detail-body-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .detail-divider {
+    display: none;
+  }
+
+  .detail-title-block h1 {
+    font-size: 26px;
+  }
+
+  .detail-content {
+    padding: 18px 16px 20px;
   }
 
   .farm-hero,
@@ -2719,4 +2954,3 @@ a.past-card:hover {
     text-align: left;
   }
 }
-

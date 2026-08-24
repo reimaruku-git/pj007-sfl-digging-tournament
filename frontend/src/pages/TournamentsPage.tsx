@@ -5,19 +5,13 @@ import {
   fetchTournament,
   listTournaments,
   submitFarm,
-  type LeaderboardEntry,
   type PrizePlace,
   type TournamentSummary,
 } from "../api/public";
 import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { Pebbles } from "../components/Pebbles";
-import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
-import {
-  liveTournamentsSoonestFirst,
-  pastTournaments,
-  upcomingTournaments,
-} from "../lib/board";
+import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
 import {
   formatDateUtc,
@@ -30,19 +24,14 @@ import {
   windowStatusLabel,
 } from "../lib/format";
 
-/** Ranked standings entries used for the detail winners strip / modal. */
-export function rankedWinners(entries: LeaderboardEntry[]): LeaderboardEntry[] {
-  return entries.filter((row) => row.rank != null);
+/** 1st/2nd/3rd medal rows only when there are multiple prize places. */
+export function showWinnersStrip(places: PrizePlace[] | null | undefined): boolean {
+  return (places?.length ?? 0) >= 2;
 }
 
-/** Top 1st/2nd/3rd strip only when there are multiple winners. */
-export function showWinnersStrip(entries: LeaderboardEntry[]): boolean {
-  return rankedWinners(entries).length >= 2;
-}
-
-/** “View all winners” only when there are more than three ranked entries. */
-export function showViewAllWinners(entries: LeaderboardEntry[]): boolean {
-  return rankedWinners(entries).length > 3;
+/** “View all winners” only when there are more than three prize places. */
+export function showViewAllWinners(places: PrizePlace[] | null | undefined): boolean {
+  return (places?.length ?? 0) > 3;
 }
 
 const LONG_REWARD_CHARS = 28;
@@ -65,16 +54,34 @@ function formatPrizePlace(item: PrizePlace): string {
   return item.nft_name ? `${flower} · ${item.nft_name}` : flower;
 }
 
-function PrizePlaceCard({ item }: { item: PrizePlace }) {
-  const placeClass =
-    item.place === 1 ? "place-1" : item.place === 2 ? "place-2" : item.place === 3 ? "place-3" : "";
+function flowerReward(amount: string | null | undefined): string | null {
+  const raw = (amount ?? "").trim();
+  if (!raw) return null;
+  return `${raw} $Flower`;
+}
+
+function medalTone(place: number): string {
+  if (place === 1) return "gold";
+  if (place === 2) return "silver";
+  if (place === 3) return "bronze";
+  return "";
+}
+
+function sortedPrizePlaces(places: PrizePlace[] | null | undefined): PrizePlace[] {
+  return [...(places ?? [])].sort((a, b) => a.place - b.place);
+}
+
+function MedalRow({ item }: { item: PrizePlace }) {
   const long = isLongRewardText(item);
+  const flower = flowerReward(item.amount);
+  const nft = item.nft_name?.trim() || null;
   return (
     <div
-      className={`prize-place-card ${placeClass}`}
+      className={`medal prize-place-card ${medalTone(item.place)}`}
       data-testid={`prize-place-card-${item.place}`}
     >
-      <div className="prize-place-ordinal">
+      <div className="medal-dot">{item.place}</div>
+      <div className="medal-rank">
         {item.place}
         {placeSuffix(item.place)}
       </div>
@@ -82,10 +89,44 @@ function PrizePlaceCard({ item }: { item: PrizePlace }) {
         className={`prize-place-reward${long ? " is-long" : ""}`}
         data-testid={`prize-place-reward-${item.place}`}
       >
-        <div className="prize-place-amount">{item.amount} Flower</div>
-        {item.nft_name ? <div className="prize-place-nft">{item.nft_name}</div> : null}
+        {flower ? <div className="prize-place-amount">{flower}</div> : null}
+        {nft ? <div className="prize-place-nft">{nft}</div> : null}
+        {!flower && !nft ? <span className="medal-tbd">—</span> : null}
       </div>
     </div>
+  );
+}
+
+function StatGlyph({ kind }: { kind: "people" | "island" | "streak" | "vip" | "approval" }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {kind === "people" ? (
+        <>
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 00-3-3.87" />
+          <path d="M16 3.13a4 4 0 010 7.75" />
+        </>
+      ) : null}
+      {kind === "island" ? <path d="M12 2l9 4.5v9L12 20l-9-4.5v-9L12 2z" /> : null}
+      {kind === "streak" ? <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" /> : null}
+      {kind === "vip" ? (
+        <path d="M12 17.75l-6.16 3.24 1.18-6.88L2 9.24l6.92-1.01L12 2l3.08 6.23L22 9.24l-5.02 4.87 1.18 6.88z" />
+      ) : null}
+      {kind === "approval" ? (
+        <>
+          <path d="M9 11l3 3L22 4" />
+          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+        </>
+      ) : null}
+    </svg>
   );
 }
 
@@ -102,6 +143,15 @@ function joinedTotal(
 ): string {
   const joined = enrolled ?? fallback;
   return `${joined}/${max == null ? "None" : max}`;
+}
+
+function joinedDisplay(
+  enrolled: number | null | undefined,
+  max: number | null | undefined,
+  fallback = 0,
+): string {
+  const joined = enrolled ?? fallback;
+  return `${joined} / ${max == null ? "None" : max}`;
 }
 
 export function TournamentsPage() {
@@ -259,7 +309,6 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const from = (location.state as { from?: string } | null)?.from;
   const back = tournamentBackTarget(from);
   const [notice, setNotice] = useState<string | null>(null);
-  const [prizesOpen, setPrizesOpen] = useState(false);
   const [winnersOpen, setWinnersOpen] = useState(false);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
@@ -283,139 +332,164 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const data = query.data;
   const joinable = Boolean(data?.accepts_joins);
   const autoJoin = data?.config.join_mode === "auto";
-  const winners = data ? rankedWinners(data.entries) : [];
-  const winnersStrip = data ? showWinnersStrip(data.entries) : false;
-  const viewAllWinners = data ? showViewAllWinners(data.entries) : false;
+  const places = sortedPrizePlaces(data?.config.prize_places);
+  const showMedals = showWinnersStrip(places);
+  const viewAllWinners = showViewAllWinners(places);
+  const vipOn = Boolean(data?.config.vip_required);
+  const needsApproval = !autoJoin;
   return (
-    <section className="card table-wrap page-inner" data-testid="tournament-detail">
-      <p className="meta">
-        <Link to={back.to} data-testid="back-link">
-          ← {back.label}
-        </Link>
-      </p>
+    <section className="page-inner tournament-detail" data-testid="tournament-detail">
+      <Link to={back.to} className="detail-crumb" data-testid="back-link">
+        <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+        {back.label}
+      </Link>
       {query.isLoading && <p className="muted">Loading tournament…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
       {data && (
         <>
-          <div className="tourney-detail-head">
-            <div>
-              <div className="kicker">{data.config.name || "Tournament"}</div>
-              <p className="meta" data-testid="tournament-window">
-                {formatDateUtc(data.config.start_at)} –{" "}
-                {formatDateUtc(
-                  inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
-                )}
-              </p>
-            </div>
-            <DownloadBoardButton
-              name={data.config.name || "Tournament"}
-              startAt={data.config.start_at}
-              endAt={data.config.end_at}
-              durationDays={data.config.duration_days}
-              prizeAmount={data.config.prize_amount}
-              entries={data.entries}
-              totalCount={data.count}
-            />
-          </div>
-          {data.config.description ? (
-            <p className="tourney-description" data-testid="tournament-description">
-              {data.config.description}
-            </p>
-          ) : null}
-          <div className="tourney-facts tourney-facts-compact">
-            <div data-testid="tournament-start-day">
-              <span className="muted">Start day</span>
-              <b>{formatDateUtc(data.config.start_at)}</b>
-            </div>
-            <div data-testid="tournament-final-day">
-              <span className="muted">Final day</span>
-              <b>
-                {formatDateUtc(
-                  inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
-                )}
-              </b>
-            </div>
-            <div data-testid="tournament-participants">
-              <span className="muted">Participants</span>
-              <b>
-                {joinedTotal(data.config.enrolled_count, data.config.max_players, data.count)}
-              </b>
-            </div>
-            <div data-testid="tournament-island">
-              <span className="muted">Min bumpkin island</span>
-              <b>{islandLabel(data.config.min_bumpkin_island)}</b>
-            </div>
-            <div data-testid="tournament-streak">
-              <span className="muted">Min digging streak</span>
-              <b>
-                {data.config.min_digging_streak == null ? "None" : data.config.min_digging_streak}
-              </b>
-            </div>
-            <div data-testid="tournament-vip">
-              <span className="muted">VIP status</span>
-              <b>{data.config.vip_required ? "Yes" : "No"}</b>
-            </div>
-            <div data-testid="tournament-prize">
-              <span className="muted">Prize pool</span>
-              <b>{data.config.prize_amount} Flower</b>
-            </div>
-            <div data-testid="tournament-join-mode">
-              <span className="muted">Approval</span>
-              <b>{autoJoin ? "No" : "Yes"}</b>
-            </div>
-          </div>
-          {data.config.prize_places && data.config.prize_places.length > 0 ? (
-            <div className="prize-place-section" data-testid="tournament-prize-places">
-              <div className="prize-place-cards">
-                {data.config.prize_places.slice(0, 3).map((item) => (
-                  <PrizePlaceCard key={item.place} item={item} />
-                ))}
+          <div className="detail-panel">
+            <div className="detail-panel-top">
+              <div className="detail-ruler" aria-hidden="true">
+                <div className="detail-ruler-track">
+                  <div className="detail-ruler-fill" />
+                </div>
               </div>
-              {data.config.prize_places.length > 3 ? (
-                <button
-                  className="prize-more"
-                  type="button"
-                  data-testid="tournament-more-prizes"
-                  onClick={() => setPrizesOpen(true)}
-                >
-                  More prizes
-                </button>
-              ) : null}
+              <div className="detail-content">
+                <div className="detail-title-row">
+                  <div className="detail-title-block">
+                    <h1>{data.config.name || "Tournament"}</h1>
+                    <div className="detail-range" data-testid="tournament-window">
+                      {formatDateUtc(data.config.start_at)} –{" "}
+                      {formatDateUtc(
+                        inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
+                      )}
+                    </div>
+                  </div>
+                  <DownloadBoardButton
+                    name={data.config.name || "Tournament"}
+                    startAt={data.config.start_at}
+                    endAt={data.config.end_at}
+                    durationDays={data.config.duration_days}
+                    prizeAmount={data.config.prize_amount}
+                    entries={data.entries}
+                    totalCount={data.count}
+                  />
+                </div>
+                {data.config.description ? (
+                  <p className="tourney-description" data-testid="tournament-description">
+                    {data.config.description}
+                  </p>
+                ) : null}
+                <div className="detail-body-grid" data-testid="tournament-detail-body">
+                  <div>
+                    <div className="winners-card" data-testid="tournament-winners">
+                      <div className={`winners-head${showMedals ? "" : " is-solo"}`}>
+                        <span className="lbl">Winners</span>
+                        <span className="pool" data-testid="tournament-prize">
+                          {data.config.prize_amount} $Flower
+                        </span>
+                      </div>
+                      {showMedals ? (
+                        <div className="medals" data-testid="tournament-prize-places">
+                          {places.slice(0, 3).map((item) => (
+                            <MedalRow key={item.place} item={item} />
+                          ))}
+                        </div>
+                      ) : null}
+                      {viewAllWinners ? (
+                        <button
+                          className="view-all-winners"
+                          type="button"
+                          data-testid="view-all-winners"
+                          onClick={() => setWinnersOpen(true)}
+                        >
+                          View all winners
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="detail-divider" />
+                  <div className="detail-stat-list">
+                    <div className="detail-stat" data-testid="tournament-participants">
+                      <div className="lbl">
+                        <StatGlyph kind="people" />
+                        Participants
+                      </div>
+                      <div className="val">
+                        {joinedDisplay(
+                          data.config.enrolled_count,
+                          data.config.max_players,
+                          data.count,
+                        )}
+                      </div>
+                    </div>
+                    <div className="detail-stat" data-testid="tournament-island">
+                      <div className="lbl">
+                        <StatGlyph kind="island" />
+                        Min island
+                      </div>
+                      <div className="val">{islandLabel(data.config.min_bumpkin_island)}</div>
+                    </div>
+                    <div className="detail-stat" data-testid="tournament-streak">
+                      <div className="lbl">
+                        <StatGlyph kind="streak" />
+                        Min dig streak
+                      </div>
+                      <div className="val">
+                        {data.config.min_digging_streak == null
+                          ? "None"
+                          : data.config.min_digging_streak}
+                      </div>
+                    </div>
+                    <div className="detail-stat" data-testid="tournament-vip">
+                      <div className="lbl">
+                        <StatGlyph kind="vip" />
+                        VIP status
+                      </div>
+                      <div className={`val ${vipOn ? "yes" : "no"}`}>{vipOn ? "Yes" : "No"}</div>
+                    </div>
+                    <div className="detail-stat span2" data-testid="tournament-join-mode">
+                      <div className="lbl">
+                        <StatGlyph kind="approval" />
+                        Needs approval
+                      </div>
+                      <div className={`val ${needsApproval ? "yes" : "no"}`}>
+                        {needsApproval ? "Yes" : "No"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          ) : null}
-          {prizesOpen && data.config.prize_places && data.config.prize_places.length > 3 ? (
+          </div>
+          {winnersOpen && viewAllWinners ? (
             <div
               className="confirm-overlay"
-              data-testid="tournament-prize-table"
+              data-testid="tournament-winners-modal"
               role="dialog"
               aria-modal="true"
             >
-              <div className="confirm-card prize-table-card">
-                <p className="confirm-title">Prizes</p>
-                <table className="prize-table">
-                  <thead>
-                    <tr>
-                      <th>Rank</th>
-                      <th>Prize</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.config.prize_places.map((item) => (
-                      <tr key={item.place}>
-                        <td>
-                          {item.place}
-                          {placeSuffix(item.place)}
-                        </td>
-                        <td>
-                          {item.amount} Flower
-                          {item.nft_name ? ` · ${item.nft_name}` : ""}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="confirm-card winners-modal-card">
+                <p className="confirm-title">Winners</p>
+                <div className="medals winners-modal-medals">
+                  {places.map((item) => (
+                    <MedalRow key={item.place} item={item} />
+                  ))}
+                </div>
                 <div className="toolbar confirm-actions">
-                  <button className="btn" type="button" onClick={() => setPrizesOpen(false)}>
+                  <button className="btn" type="button" onClick={() => setWinnersOpen(false)}>
                     Close
                   </button>
                 </div>
@@ -459,109 +533,48 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 : "No farms in this archive."}
             </p>
           )}
-          {winnersStrip ? (
-            <section className="tournament-winners" data-testid="tournament-winners">
-              <div className="tournament-winners-head">
-                <h2 className="tournament-winners-title">Winners</h2>
-                {viewAllWinners ? (
-                  <button
-                    className="prize-more"
-                    type="button"
-                    data-testid="view-all-winners"
-                    onClick={() => setWinnersOpen(true)}
-                  >
-                    View all winners
-                  </button>
-                ) : null}
-              </div>
-              <Podium entries={data.entries} tournamentId={tournamentId} />
-            </section>
-          ) : null}
-          {winnersOpen && viewAllWinners ? (
-            <div
-              className="confirm-overlay"
-              data-testid="tournament-winners-modal"
-              role="dialog"
-              aria-modal="true"
-            >
-              <div className="confirm-card winners-modal-card">
-                <p className="confirm-title">Winners</p>
-                <table className="prize-table winners-table">
-                  <thead>
-                    <tr>
-                      <th>Rank</th>
-                      <th>Farm</th>
-                      <th>Total</th>
-                      <th>Today</th>
-                      <th>Pebbles</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {winners.map((row) => (
-                      <tr key={row.farm_id}>
-                        <td>{row.rank ?? "—"}</td>
-                        <td>
-                          <Link
-                            to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
-                          >
-                            {row.name || "Unnamed farm"}
-                          </Link>
-                        </td>
-                        <td>{row.digs_to_third_op ?? "—"}</td>
-                        <td>{row.score_today ?? "—"}</td>
-                        <td>{row.otter_count}</td>
-                        <td>{statusLabel(row.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="toolbar confirm-actions">
-                  <button className="btn" type="button" onClick={() => setWinnersOpen(false)}>
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
           {data.entries.length > 0 && (
-            <table className="board-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Farm</th>
-                  <th>Total</th>
-                  <th>Avg / day</th>
-                  <th>Today</th>
-                  <th>Pebbles</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.entries.map((row) => (
-                  <tr key={row.farm_id}>
-                    <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>{row.rank ?? "—"}</td>
-                    <td>
-                      <Link
-                        to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
-                      >
-                        {row.name || "Unnamed farm"}
-                        <div className="farm-id">{row.farm_id}</div>
-                      </Link>
-                    </td>
-                    <td>{row.digs_to_third_op ?? "—"}</td>
-                    <td>{formatScore(row.score)}</td>
-                    <td>{row.score_today ?? "—"}</td>
-                    <td>
-                      <Pebbles count={row.otter_count} />
-                    </td>
-                    <td>
-                      <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                    </td>
+            <div className="table-wrap detail-standings">
+              <table className="board-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Farm</th>
+                    <th>Total</th>
+                    <th>Avg / day</th>
+                    <th>Today</th>
+                    <th>Pebbles</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.entries.map((row) => (
+                    <tr key={row.farm_id}>
+                      <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>
+                        {row.rank ?? "—"}
+                      </td>
+                      <td>
+                        <Link
+                          to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
+                        >
+                          {row.name || "Unnamed farm"}
+                          <div className="farm-id">{row.farm_id}</div>
+                        </Link>
+                      </td>
+                      <td>{row.digs_to_third_op ?? "—"}</td>
+                      <td>{formatScore(row.score)}</td>
+                      <td>{row.score_today ?? "—"}</td>
+                      <td>
+                        <Pebbles count={row.otter_count} />
+                      </td>
+                      <td>
+                        <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </>
       )}
