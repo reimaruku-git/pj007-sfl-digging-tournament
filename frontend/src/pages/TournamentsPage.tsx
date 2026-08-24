@@ -5,6 +5,7 @@ import {
   fetchTournament,
   listTournaments,
   submitFarm,
+  type LeaderboardEntry,
   type PrizePlace,
   type TournamentSummary,
 } from "../api/public";
@@ -29,6 +30,29 @@ import {
   windowStatusLabel,
 } from "../lib/format";
 
+/** Ranked standings entries used for the detail winners strip / modal. */
+export function rankedWinners(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  return entries.filter((row) => row.rank != null);
+}
+
+/** Top 1st/2nd/3rd strip only when there are multiple winners. */
+export function showWinnersStrip(entries: LeaderboardEntry[]): boolean {
+  return rankedWinners(entries).length >= 2;
+}
+
+/** “View all winners” only when there are more than three ranked entries. */
+export function showViewAllWinners(entries: LeaderboardEntry[]): boolean {
+  return rankedWinners(entries).length > 3;
+}
+
+const LONG_REWARD_CHARS = 28;
+
+export function isLongRewardText(item: PrizePlace): boolean {
+  const flower = `${item.amount} Flower`;
+  const full = item.nft_name ? `${flower} ${item.nft_name}` : flower;
+  return full.length > LONG_REWARD_CHARS;
+}
+
 function placeSuffix(place: number): string {
   if (place === 1) return "st";
   if (place === 2) return "nd";
@@ -39,6 +63,30 @@ function placeSuffix(place: number): string {
 function formatPrizePlace(item: PrizePlace): string {
   const flower = `${item.place}${placeSuffix(item.place)} ${item.amount} Flower`;
   return item.nft_name ? `${flower} · ${item.nft_name}` : flower;
+}
+
+function PrizePlaceCard({ item }: { item: PrizePlace }) {
+  const placeClass =
+    item.place === 1 ? "place-1" : item.place === 2 ? "place-2" : item.place === 3 ? "place-3" : "";
+  const long = isLongRewardText(item);
+  return (
+    <div
+      className={`prize-place-card ${placeClass}`}
+      data-testid={`prize-place-card-${item.place}`}
+    >
+      <div className="prize-place-ordinal">
+        {item.place}
+        {placeSuffix(item.place)}
+      </div>
+      <div
+        className={`prize-place-reward${long ? " is-long" : ""}`}
+        data-testid={`prize-place-reward-${item.place}`}
+      >
+        <div className="prize-place-amount">{item.amount} Flower</div>
+        {item.nft_name ? <div className="prize-place-nft">{item.nft_name}</div> : null}
+      </div>
+    </div>
+  );
 }
 
 function islandLabel(island: string | null | undefined): string {
@@ -212,6 +260,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const back = tournamentBackTarget(from);
   const [notice, setNotice] = useState<string | null>(null);
   const [prizesOpen, setPrizesOpen] = useState(false);
+  const [winnersOpen, setWinnersOpen] = useState(false);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
     queryFn: () => fetchTournament(tournamentId),
@@ -234,6 +283,9 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const data = query.data;
   const joinable = Boolean(data?.accepts_joins);
   const autoJoin = data?.config.join_mode === "auto";
+  const winners = data ? rankedWinners(data.entries) : [];
+  const winnersStrip = data ? showWinnersStrip(data.entries) : false;
+  const viewAllWinners = data ? showViewAllWinners(data.entries) : false;
   return (
     <section className="card table-wrap page-inner" data-testid="tournament-detail">
       <p className="meta">
@@ -307,18 +359,18 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               <span className="muted">Prize pool</span>
               <b>{data.config.prize_amount} Flower</b>
             </div>
-            <div data-testid="tournament-overall-avg">
-              <span className="muted">Avg / day</span>
-              <b>{formatScore(data.overall_average_per_day)}</b>
-            </div>
             <div data-testid="tournament-join-mode">
               <span className="muted">Approval</span>
               <b>{autoJoin ? "No" : "Yes"}</b>
             </div>
           </div>
           {data.config.prize_places && data.config.prize_places.length > 0 ? (
-            <div className="tourney-prize-peek" data-testid="tournament-prize-places">
-              {data.config.prize_places.slice(0, 3).map(formatPrizePlace).join(" · ")}
+            <div className="prize-place-section" data-testid="tournament-prize-places">
+              <div className="prize-place-cards">
+                {data.config.prize_places.slice(0, 3).map((item) => (
+                  <PrizePlaceCard key={item.place} item={item} />
+                ))}
+              </div>
               {data.config.prize_places.length > 3 ? (
                 <button
                   className="prize-more"
@@ -407,7 +459,71 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 : "No farms in this archive."}
             </p>
           )}
-          {data.entries.length > 0 && <Podium entries={data.entries} tournamentId={tournamentId} />}
+          {winnersStrip ? (
+            <section className="tournament-winners" data-testid="tournament-winners">
+              <div className="tournament-winners-head">
+                <h2 className="tournament-winners-title">Winners</h2>
+                {viewAllWinners ? (
+                  <button
+                    className="prize-more"
+                    type="button"
+                    data-testid="view-all-winners"
+                    onClick={() => setWinnersOpen(true)}
+                  >
+                    View all winners
+                  </button>
+                ) : null}
+              </div>
+              <Podium entries={data.entries} tournamentId={tournamentId} />
+            </section>
+          ) : null}
+          {winnersOpen && viewAllWinners ? (
+            <div
+              className="confirm-overlay"
+              data-testid="tournament-winners-modal"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="confirm-card winners-modal-card">
+                <p className="confirm-title">Winners</p>
+                <table className="prize-table winners-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Farm</th>
+                      <th>Total</th>
+                      <th>Today</th>
+                      <th>Pebbles</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {winners.map((row) => (
+                      <tr key={row.farm_id}>
+                        <td>{row.rank ?? "—"}</td>
+                        <td>
+                          <Link
+                            to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
+                          >
+                            {row.name || "Unnamed farm"}
+                          </Link>
+                        </td>
+                        <td>{row.digs_to_third_op ?? "—"}</td>
+                        <td>{row.score_today ?? "—"}</td>
+                        <td>{row.otter_count}</td>
+                        <td>{statusLabel(row.status)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="toolbar confirm-actions">
+                  <button className="btn" type="button" onClick={() => setWinnersOpen(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {data.entries.length > 0 && (
             <table className="board-table">
               <thead>
