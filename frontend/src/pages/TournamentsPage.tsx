@@ -5,11 +5,13 @@ import {
   fetchTournament,
   listTournaments,
   submitFarm,
+  type LeaderboardEntry,
   type PrizePlace,
   type TournamentSummary,
 } from "../api/public";
 import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { Pebbles } from "../components/Pebbles";
+import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
 import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
@@ -24,14 +26,40 @@ import {
   windowStatusLabel,
 } from "../lib/format";
 
-/** 1st/2nd/3rd medal rows only when there are multiple prize places. */
-export function showWinnersStrip(places: PrizePlace[] | null | undefined): boolean {
-  return (places?.length ?? 0) >= 2;
+/** Ranked standings used for the farm podium and winners overlay. */
+export function rankedWinners(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  return entries.filter((row) => row.rank != null);
 }
 
-/** “View all winners” only when there are more than three prize places. */
-export function showViewAllWinners(places: PrizePlace[] | null | undefined): boolean {
+/** Farm podium (1st/2nd/3rd) only when there are multiple ranked players. */
+export function showWinnersStrip(entries: LeaderboardEntry[]): boolean {
+  return rankedWinners(entries).length >= 2;
+}
+
+/** “View all winners” only when more than three ranked farms. */
+export function showViewAllWinners(entries: LeaderboardEntry[]): boolean {
+  return rankedWinners(entries).length > 3;
+}
+
+/** Prize rows so the details card always shows how many players win. */
+export function displayPrizePlaces(
+  places: PrizePlace[] | null | undefined,
+  prizeAmount: string | null | undefined,
+): PrizePlace[] {
+  const sorted = [...(places ?? [])].sort((a, b) => a.place - b.place);
+  if (sorted.length > 0) return sorted;
+  const amount = (prizeAmount ?? "").trim();
+  return amount ? [{ place: 1, amount }] : [];
+}
+
+export function showMorePrizes(places: PrizePlace[] | null | undefined): boolean {
   return (places?.length ?? 0) > 3;
+}
+
+export function prizePlaceCountLabel(count: number): string {
+  if (count <= 0) return "Prizes";
+  if (count === 1) return "1 player wins";
+  return `${count} players win`;
 }
 
 const LONG_REWARD_CHARS = 28;
@@ -65,10 +93,6 @@ function medalTone(place: number): string {
   if (place === 2) return "silver";
   if (place === 3) return "bronze";
   return "";
-}
-
-function sortedPrizePlaces(places: PrizePlace[] | null | undefined): PrizePlace[] {
-  return [...(places ?? [])].sort((a, b) => a.place - b.place);
 }
 
 function MedalRow({ item }: { item: PrizePlace }) {
@@ -309,6 +333,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const from = (location.state as { from?: string } | null)?.from;
   const back = tournamentBackTarget(from);
   const [notice, setNotice] = useState<string | null>(null);
+  const [prizesOpen, setPrizesOpen] = useState(false);
   const [winnersOpen, setWinnersOpen] = useState(false);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
@@ -332,9 +357,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const data = query.data;
   const joinable = Boolean(data?.accepts_joins);
   const autoJoin = data?.config.join_mode === "auto";
-  const places = sortedPrizePlaces(data?.config.prize_places);
-  const showMedals = showWinnersStrip(places);
-  const viewAllWinners = showViewAllWinners(places);
+  const places = displayPrizePlaces(data?.config.prize_places, data?.config.prize_amount);
+  const morePrizes = showMorePrizes(places);
+  const winners = data ? rankedWinners(data.entries) : [];
+  const winnersStrip = data ? showWinnersStrip(data.entries) : false;
+  const viewAllWinners = data ? showViewAllWinners(data.entries) : false;
   const vipOn = Boolean(data?.config.vip_required);
   const needsApproval = !autoJoin;
   return (
@@ -384,28 +411,30 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 ) : null}
                 <div className="detail-body-grid" data-testid="tournament-detail-body">
                   <div>
-                    <div className="winners-card" data-testid="tournament-winners">
-                      <div className={`winners-head${showMedals ? "" : " is-solo"}`}>
-                        <span className="lbl">Winners</span>
+                    <div className="winners-card" data-testid="tournament-prizes">
+                      <div className="winners-head">
+                        <span className="lbl" data-testid="prize-place-count">
+                          {prizePlaceCountLabel(places.length)}
+                        </span>
                         <span className="pool" data-testid="tournament-prize">
                           {data.config.prize_amount} $Flower
                         </span>
                       </div>
-                      {showMedals ? (
+                      {places.length > 0 ? (
                         <div className="medals" data-testid="tournament-prize-places">
                           {places.slice(0, 3).map((item) => (
                             <MedalRow key={item.place} item={item} />
                           ))}
                         </div>
                       ) : null}
-                      {viewAllWinners ? (
+                      {morePrizes ? (
                         <button
                           className="view-all-winners"
                           type="button"
-                          data-testid="view-all-winners"
-                          onClick={() => setWinnersOpen(true)}
+                          data-testid="tournament-more-prizes"
+                          onClick={() => setPrizesOpen(true)}
                         >
-                          View all winners
+                          View all prizes
                           <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -474,22 +503,22 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               </div>
             </div>
           </div>
-          {winnersOpen && viewAllWinners ? (
+          {prizesOpen && morePrizes ? (
             <div
               className="confirm-overlay"
-              data-testid="tournament-winners-modal"
+              data-testid="tournament-prizes-modal"
               role="dialog"
               aria-modal="true"
             >
               <div className="confirm-card winners-modal-card">
-                <p className="confirm-title">Winners</p>
+                <p className="confirm-title">Prizes</p>
                 <div className="medals winners-modal-medals">
                   {places.map((item) => (
                     <MedalRow key={item.place} item={item} />
                   ))}
                 </div>
                 <div className="toolbar confirm-actions">
-                  <button className="btn" type="button" onClick={() => setWinnersOpen(false)}>
+                  <button className="btn" type="button" onClick={() => setPrizesOpen(false)}>
                     Close
                   </button>
                 </div>
@@ -533,6 +562,71 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 : "No farms in this archive."}
             </p>
           )}
+          {winnersStrip ? (
+            <section className="tournament-winners" data-testid="tournament-winners">
+              <div className="tournament-winners-head">
+                <h2 className="tournament-winners-title">Podium</h2>
+                {viewAllWinners ? (
+                  <button
+                    className="prize-more"
+                    type="button"
+                    data-testid="view-all-winners"
+                    onClick={() => setWinnersOpen(true)}
+                  >
+                    View all winners
+                  </button>
+                ) : null}
+              </div>
+              <Podium entries={data.entries} tournamentId={tournamentId} />
+            </section>
+          ) : null}
+          {winnersOpen && viewAllWinners ? (
+            <div
+              className="confirm-overlay"
+              data-testid="tournament-winners-modal"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div className="confirm-card winners-modal-card">
+                <p className="confirm-title">Winners</p>
+                <table className="prize-table winners-table">
+                  <thead>
+                    <tr>
+                      <th>Rank</th>
+                      <th>Farm</th>
+                      <th>Total</th>
+                      <th>Today</th>
+                      <th>Pebbles</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {winners.map((row) => (
+                      <tr key={row.farm_id}>
+                        <td>{row.rank ?? "—"}</td>
+                        <td>
+                          <Link
+                            to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
+                          >
+                            {row.name || "Unnamed farm"}
+                          </Link>
+                        </td>
+                        <td>{row.digs_to_third_op ?? "—"}</td>
+                        <td>{row.score_today ?? "—"}</td>
+                        <td>{row.otter_count}</td>
+                        <td>{statusLabel(row.status)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="toolbar confirm-actions">
+                  <button className="btn" type="button" onClick={() => setWinnersOpen(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {data.entries.length > 0 && (
             <div className="table-wrap detail-standings">
               <table className="board-table">

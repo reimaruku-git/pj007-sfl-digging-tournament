@@ -1138,9 +1138,29 @@ a.tourney-window:hover {
 }
 
 .winners-modal-card {
-  width: min(28rem, 100%);
+  width: min(36rem, 100%);
   max-height: 85vh;
   overflow: auto;
+}
+
+.tournament-winners {
+  margin: 24px 0 16px;
+}
+
+.tournament-winners-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.tournament-winners-title {
+  margin: 0;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--cream);
 }
 
 .winners-modal-medals {
