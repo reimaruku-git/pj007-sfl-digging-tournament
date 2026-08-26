@@ -821,7 +821,7 @@ a.tourney-window:hover {
   font-weight: 600;
   letter-spacing: 0.02em;
   text-decoration: none;
-  margin: 0 0 18px;
+  margin: 16px 0 18px;
 }
 
 .detail-crumb svg {
@@ -837,39 +837,8 @@ a.tourney-window:hover {
   overflow: hidden;
 }
 
-.detail-panel-top {
-  display: grid;
-  grid-template-columns: 40px 1fr;
-}
-
-.detail-ruler {
-  position: relative;
-  border-right: 1px solid rgba(184, 154, 86, 0.14);
-  padding: 26px 0 22px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.detail-ruler-track {
-  position: relative;
-  flex: 1;
-  width: 2px;
-  min-height: 140px;
-  background: rgba(184, 154, 86, 0.12);
-  border-radius: 2px;
-}
-
-.detail-ruler-fill {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, var(--gold) 0%, #c06a3a 100%);
-  border-radius: 2px;
-  opacity: 0.55;
-}
-
 .detail-content {
-  padding: 22px 26px 24px 20px;
+  padding: 22px 26px 24px;
 }
 
 .detail-title-row {
@@ -2149,14 +2118,6 @@ a.past-card:hover {
   .prize-pool-row,
   .winner-row.is-nft {
     grid-template-columns: 1fr;
-  }
-
-  .detail-panel-top {
-    grid-template-columns: 1fr;
-  }
-
-  .detail-ruler {
-    display: none;
   }
 
   .detail-body-grid {

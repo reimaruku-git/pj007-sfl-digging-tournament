@@ -364,13 +364,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
       {data && (
         <>
           <div className="detail-panel">
-            <div className="detail-panel-top">
-              <div className="detail-ruler" aria-hidden="true">
-                <div className="detail-ruler-track">
-                  <div className="detail-ruler-fill" />
-                </div>
-              </div>
-              <div className="detail-content">
+            <div className="detail-content">
                 <div className="detail-title-row">
                   <div className="detail-title-block">
                     <h1>{data.config.name || "Tournament"}</h1>
@@ -484,7 +478,6 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
           </div>
           {prizesOpen && morePrizes ? (

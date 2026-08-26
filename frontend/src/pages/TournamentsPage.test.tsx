@@ -476,6 +476,7 @@ describe("TournamentsPage", () => {
     expect(back?.textContent).toMatch(/Back to tournaments/);
     expect(back?.getAttribute("href")).toBe("/tournaments");
     expect(page.textContent).not.toMatch(/← Home/);
+    expect(page.querySelector(".detail-ruler")).toBeNull();
     const download = page.querySelector('[data-testid="download-board"]') as HTMLButtonElement;
     expect(download.disabled).toBe(true);
   });
@@ -781,7 +782,7 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-more-prizes"]')).toBeNull();
   });
 
-  it("drops the unused divider and uses a readable back link on tournament info", async () => {
+  it("drops the unused divider and left ruler and uses a readable back link on tournament info", async () => {
     const live = summary({
       tournament_id: "live",
       name: "Chrome cup",
@@ -798,14 +799,21 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="back-link"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="back-link"]')?.textContent).toMatch(/Back to home/);
     expect(page.querySelector(".detail-divider")).toBeNull();
-    expect(page.querySelector(".detail-ruler")).not.toBeNull();
+    expect(page.querySelector(".detail-ruler")).toBeNull();
+    expect(page.querySelector(".detail-ruler-track")).toBeNull();
+    expect(page.querySelector(".detail-panel-top")).toBeNull();
     const css = shippedCss();
     expect(css).not.toMatch(/\.detail-divider\s*\{/);
+    expect(css).not.toMatch(/\.detail-ruler\s*\{/);
+    expect(css).not.toMatch(/\.detail-ruler-track\s*\{/);
+    expect(css).not.toMatch(/grid-template-columns:\s*40px 1fr/);
     expect(css).toMatch(/\.detail-body-grid\s*\{[^}]*grid-template-columns:\s*1\.3fr 1fr/s);
     expect(css).not.toMatch(/\.detail-body-grid\s*\{[^}]*1px 1fr/s);
     expect(css).toMatch(/\.detail-crumb\s*\{[^}]*font-size:\s*15px/s);
     expect(css).toMatch(/\.detail-crumb\s*\{[^}]*font-weight:\s*600/s);
     expect(css).not.toMatch(/\.detail-crumb\s*\{[^}]*font-size:\s*12px/s);
+    expect(css).not.toMatch(/\.detail-crumb\s*\{[^}]*margin:\s*0 0 /s);
+    expect(css).toMatch(/\.detail-crumb\s*\{[^}]*margin:\s*16px 0 18px/s);
   });
 
   it("uses must-confirm join copy when join_mode is confirm", async () => {
