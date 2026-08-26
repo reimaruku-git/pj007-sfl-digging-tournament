@@ -3,6 +3,7 @@ import {
   catalogStatusLabel,
   formatDateRangeUtc,
   formatDateUtc,
+  formatDetailDateRangeUtc,
   formatDurationDays,
   formatRelative,
   formatScore,
@@ -11,6 +12,7 @@ import {
   inclusiveCalendarDays,
   inclusiveFinalDayIso,
   isoToDateInput,
+  isZeroFlowerAmount,
   opensLabel,
   remainingLabel,
   utcCalendarDaysUntil,
@@ -57,15 +59,46 @@ describe("formatDateUtc", () => {
     expect(formatDateRangeUtc("2026-12-28T00:00:00.000Z", "2027-01-04T00:00:00.000Z")).toBe(
       "28 Dec 2026–4 Jan 2027",
     );
-    expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z", 8)).not.toMatch(
-      /·/,
-    );
+    expect(
+      formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z", 8),
+    ).not.toMatch(/·/);
     expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z")).not.toMatch(
       /\d{2}:\d{2}/,
     );
     expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z")).not.toMatch(
       /UTC/,
     );
+  });
+});
+
+describe("formatDetailDateRangeUtc", () => {
+  it("prints full month names with year only on the end when UTC years match", () => {
+    expect(formatDetailDateRangeUtc("2026-08-26T00:00:00.000Z", "2026-08-26T00:00:00.000Z")).toBe(
+      "August 26, - August 26, 2026",
+    );
+    expect(formatDetailDateRangeUtc("2026-08-23T00:00:00.000Z", "2026-08-30T00:00:00.000Z")).toBe(
+      "August 23, - August 30, 2026",
+    );
+    expect(formatDetailDateRangeUtc("2026-08-21T00:00:00.000Z", "2026-09-03T00:00:00.000Z")).toBe(
+      "August 21, - September 3, 2026",
+    );
+  });
+
+  it("prints the year on both sides when UTC years differ", () => {
+    expect(formatDetailDateRangeUtc("2026-12-30T00:00:00.000Z", "2027-01-05T00:00:00.000Z")).toBe(
+      "December 30, 2026 - January 5, 2027",
+    );
+  });
+});
+
+describe("isZeroFlowerAmount", () => {
+  it("treats 0 and 0.0 as zero and leaves non-zero amounts", () => {
+    expect(isZeroFlowerAmount("0")).toBe(true);
+    expect(isZeroFlowerAmount("0.0")).toBe(true);
+    expect(isZeroFlowerAmount(" 0.00 ")).toBe(true);
+    expect(isZeroFlowerAmount("30")).toBe(false);
+    expect(isZeroFlowerAmount("0.1")).toBe(false);
+    expect(isZeroFlowerAmount("")).toBe(false);
   });
 });
 

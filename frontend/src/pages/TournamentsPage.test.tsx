@@ -344,8 +344,8 @@ describe("TournamentsPage", () => {
     );
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-detail"]')).not.toBeNull();
-    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toMatch(
-      /16 Aug – 16 Aug/,
+    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toBe(
+      "August 16, - August 16, 2026",
     );
     expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).not.toMatch(
       /→|· 1d/,
@@ -396,6 +396,12 @@ describe("TournamentsPage", () => {
     expect(page.querySelector(".place-1")?.getAttribute("href")).toBe("/tournaments/live/farm/1");
     const download = page.querySelector('[data-testid="download-board"]') as HTMLButtonElement;
     expect(download).not.toBeNull();
+    const panel = page.querySelector(".detail-panel");
+    expect(panel?.contains(download)).toBe(false);
+    const chrome = page.querySelector(".detail-chrome");
+    expect(chrome).not.toBeNull();
+    expect(chrome?.contains(page.querySelector('[data-testid="back-link"]'))).toBe(true);
+    expect(chrome?.contains(download)).toBe(true);
     expect(download.disabled).toBe(false);
     expect(download.getAttribute("aria-label")).toBe("Download image");
     expect(download.querySelector("svg")).not.toBeNull();
@@ -514,8 +520,8 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-description"]')?.textContent).toMatch(
       /Bring a shovel/,
     );
-    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toMatch(
-      /23 Aug – 30 Aug/,
+    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toBe(
+      "August 23, - August 30, 2026",
     );
     expect(page.querySelector('[data-testid="tournament-start-day"]')).toBeNull();
     expect(page.querySelector('[data-testid="tournament-final-day"]')).toBeNull();
@@ -821,9 +827,20 @@ describe("TournamentsPage", () => {
     expect(css).not.toMatch(/\.detail-body-grid\s*\{[^}]*1px 1fr/s);
     expect(css).toMatch(/\.detail-crumb\s*\{[^}]*font-size:\s*15px/s);
     expect(css).toMatch(/\.detail-crumb\s*\{[^}]*font-weight:\s*600/s);
+    expect(css).toMatch(/\.detail-crumb\s*\{[^}]*display:\s*inline-flex/s);
+    expect(css).toMatch(/\.detail-crumb\s*\{[^}]*width:\s*fit-content/s);
+    expect(css).toMatch(/\.detail-chrome\s*\{[^}]*display:\s*flex/s);
+    expect(css).toMatch(/\.detail-chrome\s*\{[^}]*justify-content:\s*space-between/s);
+    expect(css).toMatch(/\.detail-chrome\s*\{[^}]*margin:\s*16px 0 18px/s);
     expect(css).not.toMatch(/\.detail-crumb\s*\{[^}]*font-size:\s*12px/s);
     expect(css).not.toMatch(/\.detail-crumb\s*\{[^}]*margin:\s*0 0 /s);
-    expect(css).toMatch(/\.detail-crumb\s*\{[^}]*margin:\s*16px 0 18px/s);
+    expect(css).not.toMatch(/\.detail-crumb\s*\{[^}]*margin:\s*16px 0 18px/s);
+    const chrome = page.querySelector(".detail-chrome");
+    const back = page.querySelector('[data-testid="back-link"]');
+    const download = page.querySelector('[data-testid="download-board"]');
+    expect(chrome?.contains(back)).toBe(true);
+    expect(chrome?.contains(download)).toBe(true);
+    expect(page.querySelector(".detail-panel")?.contains(download)).toBe(false);
   });
 
   it("uses must-confirm join copy when join_mode is confirm", async () => {
@@ -990,6 +1007,59 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="join-need-connect"]')?.textContent).toMatch(
       /Connect your farm/,
     );
+  });
+
+  it("prints a cross-year details window with year on both sides", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Year wrap",
+      status: "active",
+      start_at: "2026-12-30T00:00:00.000Z",
+      end_at: "2027-01-05T00:00:00.000Z",
+      duration_days: 7,
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="tournament-window"]')?.textContent).toBe(
+      "December 30, 2026 - January 5, 2027",
+    );
+  });
+
+  it("omits zero Flower on details prize rows and shows only the NFT name", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "NFT cup",
+      status: "active",
+      prize_places: [
+        { place: 1, amount: "50", nft_name: "Rare Key" },
+        { place: 2, amount: "0", nft_name: "Dusty Pick" },
+        { place: 3, amount: "0.0", nft_name: "Sand Charm" },
+        { place: 4, amount: "0", nft_name: "Otter Pin" },
+      ],
+      prize_amount: "50",
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderAt("/tournaments/live");
+    const first = page.querySelector('[data-testid="prize-place-card-1"]')?.textContent ?? "";
+    const second = page.querySelector('[data-testid="prize-place-card-2"]')?.textContent ?? "";
+    const third = page.querySelector('[data-testid="prize-place-card-3"]')?.textContent ?? "";
+    expect(first).toMatch(/Rare Key/);
+    expect(first).toMatch(/50 \$Flower/);
+    expect(second).toMatch(/Dusty Pick/);
+    expect(second).not.toMatch(/0 \$Flower/);
+    expect(second).not.toMatch(/0 Flower/);
+    expect(third).toMatch(/Sand Charm/);
+    expect(third).not.toMatch(/0\.0 \$Flower/);
+    expect(third).not.toMatch(/0 Flower/);
+    const more = page.querySelector('[data-testid="tournament-more-prizes"]') as HTMLButtonElement;
+    act(() => {
+      more.click();
+    });
+    const modal = page.querySelector('[data-testid="tournament-prizes-modal"]');
+    const fourth = modal?.querySelector('[data-testid="prize-place-card-4"]')?.textContent ?? "";
+    expect(fourth).toMatch(/Otter Pin/);
+    expect(fourth).not.toMatch(/0 \$Flower/);
+    expect(fourth).not.toMatch(/0 Flower/);
   });
 
   it("does not offer join on an ended tournament", async () => {

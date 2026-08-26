@@ -812,16 +812,24 @@ a.tourney-window:hover {
   max-width: 1000px;
 }
 
-.detail-crumb {
+.detail-chrome {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 18px;
+}
+
+.detail-crumb {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
   gap: 6px;
   color: var(--cream);
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-decoration: none;
-  margin: 16px 0 18px;
 }
 
 .detail-crumb svg {

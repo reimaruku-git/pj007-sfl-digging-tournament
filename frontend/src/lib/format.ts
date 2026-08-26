@@ -83,6 +83,21 @@ const SHORT_MONTHS = [
   "Dec",
 ];
 
+const LONG_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 function utcDayMonth(value: string): { year: number; month: string; day: number } | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -117,6 +132,49 @@ export function formatDateRangeUtc(
     return `${from.day} ${from.month}–${to.day} ${to.month}`;
   }
   return `${from.day} ${from.month} ${from.year}–${to.day} ${to.month} ${to.year}`;
+}
+
+function utcLongDay(value: string): { year: number; month: string; day: number } | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    year: date.getUTCFullYear(),
+    month: LONG_MONTHS[date.getUTCMonth()] ?? "",
+    day: date.getUTCDate(),
+  };
+}
+
+function longMonthDay(
+  parts: { month: string; day: number },
+  withYear: boolean,
+  year: number,
+): string {
+  return withYear ? `${parts.month} ${parts.day}, ${year}` : `${parts.month} ${parts.day},`;
+}
+
+/** Details-page range: full month names, year on the end (or both when years differ). */
+export function formatDetailDateRangeUtc(
+  start: string | null | undefined,
+  end: string | null | undefined,
+): string {
+  const from = start ? utcLongDay(start) : null;
+  const to = end ? utcLongDay(end) : null;
+  if (!from && !to) return "—";
+  if (!from && to) return longMonthDay(to, true, to.year);
+  if (from && !to) return longMonthDay(from, true, from.year);
+  if (!from || !to) return "—";
+  if (from.year === to.year) {
+    return `${longMonthDay(from, false, from.year)} - ${longMonthDay(to, true, to.year)}`;
+  }
+  return `${longMonthDay(from, true, from.year)} - ${longMonthDay(to, true, to.year)}`;
+}
+
+/** True when a prize Flower amount is numeric zero ("0", "0.0", …). */
+export function isZeroFlowerAmount(amount: string | null | undefined): boolean {
+  const raw = (amount ?? "").trim();
+  if (!raw) return false;
+  const n = Number(raw);
+  return Number.isFinite(n) && n === 0;
 }
 
 export function formatWhenUtc(value: string | null | undefined): string {
@@ -196,10 +254,7 @@ export function utcCalendarDaysUntil(
   return Math.round((startOfTarget - startOfNow) / 86_400_000);
 }
 
-export function remainingLabel(
-  endAt: string | null | undefined,
-  now: Date = new Date(),
-): string {
+export function remainingLabel(endAt: string | null | undefined, now: Date = new Date()): string {
   const days = utcCalendarDaysUntil(endAt, now);
   if (days == null) return "";
   if (days <= 0) return "Ends today";
@@ -207,10 +262,7 @@ export function remainingLabel(
   return `${days} days remaining`;
 }
 
-export function opensLabel(
-  startAt: string | null | undefined,
-  now: Date = new Date(),
-): string {
+export function opensLabel(startAt: string | null | undefined, now: Date = new Date()): string {
   const days = utcCalendarDaysUntil(startAt, now);
   if (days == null) return "";
   if (days <= 0) return "Opens today";

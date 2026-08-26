@@ -17,9 +17,11 @@ import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } fro
 import { useFarmSession } from "../lib/farmSession";
 import {
   formatDateUtc,
+  formatDetailDateRangeUtc,
   formatDurationDays,
   formatScore,
   inclusiveFinalDayIso,
+  isZeroFlowerAmount,
   opensLabel,
   remainingLabel,
   statusLabel,
@@ -55,8 +57,9 @@ export function showMorePrizes(places: PrizePlace[] | null | undefined): boolean
 const LONG_REWARD_CHARS = 28;
 
 export function isLongRewardText(item: PrizePlace): boolean {
-  const flower = `${item.amount} Flower`;
-  const full = item.nft_name ? `${flower} ${item.nft_name}` : flower;
+  const flower = flowerReward(item.amount);
+  const nft = item.nft_name?.trim() || "";
+  const full = [flower, nft].filter(Boolean).join(" ");
   return full.length > LONG_REWARD_CHARS;
 }
 
@@ -74,7 +77,7 @@ function formatPrizePlace(item: PrizePlace): string {
 
 function flowerReward(amount: string | null | undefined): string | null {
   const raw = (amount ?? "").trim();
-  if (!raw) return null;
+  if (!raw || isZeroFlowerAmount(raw)) return null;
   return `${raw} $Flower`;
 }
 
@@ -357,131 +360,135 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const showJoinCta = joinable && Boolean(identity) && !alreadyEnrolled && !join.isSuccess;
   return (
     <section className="page-inner tournament-detail" data-testid="tournament-detail">
-      <Link to={back.to} className="detail-crumb" data-testid="back-link">
-        <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" aria-hidden>
-          <path d="M15 18l-6-6 6-6" />
-        </svg>
-        {back.label}
-      </Link>
+      <div className="detail-chrome">
+        <Link to={back.to} className="detail-crumb" data-testid="back-link">
+          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          {back.label}
+        </Link>
+        {data ? (
+          <DownloadBoardButton
+            name={data.config.name || "Tournament"}
+            startAt={data.config.start_at}
+            endAt={data.config.end_at}
+            durationDays={data.config.duration_days}
+            prizeAmount={data.config.prize_amount}
+            entries={data.entries}
+            totalCount={data.count}
+          />
+        ) : null}
+      </div>
       {query.isLoading && <p className="muted">Loading tournament…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
       {data && (
         <>
           <div className="detail-panel">
             <div className="detail-content">
-                <div className="detail-title-row">
-                  <div className="detail-title-block">
-                    <h1>{data.config.name || "Tournament"}</h1>
-                    <div className="detail-range" data-testid="tournament-window">
-                      {formatDateUtc(data.config.start_at)} –{" "}
-                      {formatDateUtc(
-                        inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
+              <div className="detail-title-row">
+                <div className="detail-title-block">
+                  <h1>{data.config.name || "Tournament"}</h1>
+                  <div className="detail-range" data-testid="tournament-window">
+                    {formatDetailDateRangeUtc(
+                      data.config.start_at,
+                      inclusiveFinalDayIso(data.config.start_at, data.config.duration_days),
+                    )}
+                  </div>
+                </div>
+              </div>
+              {data.config.description ? (
+                <p className="tourney-description" data-testid="tournament-description">
+                  {data.config.description}
+                </p>
+              ) : null}
+              <div className="detail-body-grid" data-testid="tournament-detail-body">
+                <div className="winners-card" data-testid="tournament-prizes">
+                  <div className="winners-head">
+                    <span className="lbl" data-testid="prize-place-count">
+                      Prizes
+                    </span>
+                    <span className="pool" data-testid="tournament-prize">
+                      {data.config.prize_amount} $Flower
+                    </span>
+                  </div>
+                  {places.length > 0 ? (
+                    <div className="medals" data-testid="tournament-prize-places">
+                      {places.slice(0, 3).map((item) => (
+                        <MedalRow key={item.place} item={item} />
+                      ))}
+                    </div>
+                  ) : null}
+                  {morePrizes ? (
+                    <button
+                      className="view-all-winners"
+                      type="button"
+                      data-testid="tournament-more-prizes"
+                      onClick={() => setPrizesOpen(true)}
+                    >
+                      view prices
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                  ) : null}
+                </div>
+                <div className="detail-stat-list">
+                  <div className="detail-stat" data-testid="tournament-participants">
+                    <div className="lbl">
+                      <StatGlyph kind="people" />
+                      Participants
+                    </div>
+                    <div className="val">
+                      {joinedDisplay(
+                        data.config.enrolled_count,
+                        data.config.max_players,
+                        data.count,
                       )}
                     </div>
                   </div>
-                  <DownloadBoardButton
-                    name={data.config.name || "Tournament"}
-                    startAt={data.config.start_at}
-                    endAt={data.config.end_at}
-                    durationDays={data.config.duration_days}
-                    prizeAmount={data.config.prize_amount}
-                    entries={data.entries}
-                    totalCount={data.count}
-                  />
-                </div>
-                {data.config.description ? (
-                  <p className="tourney-description" data-testid="tournament-description">
-                    {data.config.description}
-                  </p>
-                ) : null}
-                <div className="detail-body-grid" data-testid="tournament-detail-body">
-                  <div className="winners-card" data-testid="tournament-prizes">
-                    <div className="winners-head">
-                      <span className="lbl" data-testid="prize-place-count">
-                        Prizes
-                      </span>
-                      <span className="pool" data-testid="tournament-prize">
-                        {data.config.prize_amount} $Flower
-                      </span>
+                  <div className="detail-stat" data-testid="tournament-island">
+                    <div className="lbl">
+                      <StatGlyph kind="island" />
+                      Min island
                     </div>
-                    {places.length > 0 ? (
-                      <div className="medals" data-testid="tournament-prize-places">
-                        {places.slice(0, 3).map((item) => (
-                          <MedalRow key={item.place} item={item} />
-                        ))}
-                      </div>
-                    ) : null}
-                    {morePrizes ? (
-                      <button
-                        className="view-all-winners"
-                        type="button"
-                        data-testid="tournament-more-prizes"
-                        onClick={() => setPrizesOpen(true)}
-                      >
-                        view prices
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden
-                        >
-                          <path d="M6 9l6 6 6-6" />
-                        </svg>
-                      </button>
-                    ) : null}
+                    <div className="val">{islandLabel(data.config.min_bumpkin_island)}</div>
                   </div>
-                  <div className="detail-stat-list">
-                    <div className="detail-stat" data-testid="tournament-participants">
-                      <div className="lbl">
-                        <StatGlyph kind="people" />
-                        Participants
-                      </div>
-                      <div className="val">
-                        {joinedDisplay(
-                          data.config.enrolled_count,
-                          data.config.max_players,
-                          data.count,
-                        )}
-                      </div>
+                  <div className="detail-stat" data-testid="tournament-streak">
+                    <div className="lbl">
+                      <StatGlyph kind="streak" />
+                      Min dig streak
                     </div>
-                    <div className="detail-stat" data-testid="tournament-island">
-                      <div className="lbl">
-                        <StatGlyph kind="island" />
-                        Min island
-                      </div>
-                      <div className="val">{islandLabel(data.config.min_bumpkin_island)}</div>
+                    <div className="val">
+                      {data.config.min_digging_streak == null
+                        ? "None"
+                        : data.config.min_digging_streak}
                     </div>
-                    <div className="detail-stat" data-testid="tournament-streak">
-                      <div className="lbl">
-                        <StatGlyph kind="streak" />
-                        Min dig streak
-                      </div>
-                      <div className="val">
-                        {data.config.min_digging_streak == null
-                          ? "None"
-                          : data.config.min_digging_streak}
-                      </div>
+                  </div>
+                  <div className="detail-stat" data-testid="tournament-vip">
+                    <div className="lbl">
+                      <StatGlyph kind="vip" />
+                      VIP status
                     </div>
-                    <div className="detail-stat" data-testid="tournament-vip">
-                      <div className="lbl">
-                        <StatGlyph kind="vip" />
-                        VIP status
-                      </div>
-                      <div className={`val ${vipOn ? "yes" : "no"}`}>{vipOn ? "Yes" : "No"}</div>
+                    <div className={`val ${vipOn ? "yes" : "no"}`}>{vipOn ? "Yes" : "No"}</div>
+                  </div>
+                  <div className="detail-stat span2" data-testid="tournament-join-mode">
+                    <div className="lbl">
+                      <StatGlyph kind="approval" />
+                      Needs approval
                     </div>
-                    <div className="detail-stat span2" data-testid="tournament-join-mode">
-                      <div className="lbl">
-                        <StatGlyph kind="approval" />
-                        Needs approval
-                      </div>
-                      <div className={`val ${needsApproval ? "yes" : "no"}`}>
-                        {needsApproval ? "Yes" : "No"}
-                      </div>
+                    <div className={`val ${needsApproval ? "yes" : "no"}`}>
+                      {needsApproval ? "Yes" : "No"}
                     </div>
                   </div>
                 </div>
+              </div>
             </div>
           </div>
           {prizesOpen && morePrizes ? (
