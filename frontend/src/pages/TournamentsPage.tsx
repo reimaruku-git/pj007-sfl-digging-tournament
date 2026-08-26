@@ -26,7 +26,7 @@ import {
   windowStatusLabel,
 } from "../lib/format";
 
-/** Ranked standings used for the farm podium and winners overlay. */
+/** Ranked standings used for the farm podium. */
 export function rankedWinners(entries: LeaderboardEntry[]): LeaderboardEntry[] {
   return entries.filter((row) => row.rank != null);
 }
@@ -36,12 +36,7 @@ export function showWinnersStrip(entries: LeaderboardEntry[]): boolean {
   return rankedWinners(entries).length >= 2;
 }
 
-/** “View all winners” only when more than three ranked farms. */
-export function showViewAllWinners(entries: LeaderboardEntry[]): boolean {
-  return rankedWinners(entries).length > 3;
-}
-
-/** Prize rows so the details card always shows how many players win. */
+/** Prize rows for the details card (1st–3rd on the card; extras in view prices). */
 export function displayPrizePlaces(
   places: PrizePlace[] | null | undefined,
   prizeAmount: string | null | undefined,
@@ -52,14 +47,9 @@ export function displayPrizePlaces(
   return amount ? [{ place: 1, amount }] : [];
 }
 
+/** Extra-places control only when the event has more than three prize places. */
 export function showMorePrizes(places: PrizePlace[] | null | undefined): boolean {
   return (places?.length ?? 0) > 3;
-}
-
-export function prizePlaceCountLabel(count: number): string {
-  if (count <= 0) return "Prizes";
-  if (count === 1) return "1 player wins";
-  return `${count} players win`;
 }
 
 const LONG_REWARD_CHARS = 28;
@@ -334,7 +324,6 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const back = tournamentBackTarget(from);
   const [notice, setNotice] = useState<string | null>(null);
   const [prizesOpen, setPrizesOpen] = useState(false);
-  const [winnersOpen, setWinnersOpen] = useState(false);
   const query = useQuery({
     queryKey: ["tournament", tournamentId],
     queryFn: () => fetchTournament(tournamentId),
@@ -359,9 +348,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const autoJoin = data?.config.join_mode === "auto";
   const places = displayPrizePlaces(data?.config.prize_places, data?.config.prize_amount);
   const morePrizes = showMorePrizes(places);
-  const winners = data ? rankedWinners(data.entries) : [];
   const winnersStrip = data ? showWinnersStrip(data.entries) : false;
-  const viewAllWinners = data ? showViewAllWinners(data.entries) : false;
   const vipOn = Boolean(data?.config.vip_required);
   const needsApproval = !autoJoin;
   return (
@@ -410,46 +397,43 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                   </p>
                 ) : null}
                 <div className="detail-body-grid" data-testid="tournament-detail-body">
-                  <div>
-                    <div className="winners-card" data-testid="tournament-prizes">
-                      <div className="winners-head">
-                        <span className="lbl" data-testid="prize-place-count">
-                          {prizePlaceCountLabel(places.length)}
-                        </span>
-                        <span className="pool" data-testid="tournament-prize">
-                          {data.config.prize_amount} $Flower
-                        </span>
-                      </div>
-                      {places.length > 0 ? (
-                        <div className="medals" data-testid="tournament-prize-places">
-                          {places.slice(0, 3).map((item) => (
-                            <MedalRow key={item.place} item={item} />
-                          ))}
-                        </div>
-                      ) : null}
-                      {morePrizes ? (
-                        <button
-                          className="view-all-winners"
-                          type="button"
-                          data-testid="tournament-more-prizes"
-                          onClick={() => setPrizesOpen(true)}
-                        >
-                          View all prizes
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                          >
-                            <path d="M6 9l6 6 6-6" />
-                          </svg>
-                        </button>
-                      ) : null}
+                  <div className="winners-card" data-testid="tournament-prizes">
+                    <div className="winners-head">
+                      <span className="lbl" data-testid="prize-place-count">
+                        Prizes
+                      </span>
+                      <span className="pool" data-testid="tournament-prize">
+                        {data.config.prize_amount} $Flower
+                      </span>
                     </div>
+                    {places.length > 0 ? (
+                      <div className="medals" data-testid="tournament-prize-places">
+                        {places.slice(0, 3).map((item) => (
+                          <MedalRow key={item.place} item={item} />
+                        ))}
+                      </div>
+                    ) : null}
+                    {morePrizes ? (
+                      <button
+                        className="view-all-winners"
+                        type="button"
+                        data-testid="tournament-more-prizes"
+                        onClick={() => setPrizesOpen(true)}
+                      >
+                        view prices
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                    ) : null}
                   </div>
-                  <div className="detail-divider" />
                   <div className="detail-stat-list">
                     <div className="detail-stat" data-testid="tournament-participants">
                       <div className="lbl">
@@ -566,66 +550,9 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             <section className="tournament-winners" data-testid="tournament-winners">
               <div className="tournament-winners-head">
                 <h2 className="tournament-winners-title">Podium</h2>
-                {viewAllWinners ? (
-                  <button
-                    className="prize-more"
-                    type="button"
-                    data-testid="view-all-winners"
-                    onClick={() => setWinnersOpen(true)}
-                  >
-                    View all winners
-                  </button>
-                ) : null}
               </div>
               <Podium entries={data.entries} tournamentId={tournamentId} />
             </section>
-          ) : null}
-          {winnersOpen && viewAllWinners ? (
-            <div
-              className="confirm-overlay"
-              data-testid="tournament-winners-modal"
-              role="dialog"
-              aria-modal="true"
-            >
-              <div className="confirm-card winners-modal-card">
-                <p className="confirm-title">Winners</p>
-                <table className="prize-table winners-table">
-                  <thead>
-                    <tr>
-                      <th>Rank</th>
-                      <th>Farm</th>
-                      <th>Total</th>
-                      <th>Today</th>
-                      <th>Pebbles</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {winners.map((row) => (
-                      <tr key={row.farm_id}>
-                        <td>{row.rank ?? "—"}</td>
-                        <td>
-                          <Link
-                            to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
-                          >
-                            {row.name || "Unnamed farm"}
-                          </Link>
-                        </td>
-                        <td>{row.digs_to_third_op ?? "—"}</td>
-                        <td>{row.score_today ?? "—"}</td>
-                        <td>{row.otter_count}</td>
-                        <td>{statusLabel(row.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="toolbar confirm-actions">
-                  <button className="btn" type="button" onClick={() => setWinnersOpen(false)}>
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
           ) : null}
           {data.entries.length > 0 && (
             <div className="table-wrap detail-standings">

@@ -816,16 +816,17 @@ a.tourney-window:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--gold);
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  color: var(--cream);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   text-decoration: none;
   margin: 0 0 18px;
 }
 
 .detail-crumb svg {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   stroke: currentColor;
 }
 
@@ -898,7 +899,7 @@ a.tourney-window:hover {
 
 .detail-body-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1px 1fr;
+  grid-template-columns: 1.3fr 1fr;
   gap: 24px;
   align-items: stretch;
 }
@@ -1057,10 +1058,6 @@ a.tourney-window:hover {
   width: 12px;
   height: 12px;
   stroke: currentColor;
-}
-
-.detail-divider {
-  background: rgba(184, 154, 86, 0.14);
 }
 
 .detail-stat-list {
@@ -2165,10 +2162,6 @@ a.past-card:hover {
   .detail-body-grid {
     grid-template-columns: 1fr;
     gap: 18px;
-  }
-
-  .detail-divider {
-    display: none;
   }
 
   .detail-title-block h1 {
