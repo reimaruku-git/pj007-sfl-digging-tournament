@@ -7,6 +7,7 @@ import {
   formatDurationDays,
   formatRelative,
   formatScore,
+  formatTopPrize,
   formatWhenUtc,
   formatWindowRange,
   inclusiveCalendarDays,
@@ -126,13 +127,24 @@ describe("window calendar copy", () => {
 
   it("prints a spaced range with year", () => {
     expect(formatWindowRange("2026-08-22T00:00:00.000Z", "2026-08-28T00:00:00.000Z")).toBe(
-      "22 – 28 Aug 2026",
+      "August 22, 2026 to August 28, 2026",
     );
     expect(formatWindowRange("2026-08-22T00:00:00.000Z", "2026-09-03T00:00:00.000Z")).toBe(
-      "22 Aug – 3 Sep 2026",
+      "August 22, 2026 to September 3, 2026",
     );
     expect(formatDurationDays(7)).toBe("7 days");
     expect(formatDurationDays(1)).toBe("1 day");
+  });
+
+  it("prints inclusive last playable day, not exclusive end_at", () => {
+    const start = "2026-08-17T00:00:00.000Z";
+    const last = inclusiveFinalDayIso(start, 7);
+    expect(isoToDateInput(last)).toBe("2026-08-23");
+    expect(formatWindowRange(start, last)).toBe("August 17, 2026 to August 23, 2026");
+    expect(formatWindowRange(start, last)).not.toMatch(/August 24/);
+    expect(formatWindowRange(start, "2026-08-24T00:00:00.000Z")).toBe(
+      "August 17, 2026 to August 24, 2026",
+    );
   });
 
   it("counts remaining and opening days from UTC dates", () => {
@@ -140,6 +152,37 @@ describe("window calendar copy", () => {
     expect(remainingLabel("2026-08-28T00:00:00.000Z", now)).toBe("6 days remaining");
     expect(opensLabel("2026-09-01T00:00:00.000Z", now)).toBe("Opens in 10 days");
     expect(remainingLabel("2026-08-22T00:00:00.000Z", now)).toBe("Ends today");
+  });
+
+  it("says ended after the last playable day or when status is ended", () => {
+    const start = "2026-08-17T00:00:00.000Z";
+    const last = inclusiveFinalDayIso(start, 7);
+    expect(remainingLabel(last, new Date("2026-08-23T12:00:00.000Z"))).toBe("Ends today");
+    expect(remainingLabel(last, new Date("2026-08-22T12:00:00.000Z"))).toBe("1 day remaining");
+    expect(remainingLabel(last, new Date("2026-08-17T12:00:00.000Z"))).toBe("6 days remaining");
+    expect(remainingLabel(last, new Date("2026-08-24T00:00:00.000Z"))).toBe("Ended");
+    expect(remainingLabel(last, new Date("2026-08-25T12:00:00.000Z"))).toBe("Ended");
+    expect(remainingLabel(last, new Date("2026-08-17T12:00:00.000Z"), "ended")).toBe("Ended");
+    expect(remainingLabel(last, new Date("2026-08-23T12:00:00.000Z"), "ended")).not.toBe(
+      "Ends today",
+    );
+  });
+});
+
+describe("formatTopPrize", () => {
+  it("renders 1st-place Flower, NFT, or both and omits a zero Flower amount", () => {
+    expect(formatTopPrize("100")).toBe("100 $Flower");
+    expect(formatTopPrize("30", [{ place: 1, amount: "30" }])).toBe("30 $Flower");
+    expect(formatTopPrize("0", [{ place: 1, amount: "0", nft_name: "Rare Key" }])).toBe("Rare Key");
+    expect(formatTopPrize("50", [{ place: 1, amount: "50", nft_name: "Rare Key" }])).toBe(
+      "50 $Flower · Rare Key",
+    );
+    expect(
+      formatTopPrize("70", [
+        { place: 2, amount: "20" },
+        { place: 1, amount: "50", nft_name: "Golden Shovel" },
+      ]),
+    ).toBe("50 $Flower · Golden Shovel");
   });
 });
 

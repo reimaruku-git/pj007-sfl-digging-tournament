@@ -21,7 +21,9 @@ import {
 import { useFarmSession } from "../lib/farmSession";
 import {
   formatScore,
+  formatTopPrize,
   formatWindowRange,
+  inclusiveFinalDayIso,
   remainingLabel,
   statusLabel,
 } from "../lib/format";
@@ -150,8 +152,14 @@ function Hero({
   error?: Error;
 }) {
   const href = featured ? `/tournaments/${encodeURIComponent(featured.tournament_id)}` : "";
+  const windowCopy = featured
+    ? formatWindowRange(
+        featured.start_at,
+        inclusiveFinalDayIso(featured.start_at, featured.duration_days),
+      )
+    : "";
   const eyebrow = featured
-    ? `${featured.status === "ended" ? "Past tournament" : "Live tournament"} · ${formatWindowRange(featured.start_at, featured.end_at)}`
+    ? `${featured.status === "ended" ? "Past tournament" : "Live tournament"} · ${windowCopy}`
     : "Live tournament";
   return (
     <section className="live-hero" data-testid="home-hero">
@@ -193,6 +201,9 @@ function Hero({
 }
 
 function NowDigging({ featured }: { featured: TournamentSummary }) {
+  const lastDay = inclusiveFinalDayIso(featured.start_at, featured.duration_days);
+  const remaining = remainingLabel(lastDay, new Date(), featured.status);
+  const windowCopy = formatWindowRange(featured.start_at, lastDay);
   return (
     <div className="now-digging" data-testid="now-digging">
       <ColorCanvas tone="thumb" className="now-digging-art" />
@@ -200,18 +211,20 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
         <div className="kicker">Now digging</div>
         <div className="now-digging-name">{featured.name}</div>
         <p className="meta">
-          {formatWindowRange(featured.start_at, featured.end_at)}
-          {featured.end_at ? ` · ${remainingLabel(featured.end_at)}` : ""}
+          {windowCopy}
+          {remaining ? ` · ${remaining}` : ""}
         </p>
       </div>
       <dl className="now-digging-stats">
         <div>
           <dt>Remaining</dt>
-          <dd data-testid="hero-remaining">{remainingLabel(featured.end_at)}</dd>
+          <dd data-testid="hero-remaining">{remaining}</dd>
         </div>
         <div>
-          <dt>Prize</dt>
-          <dd data-testid="hero-prize">{featured.prize_amount} Flower</dd>
+          <dt>Top Prize</dt>
+          <dd data-testid="hero-prize">
+            {formatTopPrize(featured.prize_amount, featured.prize_places)}
+          </dd>
         </div>
         <div>
           <dt>Farms</dt>

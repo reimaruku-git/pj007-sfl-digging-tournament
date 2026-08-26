@@ -189,7 +189,10 @@ describe("LeaderboardPage home", () => {
     expect(standings.compareDocumentPosition(rules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     expect(hero.textContent).toMatch(/Creators Digging Tournament/);
-    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toMatch(/100 Flower/);
+    expect(page.querySelector('[data-testid="hero-prize"]')?.previousElementSibling?.textContent).toBe(
+      "Top Prize",
+    );
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toBe("100 $Flower");
     expect(page.querySelector('[data-testid="hero-farms"]')?.textContent).toBe("6");
     expect(page.querySelector('[data-testid="see-tournaments"]')?.getAttribute("href")).toBe(
       "/tournaments",
@@ -419,8 +422,92 @@ describe("LeaderboardPage home", () => {
       "/tournaments/past-cup",
     );
     expect(page.querySelector('[data-testid="home-hero"]')?.textContent).toMatch(/Old cup/);
+    expect(page.querySelector('[data-testid="hero-remaining"]')?.textContent).toBe("Ended");
+    expect(page.querySelector('[data-testid="hero-remaining"]')?.textContent).not.toMatch(
+      /Ends today/,
+    );
     const fetched = fetchTournament.mock.calls.map((call) => call[0]);
     expect(fetched).toEqual(["past-cup"]);
+  });
+
+  it("shows the inclusive last playable day, not exclusive end_at", async () => {
+    const live = summary({
+      tournament_id: "week",
+      name: "August sprint",
+      status: "active",
+      start_at: "2026-08-17T00:00:00.000Z",
+      end_at: "2026-08-24T00:00:00.000Z",
+      duration_days: 7,
+      prize_amount: "30",
+      count: 2,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [entry({ farm_id: "1", rank: 1, score: 10, name: "Alpha" })]),
+    );
+
+    const page = await renderHome();
+    const hero = page.querySelector('[data-testid="home-hero"]')?.textContent ?? "";
+    const digging = page.querySelector('[data-testid="now-digging"]')?.textContent ?? "";
+    expect(hero).toMatch(/August 17, 2026 to August 23, 2026/);
+    expect(digging).toMatch(/August 17, 2026 to August 23, 2026/);
+    expect(hero).not.toMatch(/August 24/);
+    expect(digging).not.toMatch(/August 24/);
+  });
+
+  it("shows Top Prize as 1st-place Flower only", async () => {
+    const live = summary({
+      tournament_id: "flower",
+      name: "Flower cup",
+      status: "active",
+      prize_amount: "100",
+      prize_places: [{ place: 1, amount: "100" }],
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderHome();
+    expect(
+      page.querySelector('[data-testid="hero-prize"]')?.previousElementSibling?.textContent,
+    ).toBe("Top Prize");
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toBe("100 $Flower");
+  });
+
+  it("shows Top Prize as 1st-place NFT only, omitting a zero Flower amount", async () => {
+    const live = summary({
+      tournament_id: "nft",
+      name: "NFT cup",
+      status: "active",
+      prize_amount: "0",
+      prize_places: [{ place: 1, amount: "0", nft_name: "Rare Key" }],
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderHome();
+    expect(
+      page.querySelector('[data-testid="hero-prize"]')?.previousElementSibling?.textContent,
+    ).toBe("Top Prize");
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toBe("Rare Key");
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).not.toMatch(/0 \$Flower/);
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).not.toMatch(/^0 Flower/);
+  });
+
+  it("shows Top Prize as 1st-place Flower and NFT together", async () => {
+    const live = summary({
+      tournament_id: "both",
+      name: "Both cup",
+      status: "active",
+      prize_amount: "50",
+      prize_places: [{ place: 1, amount: "50", nft_name: "Golden Shovel" }],
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderHome();
+    expect(
+      page.querySelector('[data-testid="hero-prize"]')?.previousElementSibling?.textContent,
+    ).toBe("Top Prize");
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toBe(
+      "50 $Flower · Golden Shovel",
+    );
   });
 
   it("falls back to the soonest live board when nothing is featured", async () => {

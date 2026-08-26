@@ -214,23 +214,21 @@ export function formatUtcClock(now: Date = new Date()): string {
   return `${hours}:${minutes} UTC`;
 }
 
+function longDate(parts: { year: number; month: string; day: number }): string {
+  return `${parts.month} ${parts.day}, ${parts.year}`;
+}
+
 export function formatWindowRange(
   start: string | null | undefined,
   end: string | null | undefined,
 ): string {
-  const from = start ? utcDayMonth(start) : null;
-  const to = end ? utcDayMonth(end) : null;
+  const from = start ? utcLongDay(start) : null;
+  const to = end ? utcLongDay(end) : null;
   if (!from && !to) return "—";
-  if (!from && to) return `${to.day} ${to.month} ${to.year}`;
-  if (from && !to) return `${from.day} ${from.month} ${from.year}`;
+  if (!from && to) return longDate(to);
+  if (from && !to) return longDate(from);
   if (!from || !to) return "—";
-  if (from.year === to.year && from.month === to.month) {
-    return `${from.day} – ${to.day} ${from.month} ${from.year}`;
-  }
-  if (from.year === to.year) {
-    return `${from.day} ${from.month} – ${to.day} ${to.month} ${from.year}`;
-  }
-  return `${from.day} ${from.month} ${from.year} – ${to.day} ${to.month} ${to.year}`;
+  return `${longDate(from)} to ${longDate(to)}`;
 }
 
 export function formatDurationDays(days: number | null | undefined): string {
@@ -254,12 +252,30 @@ export function utcCalendarDaysUntil(
   return Math.round((startOfTarget - startOfNow) / 86_400_000);
 }
 
-export function remainingLabel(endAt: string | null | undefined, now: Date = new Date()): string {
-  const days = utcCalendarDaysUntil(endAt, now);
+export function remainingLabel(
+  lastPlayableAt: string | null | undefined,
+  now: Date = new Date(),
+  status?: string | null,
+): string {
+  if (status === "ended") return "Ended";
+  const days = utcCalendarDaysUntil(lastPlayableAt, now);
   if (days == null) return "";
-  if (days <= 0) return "Ends today";
+  if (days < 0) return "Ended";
+  if (days === 0) return "Ends today";
   if (days === 1) return "1 day remaining";
   return `${days} days remaining`;
+}
+
+export function formatTopPrize(
+  prizeAmount: string | null | undefined,
+  prizePlaces?: ReadonlyArray<{ place: number; amount: string; nft_name?: string }> | null,
+): string {
+  const places = [...(prizePlaces ?? [])].sort((a, b) => a.place - b.place);
+  const first = places.find((row) => row.place === 1);
+  const amount = (first?.amount ?? prizeAmount ?? "").trim();
+  const nft = (first?.nft_name ?? "").trim();
+  const flower = amount && !isZeroFlowerAmount(amount) ? `${amount} $Flower` : null;
+  return [flower, nft || null].filter(Boolean).join(" · ") || "—";
 }
 
 export function opensLabel(startAt: string | null | undefined, now: Date = new Date()): string {
