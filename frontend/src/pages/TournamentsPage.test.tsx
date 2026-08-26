@@ -384,6 +384,10 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tournament-prizes"]')).not.toBeNull();
     const podium = page.querySelector('[data-testid="tournament-podium"]');
     expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
+    expect(page.querySelector(".tournament-winners-title")).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-winners"]')?.textContent).not.toMatch(
+      /Podium/,
+    );
     expect(podium).not.toBeNull();
     expect(podium?.textContent).toMatch(/Ada/);
     expect(podium?.textContent).toMatch(/Bea/);
@@ -723,6 +727,10 @@ describe("TournamentsPage", () => {
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-winners"]')).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-podium"]')).not.toBeNull();
+    expect(page.querySelector(".tournament-winners-title")).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-winners"]')?.textContent).not.toMatch(
+      /Podium/,
+    );
     expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
   });
 
@@ -776,6 +784,8 @@ describe("TournamentsPage", () => {
     const podium = page.querySelector('[data-testid="tournament-winners"]');
     expect(podium).not.toBeNull();
     expect(page.querySelector('[data-testid="tournament-podium"]')).not.toBeNull();
+    expect(page.querySelector(".tournament-winners-title")).toBeNull();
+    expect(podium?.textContent).not.toMatch(/Podium/);
     expect(podium?.textContent).not.toMatch(/View all winners/i);
     expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
     expect(page.querySelector('[data-testid="tournament-winners-modal"]')).toBeNull();
@@ -878,6 +888,50 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tourney-min-level-live"]')).toBeNull();
   });
 
+  it("hides join prompts when the connected farm is already in the standings", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Already in",
+      status: "active",
+      join_mode: "auto",
+    });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({ farm_id: "3666918801844311", rank: 2, score: 16, name: "rmr" }),
+        entry({ farm_id: "2", rank: 1, score: 12, name: "Bea" }),
+      ]),
+    );
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-copy"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/You'll be enrolled immediately/);
+    expect(page.textContent).not.toMatch(/Joining as/);
+    expect(page.textContent).not.toMatch(/Join this tournament/);
+    expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
+  });
+
+  it("still offers join when the connected farm is not in the standings", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Open cup",
+      status: "active",
+      join_mode: "auto",
+    });
+    fetchTournament.mockResolvedValue(
+      archive(live, [entry({ farm_id: "1", rank: 1, score: 12, name: "Ada" })]),
+    );
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
+      /You'll be enrolled immediately/,
+    );
+    expect(page.querySelector('[data-testid="join-detail"]')?.textContent).toMatch(/Joining as/);
+    expect(page.querySelector('[data-testid="join-detail"]')?.textContent).toMatch(/rmr/);
+    expect(page.querySelector('[data-testid="join-tournament"]')?.textContent).toMatch(
+      /Join this tournament/,
+    );
+  });
+
   it("joins from the detail using the stored farm id and sfl.world name", async () => {
     const next = summary({
       tournament_id: "next",
@@ -886,11 +940,27 @@ describe("TournamentsPage", () => {
       start_at: "2026-08-17T00:00:00.000Z",
       end_at: "2026-08-24T00:00:00.000Z",
       duration_days: 7,
+      join_mode: "auto",
     });
     fetchTournament.mockResolvedValue(archive(next, []));
-    submitFarm.mockResolvedValue({ submissions: [], count: 0 });
+    submitFarm.mockResolvedValue({
+      submissions: [
+        {
+          farm_id: "3666918801844311",
+          name: "rmr",
+          tournament_id: "next",
+          submitted_at: "2026-08-16T12:00:00.000Z",
+          status: "enrolled",
+        },
+      ],
+      count: 1,
+    });
     const page = await renderAt("/tournaments/next");
     expect(page.querySelector('[data-testid="join-detail"]')?.textContent).toMatch(/rmr/);
+    expect(page.querySelector('[data-testid="join-copy"]')?.textContent).toMatch(
+      /You'll be enrolled immediately/,
+    );
+    expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
     act(() => {
       (page.querySelector('[data-testid="join-tournament"]') as HTMLButtonElement).click();
     });
@@ -898,6 +968,12 @@ describe("TournamentsPage", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(submitFarm).toHaveBeenCalledWith("3666918801844311", "rmr", ["next"]);
+    expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-copy"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/You'll be enrolled immediately/);
+    expect(page.textContent).not.toMatch(/Joining as/);
+    expect(page.textContent).not.toMatch(/Join this tournament/);
   });
 
   it("does not offer join submit until a farm is connected", async () => {

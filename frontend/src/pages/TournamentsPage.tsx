@@ -351,6 +351,10 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const winnersStrip = data ? showWinnersStrip(data.entries) : false;
   const vipOn = Boolean(data?.config.vip_required);
   const needsApproval = !autoJoin;
+  const alreadyEnrolled = Boolean(
+    identity && data?.entries.some((row) => row.farm_id === identity.farm_id),
+  );
+  const showJoinCta = joinable && Boolean(identity) && !alreadyEnrolled && !join.isSuccess;
   return (
     <section className="page-inner tournament-detail" data-testid="tournament-detail">
       <Link to={back.to} className="detail-crumb" data-testid="back-link">
@@ -502,9 +506,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               </div>
             </div>
           ) : null}
-          {joinable && identity && (
+          {joinable && identity && notice ? (
+            <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>
+          ) : null}
+          {showJoinCta && identity ? (
             <div className="join-detail" data-testid="join-detail">
-              {notice && <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>}
               <p className="meta" data-testid="join-copy">
                 {autoJoin
                   ? "You'll be enrolled immediately."
@@ -526,7 +532,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                 {join.isPending ? "Sending…" : "Join this tournament"}
               </button>
             </div>
-          )}
+          ) : null}
           {joinable && !identity && (
             <p className="meta" data-testid="join-need-connect">
               Connect your farm in the header to join this event.
@@ -541,9 +547,6 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
           )}
           {winnersStrip ? (
             <section className="tournament-winners" data-testid="tournament-winners">
-              <div className="tournament-winners-head">
-                <h2 className="tournament-winners-title">Podium</h2>
-              </div>
               <Podium entries={data.entries} tournamentId={tournamentId} />
             </section>
           ) : null}
