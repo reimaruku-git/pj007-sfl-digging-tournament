@@ -340,6 +340,36 @@ describe("TournamentsPage", () => {
     expect(css).toMatch(/\.app-frame \.windows-page > \.muted[\s\S]*?color:\s*var\(--cream\)/);
   });
 
+  it("gives catalog windows a lighter cream hairline than the dim --line token", () => {
+    const css = shippedCss();
+    const token = css.match(/--window-line:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0\.\d+)\s*\)/);
+    expect(token).not.toBeNull();
+    expect(Number(token![4])).toBeGreaterThanOrEqual(0.3);
+    expect(Number(token![4])).toBeLessThanOrEqual(0.5);
+    const line = css.match(/--line:\s*rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*(0\.\d+)\s*\)/);
+    expect(line).not.toBeNull();
+    expect(Number(token![4])).toBeGreaterThan(Number(line![1]));
+    const card = [...css.matchAll(/\.window-card\s*\{[^}]+\}/g)]
+      .map((match) => match[0])
+      .find((block) => /border:\s*1px solid/.test(block));
+    expect(card).toBeDefined();
+    expect(card).toMatch(/border:\s*1px solid var\(--window-line\)/);
+    expect(card).not.toMatch(/border:\s*1px solid var\(--line\)/);
+    expect(css).toMatch(/\.detail-standings\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.standings-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.detail-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.podium-card\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.now-digging\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.you-farm-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.rules-grid\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    const ongoing = css.match(/\.window-card\.is-ongoing\s*\{[^}]+\}/);
+    expect(ongoing).not.toBeNull();
+    const ongoingAlpha = ongoing![0].match(/rgba\(\s*[\d.\s,]+,\s*(0\.\d+)\s*\)/);
+    expect(ongoingAlpha).not.toBeNull();
+    expect(Number(ongoingAlpha![1])).toBeGreaterThanOrEqual(0.4);
+    expect(css).not.toMatch(/#e8b923/);
+  });
+
   it("puts in-tournament standings in an opaque dusk card", () => {
     const css = shippedCss();
     const block = css.match(/\.detail-standings\s*\{[^}]+\}/);
