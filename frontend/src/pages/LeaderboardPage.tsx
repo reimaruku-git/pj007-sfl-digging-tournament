@@ -266,12 +266,6 @@ function LiveEventBand({
       data-testid={`live-board-${tournament.tournament_id}`}
     >
       <section className="home-band" data-testid="top-three">
-        <div className="band-head">
-          <div>
-            <div className="kicker">Podium</div>
-            <h2>Top three</h2>
-          </div>
-        </div>
         {loading && (
           <div className="skeleton-stack" aria-hidden>
             <div className="skeleton" />
@@ -286,12 +280,6 @@ function LiveEventBand({
       </section>
 
       <section className="home-band" id="standings" data-testid="standings">
-        <div className="band-head">
-          <div>
-            <div className="kicker">Field</div>
-            <h2>Standings</h2>
-          </div>
-        </div>
         {loading && (
           <div className="skeleton-stack" aria-hidden>
             <div className="skeleton" />
@@ -522,12 +510,9 @@ function YouFarmCard({
 function RulesBand() {
   return (
     <section className="home-band rules-band" id="rules" data-testid="rules">
-      <div className="band-head">
-        <div>
-          <div className="kicker">Rules, briefly</div>
-          <h2>How a tournament is scored</h2>
-        </div>
-        <p className="band-note">
+      <div className="rules-head">
+        <h2>RULES</h2>
+        <p className="rules-lead" data-testid="rules-lead">
           Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
           affect your score.
         </p>

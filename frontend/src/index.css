@@ -88,7 +88,14 @@ textarea {
 .app-frame {
   position: relative;
   z-index: 1;
+  min-height: 100vh;
   padding-top: var(--topbar-height);
+  background-color: var(--bg);
+  background-image: url("/desert-dig-site.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
 }
 
 .shell {
@@ -2556,6 +2563,26 @@ a.past-card:hover {
   color: var(--mute);
   font-size: 13px;
   text-align: right;
+}
+
+.rules-head {
+  margin-bottom: 22px;
+}
+
+.rules-lead {
+  margin-top: 10px;
+  max-width: 40rem;
+  color: var(--cream);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.app-frame .rules-head h2,
+.app-frame .rules-lead,
+.app-frame .windows-head h1,
+.app-frame .windows-head .kicker,
+.app-frame .windows-head .meta {
+  text-shadow: 0 1px 3px rgba(12, 10, 8, 0.92), 0 8px 22px rgba(12, 10, 8, 0.45);
 }
 
 .live-switcher {

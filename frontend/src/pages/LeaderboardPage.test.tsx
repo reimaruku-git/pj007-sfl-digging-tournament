@@ -4,7 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../api/public";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -201,13 +201,25 @@ describe("LeaderboardPage home", () => {
       /See tournaments/,
     );
 
-    expect(podium.textContent).toMatch(/Top three/);
+    expect(podium.querySelector(".band-head")).toBeNull();
+    expect(podium.querySelector("h2")).toBeNull();
+    expect(podium.textContent).not.toMatch(/Podium/);
+    expect(podium.textContent).not.toMatch(/Top three/);
+    expect(podium.querySelector('[data-testid="tournament-podium"]')).not.toBeNull();
     expect(podium.querySelector(".place-1")?.textContent).toMatch(/rmr/);
     expect(podium.querySelector(".place-1")?.textContent).toMatch(/193/);
     expect(podium.querySelector(".place-2")?.textContent).toMatch(/Farm 218/);
     expect(podium.querySelector(".place-3")?.textContent).toMatch(/Farm 219/);
 
-    expect(standings.textContent).toMatch(/Standings/);
+    expect(standings.querySelector(".band-head")).toBeNull();
+    expect(standings.querySelector("h2")).toBeNull();
+    expect(standings.textContent).not.toMatch(/\bField\b/);
+    expect([...standings.querySelectorAll(".kicker")].map((node) => node.textContent)).not.toContain(
+      "Field",
+    );
+    expect(standings.querySelector("table.board-table")).not.toBeNull();
+    expect(standings.querySelector(".board-cards")).not.toBeNull();
+    expect(standings.getAttribute("id")).toBe("standings");
     expect(standings.textContent).toMatch(/Total/);
     expect(standings.textContent).toMatch(/Today/);
     expect(standings.textContent).toMatch(/Pebbles/);
@@ -215,6 +227,17 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
     expect(page.querySelector('[data-testid="you-farm-avg"]')?.textContent).toMatch(/27\.57/);
 
+    expect(rules.querySelector("h2")?.textContent).toBe("RULES");
+    expect(rules.textContent).not.toMatch(/Rules, briefly/);
+    expect(rules.textContent).not.toMatch(/How a tournament is scored/);
+    const lead = rules.querySelector('[data-testid="rules-lead"]') as HTMLElement;
+    expect(lead).not.toBeNull();
+    expect(lead.classList.contains("band-note")).toBe(false);
+    expect(lead.classList.contains("rules-lead")).toBe(true);
+    expect(rules.querySelector("h2")?.nextElementSibling).toBe(lead);
+    expect(lead.textContent).toMatch(
+      /Get the 3 Otter Pebbles in as few digs as possible\. Digs after the 3rd pebble do not affect your score\./,
+    );
     expect(rules.textContent).toMatch(/Counts as 1 dig/);
     expect(rules.textContent).toMatch(/Counts as 4 digs/);
     expect(rules.textContent).toMatch(/last dig of those 4/);
@@ -224,7 +247,6 @@ describe("LeaderboardPage home", () => {
     expect(rules.textContent).toMatch(/worst finisher that day or 30/);
     expect(rules.textContent).toMatch(/5 for every missing pebble/);
     expect(rules.textContent).toMatch(/Average of 3rd pebble, then 2nd, then 1st/);
-    expect(rules.textContent).toMatch(/How a tournament is scored/);
     expect(rules.textContent).not.toMatch(/How a window is won/);
     expect(rules.textContent).not.toMatch(/Enter a window/);
     expect(rules.textContent).not.toMatch(/Hunt three pebbles/);
@@ -266,6 +288,7 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector("img")).toBeNull();
     expect([...canvases].every((node) => !node.getAttribute("src"))).toBe(true);
     expect(page.querySelector(".live-hero-art")).not.toBeNull();
+    expect(page.querySelector('[data-testid="home-hero"] img')).toBeNull();
     expect(page.querySelector(".place-1 [data-testid='color-canvas']")).not.toBeNull();
     expect(page.querySelector(".you-farm-art [data-testid='color-canvas']")).not.toBeNull();
 
@@ -275,7 +298,28 @@ describe("LeaderboardPage home", () => {
       ...readdirSync(srcRoot, { recursive: true }).map(String),
       ...readdirSync(publicRoot, { recursive: true }).map(String),
     ];
-    expect(names.some((name) => /\.(png|jpe?g)$/i.test(name))).toBe(false);
+    const rasters = names.filter((name) => /\.(png|jpe?g)$/i.test(name)).sort();
+    expect(rasters).toEqual(["desert-dig-site.png"]);
+
+    const css = readFileSync(resolve(srcRoot, "index.css"), "utf8");
+    const appFrame = css.match(/\.app-frame\s*\{[^}]+\}/);
+    expect(appFrame).not.toBeNull();
+    expect(appFrame![0]).toMatch(/url\(["']?\/desert-dig-site\.png["']?\)/);
+    expect(appFrame![0]).toMatch(/background-size:\s*cover/);
+    expect(css).not.toMatch(/\.live-hero[^{]*\{[^}]*desert-dig-site/);
+    expect(css).not.toMatch(/\.live-hero-art[^{]*\{[^}]*desert-dig-site/);
+
+    const leadRule = css.match(/\.rules-lead\s*\{[^}]+\}/);
+    expect(leadRule).not.toBeNull();
+    const leadSize = leadRule![0].match(/font-size:\s*(\d+(?:\.\d+)?)px/);
+    expect(leadSize).not.toBeNull();
+    expect(Number(leadSize![1])).toBeGreaterThan(13);
+    const noteRule = css.match(/\.band-note\s*\{[^}]+\}/);
+    expect(noteRule).not.toBeNull();
+    const noteSize = noteRule![0].match(/font-size:\s*(\d+(?:\.\d+)?)px/);
+    expect(noteSize).not.toBeNull();
+    expect(Number(leadSize![1])).toBeGreaterThan(Number(noteSize![1]));
+    expect(leadRule![0]).not.toMatch(/text-align:\s*right/);
   });
 
   it("cycles Avg / day, Today, and Total through asc, desc, then rank order", async () => {
