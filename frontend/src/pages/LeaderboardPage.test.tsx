@@ -306,6 +306,20 @@ describe("LeaderboardPage home", () => {
     expect(appFrame).not.toBeNull();
     expect(appFrame![0]).toMatch(/url\(["']?\/desert-dig-site\.png["']?\)/);
     expect(appFrame![0]).toMatch(/background-size:\s*cover/);
+    expect(appFrame![0]).not.toMatch(/(?:^|{|;)\s*filter\s*:/);
+    expect(appFrame![0]).toMatch(/linear-gradient\(/);
+    const gradientAt = appFrame![0].search(/linear-gradient\(/);
+    const imageAt = appFrame![0].search(/desert-dig-site\.png/);
+    expect(imageAt).toBeGreaterThan(gradientAt);
+    const mixes = [
+      ...appFrame![0].matchAll(/color-mix\(\s*in\s+srgb\s*,\s*var\(--bg\)\s+(\d+(?:\.\d+)?)%/g),
+    ];
+    expect(mixes.length).toBeGreaterThanOrEqual(1);
+    for (const mix of mixes) {
+      const pct = Number(mix[1]);
+      expect(pct).toBeGreaterThanOrEqual(40);
+      expect(pct).toBeLessThanOrEqual(68);
+    }
     expect(css).not.toMatch(/\.live-hero[^{]*\{[^}]*desert-dig-site/);
     expect(css).not.toMatch(/\.live-hero-art[^{]*\{[^}]*desert-dig-site/);
     const heroBlocks = [...css.matchAll(/\.live-hero\s*\{[^}]+\}/g)].map((match) => match[0]);

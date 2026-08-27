@@ -91,7 +91,12 @@ textarea {
   min-height: 100vh;
   padding-top: var(--topbar-height);
   background-color: var(--bg);
-  background-image: url("/desert-dig-site.png");
+  background-image:
+    linear-gradient(
+      color-mix(in srgb, var(--bg) 66%, transparent),
+      color-mix(in srgb, var(--bg) 66%, transparent)
+    ),
+    url("/desert-dig-site.png");
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;

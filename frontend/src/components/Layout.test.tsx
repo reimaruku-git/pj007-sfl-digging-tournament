@@ -12,6 +12,27 @@ import { Layout } from "./Layout";
 let root: Root;
 let container: HTMLDivElement;
 
+/** Public desert frame must keep the PNG and sit a partial dusk scrim over it. */
+function assertAppFrameDuskScrim(block: string) {
+  expect(block).toMatch(/url\(["']?\/desert-dig-site\.png["']?\)/);
+  expect(block).toMatch(/background-size:\s*cover/);
+  expect(block).not.toMatch(/(?:^|{|;)\s*filter\s*:/);
+  expect(block).toMatch(/linear-gradient\(/);
+  const gradientAt = block.search(/linear-gradient\(/);
+  const imageAt = block.search(/desert-dig-site\.png/);
+  expect(gradientAt).toBeGreaterThanOrEqual(0);
+  expect(imageAt).toBeGreaterThan(gradientAt);
+  const mixes = [
+    ...block.matchAll(/color-mix\(\s*in\s+srgb\s*,\s*var\(--bg\)\s+(\d+(?:\.\d+)?)%/g),
+  ];
+  expect(mixes.length).toBeGreaterThanOrEqual(1);
+  for (const mix of mixes) {
+    const pct = Number(mix[1]);
+    expect(pct).toBeGreaterThanOrEqual(40);
+    expect(pct).toBeLessThanOrEqual(68);
+  }
+}
+
 function renderAt(path = "/") {
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -152,6 +173,7 @@ describe("public chrome", () => {
     const appFrame = css.match(/\.app-frame\s*\{[^}]+\}/);
     expect(appFrame?.[0]).toMatch(/url\(["']?\/desert-dig-site\.png["']?\)/);
     expect(appFrame?.[0]).toMatch(/background-size:\s*cover/);
+    assertAppFrameDuskScrim(appFrame![0]);
   });
 
   it("keeps the dusk palette and Live badge green", () => {
