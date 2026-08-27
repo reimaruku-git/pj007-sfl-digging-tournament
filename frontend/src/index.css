@@ -2221,9 +2221,6 @@ a.past-card:hover {
 
   .live-hero {
     min-height: 0;
-    width: auto;
-    margin-left: 0;
-    margin-right: 0;
   }
 
   .hero-title {
@@ -2904,9 +2901,6 @@ a.past-card:hover {
 
   .live-hero {
     min-height: 0;
-    width: auto;
-    margin-left: 0;
-    margin-right: 0;
   }
 
   .live-hero-art {

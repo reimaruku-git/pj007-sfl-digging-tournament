@@ -308,6 +308,17 @@ describe("LeaderboardPage home", () => {
     expect(appFrame![0]).toMatch(/background-size:\s*cover/);
     expect(css).not.toMatch(/\.live-hero[^{]*\{[^}]*desert-dig-site/);
     expect(css).not.toMatch(/\.live-hero-art[^{]*\{[^}]*desert-dig-site/);
+    const heroBlocks = [...css.matchAll(/\.live-hero\s*\{[^}]+\}/g)].map((match) => match[0]);
+    expect(heroBlocks.length).toBeGreaterThan(0);
+    const fullBleed = heroBlocks.find((block) => /width:\s*100vw/.test(block));
+    expect(fullBleed).toBeDefined();
+    expect(fullBleed).toMatch(/margin-left:\s*calc\(50% - 50vw\)/);
+    expect(fullBleed).toMatch(/margin-right:\s*calc\(50% - 50vw\)/);
+    for (const block of heroBlocks) {
+      expect(block).not.toMatch(/width:\s*auto/);
+      expect(block).not.toMatch(/margin-left:\s*0/);
+      expect(block).not.toMatch(/margin-right:\s*0/);
+    }
 
     const leadRule = css.match(/\.rules-lead\s*\{[^}]+\}/);
     expect(leadRule).not.toBeNull();
