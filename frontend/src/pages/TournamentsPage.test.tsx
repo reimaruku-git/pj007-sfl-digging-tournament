@@ -340,6 +340,41 @@ describe("TournamentsPage", () => {
     expect(css).toMatch(/\.app-frame \.windows-page > \.muted[\s\S]*?color:\s*var\(--cream\)/);
   });
 
+  it("puts in-tournament standings in an opaque dusk card", () => {
+    const css = shippedCss();
+    const block = css.match(/\.detail-standings\s*\{[^}]+\}/);
+    expect(block).not.toBeNull();
+    expect(block![0]).toMatch(/background:\s*#([0-9a-fA-F]{3,8})/);
+    expect(block![0]).toMatch(/border-radius:\s*(1[6-9]|2[0-4])px/);
+    expect(block![0]).not.toMatch(/background:\s*transparent/);
+    expect(block![0]).not.toMatch(/background:\s*rgba\(/);
+    expect(css).toMatch(/\.detail-standings \.board-table\s*\{[^}]*display:\s*table/);
+  });
+
+  it("marks the connected farm on the in-tournament board", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Already in",
+      status: "active",
+      join_mode: "auto",
+    });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({ farm_id: "3666918801844311", rank: 4, score: 19.86, name: "rmr" }),
+        entry({ farm_id: "2", rank: 1, score: 12, name: "Freako" }),
+      ]),
+    );
+    const page = await renderAt("/tournaments/live");
+    const wrap = page.querySelector(".detail-standings");
+    expect(wrap).not.toBeNull();
+    expect(wrap?.querySelector("table.board-table")).not.toBeNull();
+    const you = wrap?.querySelector("tr.is-you");
+    expect(you).not.toBeNull();
+    expect(you?.textContent).toMatch(/rmr/);
+    expect(you?.querySelector(".you-tag")?.textContent).toMatch(/You/i);
+    expect(wrap?.querySelector("tr:not(.is-you) .you-tag")).toBeNull();
+  });
+
   it("reads Ongoing green, Upcoming amber, and Ended gray from the shipped stylesheet", () => {
     const css = shippedCss();
     expect(css).toMatch(/--amber:\s*#c4a06a/);

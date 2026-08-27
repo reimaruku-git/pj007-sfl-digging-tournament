@@ -558,7 +558,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             </section>
           ) : null}
           {data.entries.length > 0 && (
-            <div className="table-wrap detail-standings">
+            <div className="table-wrap detail-standings" data-testid="detail-standings">
               <table className="board-table">
                 <thead>
                   <tr>
@@ -572,30 +572,44 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.entries.map((row) => (
-                    <tr key={row.farm_id}>
-                      <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>
-                        {row.rank ?? "—"}
-                      </td>
-                      <td>
-                        <Link
-                          to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
-                        >
-                          {row.name || "Unnamed farm"}
-                          <div className="farm-id">{row.farm_id}</div>
-                        </Link>
-                      </td>
-                      <td>{row.digs_to_third_op ?? "—"}</td>
-                      <td>{formatScore(row.score)}</td>
-                      <td>{row.score_today ?? "—"}</td>
-                      <td>
-                        <Pebbles count={row.otter_count} />
-                      </td>
-                      <td>
-                        <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {data.entries.map((row) => {
+                    const isYou = identity?.farm_id === row.farm_id;
+                    return (
+                      <tr
+                        key={row.farm_id}
+                        className={[
+                          row.rank === 1 || row.rank === 2 || row.rank === 3
+                            ? `rank-${row.rank}`
+                            : "",
+                          isYou ? "is-you" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
+                        <td className={`rank ${row.rank ? `r${row.rank}` : ""}`}>
+                          {row.rank ?? "—"}
+                        </td>
+                        <td>
+                          <Link
+                            to={`/tournaments/${encodeURIComponent(tournamentId)}/farm/${row.farm_id}`}
+                          >
+                            {row.name || "Unnamed farm"}
+                            {isYou ? <span className="you-tag">You</span> : null}
+                            <div className="farm-id">{row.farm_id}</div>
+                          </Link>
+                        </td>
+                        <td>{row.digs_to_third_op ?? "—"}</td>
+                        <td>{formatScore(row.score)}</td>
+                        <td>{row.score_today ?? "—"}</td>
+                        <td>
+                          <Pebbles count={row.otter_count} />
+                        </td>
+                        <td>
+                          <span className={`badge ${row.status}`}>{statusLabel(row.status)}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

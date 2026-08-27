@@ -28,8 +28,7 @@ function assertAppFrameDuskScrim(block: string) {
   expect(mixes.length).toBeGreaterThanOrEqual(1);
   for (const mix of mixes) {
     const pct = Number(mix[1]);
-    expect(pct).toBeGreaterThan(66);
-    expect(pct).toBeLessThan(95);
+    expect(pct).toBe(90);
   }
 }
 

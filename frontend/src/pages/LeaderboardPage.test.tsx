@@ -317,8 +317,7 @@ describe("LeaderboardPage home", () => {
     expect(mixes.length).toBeGreaterThanOrEqual(1);
     for (const mix of mixes) {
       const pct = Number(mix[1]);
-      expect(pct).toBeGreaterThan(66);
-      expect(pct).toBeLessThan(95);
+      expect(pct).toBe(90);
     }
     expect(css).not.toMatch(/\.live-hero[^{]*\{[^}]*desert-dig-site/);
     expect(css).not.toMatch(/\.live-hero-art[^{]*\{[^}]*desert-dig-site/);

@@ -93,8 +93,8 @@ textarea {
   background-color: var(--bg);
   background-image:
     linear-gradient(
-      color-mix(in srgb, var(--bg) 78%, transparent),
-      color-mix(in srgb, var(--bg) 78%, transparent)
+      color-mix(in srgb, var(--bg) 90%, transparent),
+      color-mix(in srgb, var(--bg) 90%, transparent)
     ),
     url("/desert-dig-site.png");
   background-repeat: no-repeat;
@@ -1140,6 +1140,24 @@ a.tourney-window:hover {
 
 .detail-standings {
   margin-top: 20px;
+  background: #141210;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.detail-standings th {
+  background: #141210;
+}
+
+.detail-standings th,
+.detail-standings td {
+  padding: 13px 16px;
+}
+
+.detail-standings tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .prize-table {
@@ -2200,6 +2218,10 @@ a.past-card:hover {
     display: none;
   }
 
+  .detail-standings .board-table {
+    display: table;
+  }
+
   .board-cards {
     display: block;
   }
@@ -2677,6 +2699,15 @@ a.past-card:hover {
   border-radius: 18px;
   padding: 4px 8px 8px;
   max-height: none;
+  overflow: hidden;
+}
+
+.standings-panel th {
+  background: #141210;
+}
+
+.standings-panel tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .you-farm-panel {
