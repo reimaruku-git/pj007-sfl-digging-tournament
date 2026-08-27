@@ -93,8 +93,8 @@ textarea {
   background-color: var(--bg);
   background-image:
     linear-gradient(
-      color-mix(in srgb, var(--bg) 66%, transparent),
-      color-mix(in srgb, var(--bg) 66%, transparent)
+      color-mix(in srgb, var(--bg) 78%, transparent),
+      color-mix(in srgb, var(--bg) 78%, transparent)
     ),
     url("/desert-dig-site.png");
   background-repeat: no-repeat;
@@ -2583,8 +2583,18 @@ a.past-card:hover {
 .app-frame .rules-lead,
 .app-frame .windows-head h1,
 .app-frame .windows-head .kicker,
-.app-frame .windows-head .meta {
+.app-frame .windows-head .meta,
+.app-frame .windows-group-head h2,
+.app-frame .windows-group-head .catalog-count,
+.app-frame .windows-page > .muted,
+.app-frame .catalog-empty {
   text-shadow: 0 1px 3px rgba(12, 10, 8, 0.92), 0 8px 22px rgba(12, 10, 8, 0.45);
+}
+
+.app-frame .windows-page > .muted,
+.app-frame .catalog-empty,
+.app-frame .windows-group-head .catalog-count {
+  color: var(--cream);
 }
 
 .live-switcher {
@@ -2792,7 +2802,7 @@ a.past-card:hover {
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--mute);
+  color: var(--cream);
   font-weight: 700;
 }
 

@@ -148,10 +148,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => {
-    root.unmount();
-  });
-  container.remove();
+  if (root) {
+    act(() => {
+      root.unmount();
+    });
+  }
+  container?.remove();
   localStorage.clear();
 });
 
@@ -321,6 +323,21 @@ describe("TournamentsPage", () => {
       /No past tournaments yet/,
     );
     expect(page.querySelector('[data-testid="download-board"]')).toBeNull();
+  });
+
+  it("keeps catalog type readable on the desert background", () => {
+    const css = shippedCss();
+    const groupHead = css.match(/\.windows-group-head h2\s*\{[^}]+\}/);
+    expect(groupHead).not.toBeNull();
+    expect(groupHead![0]).toMatch(/color:\s*var\(--cream\)/);
+    expect(groupHead![0]).not.toMatch(/color:\s*var\(--mute\)/);
+    expect(css).toMatch(/\.app-frame \.windows-group-head h2[\s\S]*?text-shadow:/);
+    expect(css).toMatch(/\.app-frame \.catalog-empty[\s\S]*?text-shadow:/);
+    expect(css).toMatch(/\.app-frame \.windows-page > \.muted[\s\S]*?text-shadow:/);
+    const emptyOnDesert = css.match(/\.app-frame \.catalog-empty[\s\S]*?\{[^}]+\}/);
+    expect(emptyOnDesert).not.toBeNull();
+    expect(emptyOnDesert![0]).toMatch(/text-shadow:/);
+    expect(css).toMatch(/\.app-frame \.windows-page > \.muted[\s\S]*?color:\s*var\(--cream\)/);
   });
 
   it("reads Ongoing green, Upcoming amber, and Ended gray from the shipped stylesheet", () => {
