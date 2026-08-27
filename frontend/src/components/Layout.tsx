@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useFarmSession } from "../lib/farmSession";
+import { SITE_VERSION } from "../siteVersion";
 import { ColorCanvas } from "./ColorCanvas";
 import { FarmConnect } from "./FarmConnect";
 import { SyncCountdown } from "./SyncCountdown";
@@ -68,6 +69,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="app-frame">
       <PublicHeader />
       <div className="shell public-shell">{children}</div>
+      <PublicFooter />
     </div>
   );
 }
@@ -104,15 +106,15 @@ function PublicHeader() {
 
   return (
     <header className="topbar public-topbar">
-      <Link to="/" className="brand">
+      <Link to="/" className="brand" data-testid="public-brand">
         <div className="brand-mark" aria-hidden>
           <span />
           <span />
           <span />
         </div>
         <div>
-          <h1>The Dig</h1>
-          <p>SFL Tournament</p>
+          <h1>Bumpkin Clash: Digging</h1>
+          <p>Sunflower Land Digging Tournament</p>
         </div>
       </Link>
       <nav className="site-nav" data-testid="public-nav" aria-label="Primary">
@@ -159,6 +161,22 @@ function PublicHeader() {
         )}
       </div>
     </header>
+  );
+}
+
+function PublicFooter() {
+  return (
+    <footer className="public-footer" data-testid="public-footer">
+      <div className="public-footer-inner">
+        <p data-testid="public-disclaimer">
+          This is an unofficial, third-party site. It is not affiliated with, endorsed by, or
+          operated by the official Sunflower Land team.
+        </p>
+        <p className="site-version" data-testid="site-version">
+          v{SITE_VERSION}
+        </p>
+      </div>
+    </footer>
   );
 }
 

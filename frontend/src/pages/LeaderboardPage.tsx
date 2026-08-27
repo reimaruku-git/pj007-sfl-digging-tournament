@@ -167,9 +167,9 @@ function Hero({
       <div className="live-hero-inner">
         <p className="hero-eyebrow">{eyebrow}</p>
         {featured ? (
-          <Link to={href} className="hero-title-link" data-testid="featured-link">
-            <h2 className="hero-title">{featured.name}</h2>
-          </Link>
+          <h2 className="hero-title" data-testid="featured-title">
+            {featured.name}
+          </h2>
         ) : (
           <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
         )}

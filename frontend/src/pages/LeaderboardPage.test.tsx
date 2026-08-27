@@ -255,11 +255,14 @@ describe("LeaderboardPage home", () => {
     expect(page.textContent).not.toMatch(
       /Lowest average of days that already have a 3rd-pebble score/,
     );
-    expect(page.textContent).not.toMatch(/Unofficial fan board for Sunflower Land digging/);
     expect(page.textContent).not.toMatch(/Fewest digs to three Otter Pebbles/);
     expect(page.querySelector("#past")).toBeNull();
     expect(page.querySelector('[data-testid="tourney-home"]')).toBeNull();
-    expect(page.querySelector('[data-testid="featured-link"]')?.getAttribute("href")).toBe(
+    const featuredTitle = page.querySelector('[data-testid="featured-title"]');
+    expect(featuredTitle?.textContent).toBe("Creators Digging Tournament");
+    expect(featuredTitle?.closest("a")).toBeNull();
+    expect(page.querySelector('[data-testid="featured-link"]')).toBeNull();
+    expect(page.querySelector('[data-testid="featured-now-link"]')?.getAttribute("href")).toBe(
       "/tournaments/sprint",
     );
     expect(page.textContent).not.toMatch(/By rank/);
@@ -486,7 +489,8 @@ describe("LeaderboardPage home", () => {
     );
     expect(page.textContent).not.toMatch(/SoonLead/);
     expect(page.textContent).not.toMatch(/LaterLead/);
-    expect(page.querySelector('[data-testid="featured-link"]')?.getAttribute("href")).toBe(
+    expect(page.querySelector('[data-testid="featured-title"]')?.closest("a")).toBeNull();
+    expect(page.querySelector('[data-testid="featured-now-link"]')?.getAttribute("href")).toBe(
       "/tournaments/past-cup",
     );
     expect(page.querySelector('[data-testid="home-hero"]')?.textContent).toMatch(/Old cup/);
@@ -608,7 +612,8 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid="live-board-soon"]')?.textContent).toMatch(/SoonLead/);
     expect(page.querySelector('[data-testid="live-board-later"]')).toBeNull();
     expect(page.textContent).not.toMatch(/LaterLead/);
-    expect(page.querySelector('[data-testid="featured-link"]')?.getAttribute("href")).toBe(
+    expect(page.querySelector('[data-testid="featured-title"]')?.closest("a")).toBeNull();
+    expect(page.querySelector('[data-testid="featured-now-link"]')?.getAttribute("href")).toBe(
       "/tournaments/soon",
     );
   });

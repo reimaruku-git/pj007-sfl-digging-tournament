@@ -89,6 +89,8 @@ textarea {
 .app-frame {
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   padding-top: var(--topbar-height);
   background-color: var(--bg);
@@ -107,9 +109,11 @@ textarea {
 .shell {
   position: relative;
   z-index: 1;
+  flex: 1 0 auto;
   max-width: 1120px;
   margin: 0 auto;
   padding: 0 18px 72px;
+  width: 100%;
 }
 
 .public-shell {
@@ -2199,6 +2203,16 @@ a.past-card:hover {
     display: none;
   }
 
+  .public-topbar .brand h1 {
+    font-size: 14px;
+  }
+
+  .public-topbar .brand p {
+    display: block;
+    font-size: 10px;
+    line-height: 1.25;
+  }
+
   .prize {
     font-size: 32px;
   }
@@ -2323,6 +2337,17 @@ a.past-card:hover {
 
 .public-topbar .brand {
   justify-self: start;
+  min-width: 0;
+}
+
+.public-topbar .brand h1 {
+  font-size: 18px;
+}
+
+.public-topbar .brand p {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 11px;
 }
 
 .public-topbar .topbar-tools {
@@ -2712,15 +2737,47 @@ a.past-card:hover {
   content: " ↓";
 }
 
-.hero-title-link,
 .now-digging-link {
   color: inherit;
   display: block;
 }
 
-.hero-title-link:hover .hero-title,
 .now-digging-link:hover .now-digging-name {
   color: var(--gold);
+}
+
+.public-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding: 22px 18px 28px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+}
+
+.public-footer-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px 24px;
+}
+
+.public-footer p {
+  color: var(--mute);
+  font-size: 12px;
+  max-width: 46rem;
+  line-height: 1.45;
+}
+
+.site-version {
+  color: var(--mute);
+  font-family: "DM Mono", ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 
 .standings-panel {

@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
 import { writeFarmIdentity } from "../lib/followFarm";
+import { SITE_VERSION } from "../siteVersion";
 import { Layout, useAdminHeaderActions } from "./Layout";
 
 function AdminDashStub() {
@@ -78,6 +79,25 @@ describe("public chrome", () => {
     expect(links).not.toContain("/admin");
     expect(el.textContent).not.toMatch(/\bAdmin\b/);
     expect(el.querySelector('button[aria-label="Menu"]')).toBeNull();
+  });
+
+  it("names the public brand, shows a version, and disclaims unofficial status", () => {
+    const el = renderAt("/");
+    const brand = el.querySelector('[data-testid="public-brand"]');
+    expect(brand?.querySelector("h1")?.textContent).toBe("Bumpkin Clash: Digging");
+    expect(brand?.querySelector("p")?.textContent).toBe("Sunflower Land Digging Tournament");
+    const version = el.querySelector('[data-testid="site-version"]');
+    expect(version?.textContent).toBe(`v${SITE_VERSION}`);
+    expect(version?.textContent).toMatch(/^v\d+\.\d+\.\d+$/);
+    const disclaimer = el.querySelector('[data-testid="public-disclaimer"]');
+    expect(disclaimer?.textContent).toMatch(/unofficial/i);
+    expect(disclaimer?.textContent).toMatch(/third-party/i);
+    expect(disclaimer?.textContent).toMatch(/not[\s\S]*official Sunflower Land team/i);
+    const footer = el.querySelector('[data-testid="public-footer"]');
+    expect(footer).not.toBeNull();
+    expect(footer?.contains(disclaimer)).toBe(true);
+    expect(footer?.contains(version)).toBe(true);
+    expect(el.querySelector(".public-shell")?.contains(footer)).toBe(false);
   });
 
   it("puts the connect field on the right when no farm is connected", () => {
@@ -168,6 +188,10 @@ describe("public chrome", () => {
     expect(el.querySelector('[data-testid="admin-topbar"]')).not.toBeNull();
     expect(el.querySelector(".public-shell")).toBeNull();
     expect(el.querySelector(".public-topbar")).toBeNull();
+    expect(el.querySelector('[data-testid="public-brand"]')).toBeNull();
+    expect(el.querySelector('[data-testid="public-footer"]')).toBeNull();
+    expect(el.querySelector('[data-testid="site-version"]')).toBeNull();
+    expect(el.querySelector("h1")?.textContent).toBe("SFL Digging Tournament");
     expect(el.querySelector('[data-testid="admin-sign-out"]')).toBeNull();
   });
 

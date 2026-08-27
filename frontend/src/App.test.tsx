@@ -102,6 +102,16 @@ describe("routes", () => {
     expect(home.textContent).not.toMatch(/Enter your Farm ID/);
     expect(home.querySelector("#rules")).not.toBeNull();
     expect(home.querySelector('[data-testid="home-hero"]')).not.toBeNull();
+    expect(home.querySelector('[data-testid="public-brand"]')?.querySelector("h1")?.textContent).toBe(
+      "Bumpkin Clash: Digging",
+    );
+    expect(home.querySelector('[data-testid="public-brand"]')?.querySelector("p")?.textContent).toBe(
+      "Sunflower Land Digging Tournament",
+    );
+    expect(home.querySelector('[data-testid="site-version"]')?.textContent).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(home.querySelector('[data-testid="public-disclaimer"]')?.textContent).toMatch(
+      /not[\s\S]*official Sunflower Land team/i,
+    );
     expect(home.querySelector('[data-testid="public-nav"]')?.textContent).toMatch(/Tournaments/);
     expect(home.querySelector('[data-testid="public-nav"]')?.textContent).not.toMatch(/Windows/);
     expect(home.querySelector("#join")).toBeNull();
