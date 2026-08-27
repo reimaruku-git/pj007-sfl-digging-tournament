@@ -17,6 +17,7 @@
   --cream: #e4dfd5;
   --mute: #9b9488;
   --green: #7ea87a;
+  --amber: #c4a06a;
   --red: #c98978;
   --cyan: #86a8a8;
   --rank1: #b89a56;
@@ -713,7 +714,7 @@ a.tourney-card-link:hover {
 }
 
 .tourney-window.is-upcoming {
-  border-color: rgba(155, 148, 136, 0.22);
+  border-color: rgba(196, 160, 106, 0.28);
 }
 
 .tourney-window.is-ended {
@@ -750,8 +751,8 @@ a.tourney-window:hover {
 }
 
 .tourney-status.upcoming {
-  background: rgba(155, 148, 136, 0.16);
-  color: var(--mute);
+  background: rgba(196, 160, 106, 0.16);
+  color: var(--amber);
 }
 
 .tourney-status.ended {
@@ -1500,12 +1501,18 @@ tr.is-you,
   background: rgba(184, 154, 86, 0.16);
   color: var(--gold);
 }
-.badge.not_started,
-.badge.scheduled {
+.badge.not_started {
   background: rgba(138, 115, 84, 0.16);
   color: var(--mute);
 }
-.badge.ended,
+.badge.scheduled {
+  background: rgba(196, 160, 106, 0.16);
+  color: var(--amber);
+}
+.badge.ended {
+  background: rgba(155, 148, 136, 0.12);
+  color: var(--mute);
+}
 .badge.invalidated {
   background: rgba(224, 122, 95, 0.16);
   color: var(--red);
@@ -2783,6 +2790,18 @@ a.past-card:hover {
   padding: 18px 20px;
   color: inherit;
   text-decoration: none;
+}
+
+.window-card.is-ongoing {
+  border-color: rgba(126, 168, 122, 0.28);
+}
+
+.window-card.is-upcoming {
+  border-color: rgba(196, 160, 106, 0.28);
+}
+
+.window-card.is-ended {
+  border-color: rgba(155, 148, 136, 0.18);
 }
 
 .window-card:hover {

@@ -323,10 +323,14 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="download-board"]')).toBeNull();
   });
 
-  it("reads Ongoing green and Upcoming gray from the shipped stylesheet", () => {
+  it("reads Ongoing green, Upcoming amber, and Ended gray from the shipped stylesheet", () => {
     const css = shippedCss();
+    expect(css).toMatch(/--amber:\s*#c4a06a/);
     expect(css).toMatch(/\.tourney-status\.ongoing\s*\{[^}]*color:\s*var\(--green\)/s);
-    expect(css).toMatch(/\.tourney-status\.upcoming\s*\{[^}]*color:\s*var\(--mute\)/s);
+    expect(css).toMatch(/\.tourney-status\.upcoming\s*\{[^}]*color:\s*var\(--amber\)/s);
+    expect(css).not.toMatch(/\.tourney-status\.upcoming\s*\{[^}]*color:\s*var\(--mute\)/s);
+    expect(css).toMatch(/\.tourney-status\.ended\s*\{[^}]*color:\s*var\(--mute\)/s);
+    expect(css).not.toMatch(/#e8b923/);
   });
 
   it("shows start to end, prize, participants, and omits overall average per day from facts", async () => {

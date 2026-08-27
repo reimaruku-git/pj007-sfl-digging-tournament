@@ -146,7 +146,22 @@ describe("public chrome", () => {
       "utf8",
     );
     expect(css).toMatch(/\.tourney-status\.ongoing\s*\{[^}]*color:\s*var\(--green\)/s);
+    expect(css).toMatch(/\.tourney-status\.upcoming\s*\{[^}]*color:\s*var\(--amber\)/s);
+    expect(css).not.toMatch(/\.tourney-status\.upcoming\s*\{[^}]*color:\s*var\(--mute\)/s);
+    expect(css).toMatch(/\.tourney-status\.ended\s*\{[^}]*color:\s*var\(--mute\)/s);
     expect(css).not.toMatch(/#e8b923/);
+  });
+
+  it("does not point the browser at the SFL Community API", () => {
+    const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const files = [
+      resolve(srcRoot, "api/client.ts"),
+      resolve(srcRoot, "api/public.ts"),
+      resolve(srcRoot, "api/admin.ts"),
+    ];
+    for (const file of files) {
+      expect(readFileSync(file, "utf8")).not.toMatch(/sunflower-land\.com/);
+    }
   });
 
   it("pins the public top bar full-width and opaque", () => {
