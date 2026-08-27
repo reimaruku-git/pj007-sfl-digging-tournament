@@ -94,8 +94,8 @@ textarea {
   background-color: var(--bg);
   background-image:
     linear-gradient(
-      color-mix(in srgb, var(--bg) 95%, transparent),
-      color-mix(in srgb, var(--bg) 95%, transparent)
+      color-mix(in srgb, var(--bg) 85%, transparent),
+      color-mix(in srgb, var(--bg) 85%, transparent)
     ),
     url("/desert-dig-site.png");
   background-repeat: no-repeat;
