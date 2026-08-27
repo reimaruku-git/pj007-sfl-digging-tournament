@@ -68,6 +68,10 @@ export function AdminPage() {
     }
   }, [authed, session.data]);
 
+  const onSignOut = useCallback(() => {
+    void signOut().finally(() => setAuthed(false));
+  }, []);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setLoginError(null);
@@ -158,10 +162,6 @@ export function AdminPage() {
       </form>
     );
   }
-
-  const onSignOut = useCallback(() => {
-    void signOut().finally(() => setAuthed(false));
-  }, []);
 
   return <AdminDashboard onSignOut={onSignOut} />;
 }
