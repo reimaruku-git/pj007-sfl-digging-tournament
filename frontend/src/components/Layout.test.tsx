@@ -158,12 +158,15 @@ describe("public chrome", () => {
     expect(el.querySelector('[data-testid="public-nav"]')).toBeNull();
     expect(el.querySelector('button[aria-label="Menu"]')).not.toBeNull();
     expect(el.querySelector(".utc-chip")).not.toBeNull();
-    expect(el.querySelector(".app-frame")).toBeNull();
+    expect(el.querySelector(".app-frame.admin-frame")).not.toBeNull();
+    expect(el.querySelector(".public-shell")).toBeNull();
+    expect(el.querySelector(".public-topbar")).toBeNull();
   });
 
   it("wraps public pages in the desert-backed app frame", () => {
     const el = renderAt("/");
     expect(el.querySelector(".app-frame")).not.toBeNull();
+    expect(el.querySelector(".admin-frame")).toBeNull();
     expect(el.querySelector(".shell.public-shell")).not.toBeNull();
     const css = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
@@ -173,6 +176,22 @@ describe("public chrome", () => {
     expect(appFrame?.[0]).toMatch(/url\(["']?\/desert-dig-site\.png["']?\)/);
     expect(appFrame?.[0]).toMatch(/background-size:\s*cover/);
     assertAppFrameDuskScrim(appFrame![0]);
+  });
+
+  it("puts the same desert dusk scrim behind admin", () => {
+    const el = renderAt("/admin");
+    expect(el.querySelector(".app-frame.admin-frame")).not.toBeNull();
+    expect(el.querySelector(".shell")).not.toBeNull();
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    const appFrame = css.match(/\.app-frame\s*\{[^}]+\}/);
+    expect(appFrame).not.toBeNull();
+    assertAppFrameDuskScrim(appFrame![0]);
+    const adminFrame = css.match(/\.admin-frame\s*\{[^}]+\}/);
+    expect(adminFrame).not.toBeNull();
+    expect(adminFrame![0]).toMatch(/padding-top:\s*0/);
   });
 
   it("keeps the dusk palette and Live badge green", () => {

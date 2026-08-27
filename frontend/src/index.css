@@ -116,6 +116,11 @@ textarea {
   padding-top: 0;
 }
 
+/* Admin keeps its sticky in-shell topbar; do not reserve public fixed-bar space. */
+.admin-frame {
+  padding-top: 0;
+}
+
 .topbar {
   display: flex;
   align-items: center;

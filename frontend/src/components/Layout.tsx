@@ -12,9 +12,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isAdmin = location.pathname.startsWith("/admin");
   if (isAdmin) {
     return (
-      <div className="shell">
-        <AdminHeader />
-        {children}
+      <div className="app-frame admin-frame">
+        <div className="shell">
+          <AdminHeader />
+          {children}
+        </div>
       </div>
     );
   }
