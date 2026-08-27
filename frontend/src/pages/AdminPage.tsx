@@ -1,5 +1,5 @@
 import "../auth/amplify";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { confirmSignIn, signIn, signOut } from "aws-amplify/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,6 +26,7 @@ import {
   updateTournament,
 } from "../api/admin";
 import { getAuthToken } from "../auth/session";
+import { useAdminHeaderActions } from "../components/Layout";
 import { AdminPendingJoins } from "./AdminPendingJoins";
 import { AdminPlayers } from "./AdminPlayers";
 import { AdminTournaments } from "./AdminTournaments";
@@ -158,16 +159,15 @@ export function AdminPage() {
     );
   }
 
-  return (
-    <AdminDashboard
-      onLogout={() => {
-        void signOut().finally(() => setAuthed(false));
-      }}
-    />
-  );
+  const onSignOut = useCallback(() => {
+    void signOut().finally(() => setAuthed(false));
+  }, []);
+
+  return <AdminDashboard onSignOut={onSignOut} />;
 }
 
-function AdminDashboard({ onLogout }: { onLogout: () => void }) {
+function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
+  useAdminHeaderActions({ onSignOut });
   const queryClient = useQueryClient();
   const farms = useQuery({ queryKey: ["admin-farms"], queryFn: listFarms });
   const identities = useQuery({ queryKey: ["admin-identities"], queryFn: listIdentities });
@@ -208,12 +208,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   return (
     <>
       <div className="toolbar">
-        <button className="btn ghost" onClick={onLogout} type="button">
-          Sign out
-        </button>
         <button
           className="btn"
           type="button"
+          data-testid="admin-force-sync"
           onClick={() =>
             triggerSync()
               .then(() => note("Full sync started. Scores refresh in the background."))

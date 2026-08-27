@@ -116,9 +116,9 @@ textarea {
   padding-top: 0;
 }
 
-/* Admin keeps its sticky in-shell topbar; do not reserve public fixed-bar space. */
+/* Admin uses a fixed full-bleed topbar like the public chrome. */
 .admin-frame {
-  padding-top: 0;
+  padding-top: var(--topbar-height);
 }
 
 .topbar {
@@ -2301,6 +2301,26 @@ a.past-card:hover {
   z-index: 40;
 }
 
+.admin-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+  min-height: var(--topbar-height);
+  padding: 12px 18px;
+  background: var(--bg);
+  backdrop-filter: none;
+  border-bottom: 1px solid var(--line);
+  z-index: 40;
+}
+
 .public-topbar .brand {
   justify-self: start;
 }
@@ -2948,6 +2968,25 @@ a.past-card:hover {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     flex-wrap: nowrap;
     gap: 8px;
+  }
+
+  .admin-topbar {
+    gap: 8px;
+  }
+
+  .admin-topbar .brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .admin-topbar .brand h1 {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .admin-topbar .topbar-tools {
+    flex-shrink: 0;
   }
 
   .site-nav {

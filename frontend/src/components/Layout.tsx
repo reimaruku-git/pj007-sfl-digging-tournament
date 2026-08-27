@@ -1,4 +1,14 @@
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useFarmSession } from "../lib/farmSession";
 import { ColorCanvas } from "./ColorCanvas";
@@ -7,17 +17,51 @@ import { SyncCountdown } from "./SyncCountdown";
 
 export { formatWhen, statusLabel } from "../lib/format";
 
+type AdminHeaderActions = {
+  onSignOut?: () => void;
+};
+
+type AdminHeaderActionsContextValue = {
+  actions: AdminHeaderActions;
+  setActions: (next: AdminHeaderActions) => void;
+};
+
+const AdminHeaderActionsContext = createContext<AdminHeaderActionsContextValue | null>(null);
+
+/** Let the authed admin dashboard park Sign out in the full-bleed top bar. */
+export function useAdminHeaderActions(actions: AdminHeaderActions) {
+  const ctx = useContext(AdminHeaderActionsContext);
+  const setActions = ctx?.setActions;
+  const onSignOut = actions.onSignOut;
+  useEffect(() => {
+    if (!setActions) return;
+    setActions({ onSignOut });
+    return () => setActions({});
+  }, [setActions, onSignOut]);
+}
+
+function AdminHeaderActionsProvider({ children }: { children: ReactNode }) {
+  const [actions, setActionsState] = useState<AdminHeaderActions>({});
+  const setActions = useCallback((next: AdminHeaderActions) => {
+    setActionsState((prev) => (prev.onSignOut === next.onSignOut ? prev : next));
+  }, []);
+  const value = useMemo(() => ({ actions, setActions }), [actions, setActions]);
+  return (
+    <AdminHeaderActionsContext.Provider value={value}>{children}</AdminHeaderActionsContext.Provider>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith("/admin");
   if (isAdmin) {
     return (
-      <div className="app-frame admin-frame">
-        <div className="shell">
+      <AdminHeaderActionsProvider>
+        <div className="app-frame admin-frame">
           <AdminHeader />
-          {children}
+          <div className="shell">{children}</div>
         </div>
-      </div>
+      </AdminHeaderActionsProvider>
     );
   }
   return (
@@ -127,6 +171,8 @@ function AdminHeader() {
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const actionsCtx = useContext(AdminHeaderActionsContext);
+  const onSignOut = actionsCtx?.actions.onSignOut;
 
   useEffect(() => {
     if (!open) return;
@@ -147,7 +193,7 @@ function AdminHeader() {
   }, [open]);
 
   return (
-    <header className="topbar">
+    <header className="topbar admin-topbar" data-testid="admin-topbar">
       <Link to="/" className="brand">
         <div className="brand-mark" aria-hidden>
           <span />
@@ -161,6 +207,16 @@ function AdminHeader() {
       </Link>
       <div className="topbar-tools">
         <SyncCountdown compact />
+        {onSignOut ? (
+          <button
+            className="btn ghost"
+            type="button"
+            data-testid="admin-sign-out"
+            onClick={onSignOut}
+          >
+            Sign out
+          </button>
+        ) : null}
         <div className="menu-wrap" ref={rootRef}>
           <button
             type="button"

@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, useCallback } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,7 +7,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
 import { writeFarmIdentity } from "../lib/followFarm";
-import { Layout } from "./Layout";
+import { Layout, useAdminHeaderActions } from "./Layout";
+
+function AdminDashStub() {
+  const onSignOut = useCallback(() => undefined, []);
+  useAdminHeaderActions({ onSignOut });
+  return <main data-testid="admin-dash-stub">dashboard</main>;
+}
 
 let root: Root;
 let container: HTMLDivElement;
@@ -159,8 +165,10 @@ describe("public chrome", () => {
     expect(el.querySelector('button[aria-label="Menu"]')).not.toBeNull();
     expect(el.querySelector(".utc-chip")).not.toBeNull();
     expect(el.querySelector(".app-frame.admin-frame")).not.toBeNull();
+    expect(el.querySelector('[data-testid="admin-topbar"]')).not.toBeNull();
     expect(el.querySelector(".public-shell")).toBeNull();
     expect(el.querySelector(".public-topbar")).toBeNull();
+    expect(el.querySelector('[data-testid="admin-sign-out"]')).toBeNull();
   });
 
   it("wraps public pages in the desert-backed app frame", () => {
@@ -191,7 +199,47 @@ describe("public chrome", () => {
     assertAppFrameDuskScrim(appFrame![0]);
     const adminFrame = css.match(/\.admin-frame\s*\{[^}]+\}/);
     expect(adminFrame).not.toBeNull();
-    expect(adminFrame![0]).toMatch(/padding-top:\s*0/);
+    expect(adminFrame![0]).toMatch(/padding-top:\s*var\(--topbar-height\)/);
+  });
+
+  it("pins the admin top bar full-width and opaque like the public banner", () => {
+    const el = renderAt("/admin");
+    const topbar = el.querySelector('[data-testid="admin-topbar"]');
+    expect(topbar).not.toBeNull();
+    expect(topbar?.classList.contains("admin-topbar")).toBe(true);
+    expect(el.querySelector(".shell")?.contains(topbar)).toBe(false);
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(
+      /\.admin-topbar\s*\{[^}]*position:\s*(sticky|fixed)[^}]*top:\s*0[^}]*width:\s*100%[^}]*background:\s*var\(--bg\)/s,
+    );
+    expect(css).toMatch(/\.admin-topbar\s*\{[^}]*left:\s*0[^}]*right:\s*0/s);
+    expect(css).not.toMatch(/\.admin-topbar\s*\{[^}]*background:\s*rgba\(/s);
+  });
+
+  it("parks Sign out in the full-bleed admin top bar when the dashboard is open", () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={["/admin"]}>
+          <FarmSessionProvider>
+            <Layout>
+              <AdminDashStub />
+            </Layout>
+          </FarmSessionProvider>
+        </MemoryRouter>,
+      );
+    });
+    const topbar = container.querySelector('[data-testid="admin-topbar"]');
+    const signOut = container.querySelector('[data-testid="admin-sign-out"]');
+    expect(signOut).not.toBeNull();
+    expect(signOut?.textContent).toMatch(/Sign out/);
+    expect(topbar?.contains(signOut)).toBe(true);
+    expect(container.querySelector(".shell")?.contains(signOut)).toBe(false);
   });
 
   it("keeps the dusk palette and Live badge green", () => {
