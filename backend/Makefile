@@ -34,7 +34,8 @@ deploy-dev: build
 	  "BillingTag=pj007" \
 	  "AllowedOrigin=$${ALLOWED_ORIGIN:-*}" \
 	  "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
-	  "SFLApiKey=$$SFL_API_KEY"
+	  "SFLApiKey=$$SFL_API_KEY" \
+	  "SFLApiKey2=$${SFL_API_KEY_2:-}"
 
 clean:
 	rm -rf .aws-sam/

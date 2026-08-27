@@ -47,8 +47,10 @@ One git remote. Not two-repo like the SFL tracker.
 4. The browser talks **only to our API**. The SFL Community API key stays
    on Lambda (`X-Api-Key`). Never call
    `https://api.sunflower-land.com` from the frontend.
-5. SFL farm fetches are **10–15s apart** (`SFL_MIN_INTERVAL_SECONDS=12`,
-   hard minimum 10). Back off on 429/403.
+5. SFL farm fetches are **10–15s apart per API key**
+   (`SFL_MIN_INTERVAL_SECONDS=12`, hard minimum 10). A second key
+   (`SFL_API_KEY_2`) has its own last-call clock. Back off on 429/403
+   per key. Empty second key keeps the single-key path.
 6. Explicit IAM: `AWS::IAM::Role` + `Role: !GetAtt …Arn`. No SAM
    `Policies:` shorthand. `CAPABILITY_NAMED_IAM` in every
    `samconfig.toml` env.
@@ -352,8 +354,8 @@ Vars: `AWS_REGION`, `DEV_VITE_API_BASE`, `DEV_AWS_DEPLOY_ROLE_ARN`,
 `DEV_S3_BUCKET`, `DEV_CF_DISTRIBUTION_ID`, `DEV_ALLOWED_ORIGIN`,
 `DEV_VITE_COGNITO_USER_POOL_ID`, `DEV_VITE_COGNITO_USER_POOL_CLIENT_ID`.
 
-Secrets: `SFL_API_KEY`. Optional `DISCORD_WEBHOOK_URL` (unset = no
-1st-place ping).
+Secrets: `SFL_API_KEY`. Optional `SFL_API_KEY_2` (unset = single-key
+SFL fetches). Optional `DISCORD_WEBHOOK_URL` (unset = no 1st-place ping).
 
 Do not print tokens. Do not recreate vars that already exist.
 

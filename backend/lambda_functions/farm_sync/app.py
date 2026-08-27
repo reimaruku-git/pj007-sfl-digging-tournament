@@ -1,8 +1,8 @@
 """Scheduled / on-demand farm sync.
 
 Walks farms that are enrolled in at least one live event (and still
-active in the S3 registry), 10–15s apart, writes shared day grids plus
-per-event scores and leaderboard caches.
+active in the S3 registry), 10–15s apart per API key, writes shared day
+grids plus per-event scores and leaderboard caches.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Any
 from tournament.archive import archive_current
 from tournament.catalog import rollover
 from tournament.farms import FarmRegistry
-from tournament.sfl_client import RateLimitedSFLClient
+from tournament.sfl_client import build_sfl_client
 from tournament.store import Store
 from tournament.membership import farm_live_tournament_ids
 from tournament.sync import (
@@ -34,6 +34,7 @@ CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
 SUBMISSIONS_TABLE = os.environ.get("SUBMISSIONS_TABLE", "")
 SFL_API_KEY = os.environ.get("SFL_API_KEY", "")
+SFL_API_KEY_2 = os.environ.get("SFL_API_KEY_2", "")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
 SFL_MIN_INTERVAL_SECONDS = float(os.environ.get("SFL_MIN_INTERVAL_SECONDS", "12"))
 
@@ -61,8 +62,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         data_bucket=DATA_BUCKET,
     )
     registry = FarmRegistry(DATA_BUCKET)
-    client = RateLimitedSFLClient(
-        SFL_API_KEY,
+    client = build_sfl_client(
+        [SFL_API_KEY, SFL_API_KEY_2],
         min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
     )
     clock = _event_now(event)

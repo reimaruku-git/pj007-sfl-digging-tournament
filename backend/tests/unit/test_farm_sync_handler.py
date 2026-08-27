@@ -42,6 +42,7 @@ def _load_sync(aws_env, monkeypatch, client: FakeClient):
     monkeypatch.setenv("SCORES_TABLE", aws_env["scores_table"])
     monkeypatch.setenv("SUBMISSIONS_TABLE", aws_env["submissions_table"])
     monkeypatch.setenv("SFL_API_KEY", "test-key")
+    monkeypatch.setenv("SFL_API_KEY_2", "")
     monkeypatch.setenv("SFL_MIN_INTERVAL_SECONDS", "12")
     monkeypatch.setenv("DISCORD_WEBHOOK_URL", "")
     path = ROOT / "lambda_functions" / "farm_sync" / "app.py"
@@ -55,8 +56,16 @@ def _load_sync(aws_env, monkeypatch, client: FakeClient):
     module.SCORES_TABLE = aws_env["scores_table"]
     module.SUBMISSIONS_TABLE = aws_env["submissions_table"]
     module.SFL_API_KEY = "test-key"
-    module.RateLimitedSFLClient = lambda *args, **kwargs: client
+    module.SFL_API_KEY_2 = ""
+    module.build_sfl_client = lambda *args, **kwargs: client
     return module
+
+
+def test_farm_sync_source_uses_key_pool_and_never_hardcodes_sfl_host():
+    source = (ROOT / "lambda_functions" / "farm_sync" / "app.py").read_text()
+    assert "build_sfl_client" in source
+    assert "SFL_API_KEY_2" in source
+    assert "api.sunflower-land.com" not in source
 
 
 def test_one_farm_invoke_updates_only_that_farm(aws_env, monkeypatch):

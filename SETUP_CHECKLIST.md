@@ -25,6 +25,7 @@ Write `backend/.env` (never commit):
 
 ```
 SFL_API_KEY=<community API key from in-game Developer Options>
+SFL_API_KEY_2=<optional second community API key>
 ALLOWED_ORIGIN=*
 ```
 
@@ -92,6 +93,7 @@ Repo secrets:
 | Secret | Value |
 |---|---|
 | `SFL_API_KEY` | Community API key |
+| `SFL_API_KEY_2` | optional second Community API key |
 | `DISCORD_WEBHOOK_URL` | optional |
 
 The OIDC role trusts this repo only. New GitHub repos emit an immutable
@@ -103,6 +105,7 @@ classic `repo:reimaruku-git/pj007-sfl-digging-tournament:*` form.
 | Name | Purpose |
 |---|---|
 | `SFL_API_KEY` | Community API `X-Api-Key` |
+| `SFL_API_KEY_2` | Optional second `X-Api-Key` (own 10s interval) |
 | `DATA_BUCKET` | App bucket |
 | `CONFIG_TABLE` / `SCORES_TABLE` / `SUBMISSIONS_TABLE` | DynamoDB |
 | `ALLOWED_ORIGIN` / `ALLOWED_ORIGINS` | CORS |

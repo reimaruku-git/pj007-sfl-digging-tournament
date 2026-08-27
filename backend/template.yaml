@@ -25,6 +25,7 @@ Globals:
         SCORES_TABLE: !Ref DigScoresTable
         SUBMISSIONS_TABLE: !Ref PendingSubmissionsTable
         SFL_API_KEY: !Ref SFLApiKey
+        SFL_API_KEY_2: !Ref SFLApiKey2
         DISCORD_WEBHOOK_URL: !Ref DiscordWebhookUrl
         SFL_MIN_INTERVAL_SECONDS: "12"
 
@@ -51,6 +52,11 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: SFL Community API key (X-Api-Key). Never sent to the browser.
+  SFLApiKey2:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Optional second SFL Community API key. Empty keeps the single-key path.
   DiscordWebhookUrl:
     Type: String
     NoEcho: true
@@ -710,7 +716,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
-      Description: Walks tracked farms with a 12s SFL delay and caches the leaderboard
+      Description: Walks tracked farms with a 12s SFL delay per key and caches the leaderboard
       CodeUri: lambda_functions/farm_sync/
       Handler: app.lambda_handler
       MemorySize: 256
