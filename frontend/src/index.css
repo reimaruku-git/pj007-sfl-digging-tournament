@@ -1693,24 +1693,125 @@ tr.is-you,
   margin: 12px 0 0;
 }
 
+.creator-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  text-align: right;
+}
+
+.daily-slogan {
+  margin: 0;
+  color: var(--cream);
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.slogan-icon {
+  display: inline-block;
+  margin: 0 1px 0 4px;
+}
+
+.slogan-icon-smiley {
+  filter: hue-rotate(85deg) saturate(1.35);
+}
+
 .operator-farm-link {
   color: var(--gold);
-  font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-decoration: none;
-  white-space: nowrap;
 }
 
 .operator-farm-link:hover {
   text-decoration: underline;
 }
 
-.donation-line {
-  margin: 8px 0 0;
+.created-by {
+  margin: 0;
   color: var(--mute);
   font-size: 12px;
-  word-break: break-all;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.created-by strong {
+  color: var(--cream);
+  font-weight: 700;
+}
+
+.x-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cream);
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.x-link:hover {
+  color: var(--gold);
+}
+
+.x-logo {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.donation-line {
+  margin: 8px 0 0;
+  color: var(--cream);
+  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.donation-label {
+  font-weight: 700;
+  color: var(--cream);
+}
+
+.donation-wallet-short {
+  font-family: "DM Mono", ui-monospace, monospace;
+  letter-spacing: 0.02em;
+  color: var(--gold);
+}
+
+.copy-wallet {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--cream);
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.copy-wallet:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.copy-icon {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+
+.copy-wallet-label {
+  font-weight: 600;
 }
 
 .latest-result {
@@ -2340,6 +2441,7 @@ a.past-card:hover {
   margin: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: "brand nav tools";
   align-items: center;
   flex-wrap: nowrap;
   gap: 12px;
@@ -2372,6 +2474,7 @@ a.past-card:hover {
 }
 
 .public-topbar .brand {
+  grid-area: brand;
   justify-self: start;
   min-width: 0;
 }
@@ -2386,8 +2489,18 @@ a.past-card:hover {
   font-size: 11px;
 }
 
+.public-topbar .site-nav {
+  grid-area: nav;
+  justify-self: center;
+}
+
 .public-topbar .topbar-tools {
+  grid-area: tools;
   justify-self: end;
+}
+
+.public-topbar .topbar-session {
+  position: relative;
 }
 
 .site-nav {
@@ -2808,12 +2921,27 @@ a.past-card:hover {
   line-height: 1.45;
 }
 
+.public-footer .donation-line {
+  font-size: 14px;
+  color: var(--cream);
+  max-width: none;
+  flex: 1 1 100%;
+}
+
 .site-version {
   color: var(--mute);
   font-family: "DM Mono", ui-monospace, monospace;
   font-size: 12px;
   letter-spacing: 0.04em;
   flex-shrink: 0;
+}
+
+.slogan-admin-list {
+  margin: 10px 0 16px;
+  padding-left: 1.2rem;
+  color: var(--cream);
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .standings-panel {
@@ -3056,11 +3184,39 @@ a.past-card:hover {
 }
 
 @media (max-width: 800px) {
+  .app-frame:not(.admin-frame) {
+    padding-top: 0;
+  }
+
   .public-topbar {
+    position: sticky;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "brand session"
+      "nav nav"
+      "creator creator";
     flex-wrap: nowrap;
     gap: 8px;
+    min-height: 0;
+  }
+
+  .public-topbar .topbar-tools {
+    display: contents;
+  }
+
+  .public-topbar .topbar-session {
+    grid-area: session;
+    justify-self: end;
+  }
+
+  .public-topbar .creator-chip {
+    grid-area: creator;
+    justify-self: center;
+    align-items: center;
+    text-align: center;
+    max-width: none;
+    padding-top: 2px;
   }
 
   .admin-topbar {
@@ -3082,11 +3238,13 @@ a.past-card:hover {
     flex-shrink: 0;
   }
 
-  .operator-farm-link {
-    max-width: 110px;
+  .creator-chip {
+    max-width: 148px;
+  }
+
+  .daily-slogan {
     white-space: normal;
-    text-align: right;
-    line-height: 1.2;
+    font-size: 12px;
   }
 
   .site-nav {

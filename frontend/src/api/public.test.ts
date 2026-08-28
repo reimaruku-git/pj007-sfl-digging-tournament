@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchFarm,
   fetchLeaderboard,
+  fetchSlogans,
   fetchTournament,
   identifyFarm,
   listTournaments,
@@ -24,6 +25,22 @@ function ok<T>(data: T) {
 describe("public api", () => {
   beforeEach(() => {
     mockRequest.mockReset();
+  });
+
+  it("loads the ordered slogan list from our API", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        slogans: [
+          { text: "Slap my pets", icon: "hand" },
+          { text: "Grow my banana", icon: "banana" },
+        ],
+        count: 2,
+      }),
+    );
+    const listed = await fetchSlogans();
+    expect(mockRequest).toHaveBeenCalledWith("slogans");
+    expect(listed.count).toBe(2);
+    expect(listed.slogans[0]).toEqual({ text: "Slap my pets", icon: "hand" });
   });
 
   it("loads the cached leaderboard from our API", async () => {

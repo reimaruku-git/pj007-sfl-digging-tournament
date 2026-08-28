@@ -51,6 +51,13 @@ from tournament.membership import (
     roster_members,
 )
 from tournament.scoring import STATUS_COMPLETED
+from tournament.slogans import (
+    SloganError,
+    add_slogan,
+    list_slogans,
+    public_slogans,
+    replace_slogans,
+)
 from tournament.stats import player_detail, player_list_row
 from tournament.sfl_world import SflWorldError, lookup_farm_name
 from tournament.store import Store
@@ -154,6 +161,37 @@ def _farm_id_from_body(body: dict[str, Any]) -> str:
 
 def handle_health(_event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"status": "healthy"})
+
+
+def handle_get_slogans(_event: dict[str, Any]) -> dict[str, Any]:
+    return create_response(200, public_slogans(list_slogans(_get_store())))
+
+
+def _slogan_error(exc: SloganError) -> dict[str, Any]:
+    return create_error_response(exc.status, exc.message, exc.code)
+
+
+def handle_admin_get_slogans(_event: dict[str, Any]) -> dict[str, Any]:
+    return create_response(200, public_slogans(list_slogans(_get_store())))
+
+
+def handle_admin_post_slogans(event: dict[str, Any]) -> dict[str, Any]:
+    try:
+        slogan, rows = add_slogan(_get_store(), _body(event))
+    except SloganError as exc:
+        return _slogan_error(exc)
+    payload = public_slogans(rows)
+    payload["slogan"] = slogan
+    return create_response(201, payload)
+
+
+def handle_admin_put_slogans(event: dict[str, Any]) -> dict[str, Any]:
+    body = _body(event)
+    try:
+        rows = replace_slogans(_get_store(), body.get("slogans"))
+    except SloganError as exc:
+        return _slogan_error(exc)
+    return create_response(200, public_slogans(rows))
 
 
 def handle_get_config(_event: dict[str, Any]) -> dict[str, Any]:
@@ -722,6 +760,7 @@ def handle_admin_get_snapshot(event: dict[str, Any]) -> dict[str, Any]:
 ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("GET", re.compile(r"^/health$"), handle_health),
     ("GET", re.compile(r"^/config$"), handle_get_config),
+    ("GET", re.compile(r"^/slogans$"), handle_get_slogans),
     ("GET", re.compile(r"^/leaderboard$"), handle_get_leaderboard),
     ("GET", re.compile(r"^/tournaments$"), handle_list_tournaments),
     (
@@ -737,6 +776,9 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("GET", re.compile(r"^/admin/identities$"), handle_admin_list_identities),
     ("GET", re.compile(r"^/admin/config$"), handle_admin_get_config),
     ("PUT", re.compile(r"^/admin/config$"), handle_admin_put_config),
+    ("GET", re.compile(r"^/admin/slogans$"), handle_admin_get_slogans),
+    ("POST", re.compile(r"^/admin/slogans$"), handle_admin_post_slogans),
+    ("PUT", re.compile(r"^/admin/slogans$"), handle_admin_put_slogans),
     ("GET", re.compile(r"^/admin/tournaments$"), handle_admin_list_tournaments),
     ("POST", re.compile(r"^/admin/tournaments$"), handle_admin_create_tournament),
     ("PUT", re.compile(r"^/admin/featured$"), handle_admin_put_featured),

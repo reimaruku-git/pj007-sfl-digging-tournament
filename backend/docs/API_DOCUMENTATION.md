@@ -4,7 +4,7 @@ Wire JSON is **snake_case**. The browser talks only to this API.
 
 Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no `Bearer ` prefix.
 API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
-Public routes (`/health`, `/config`, `/leaderboard`, `/farms/{farm_id}`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`) have no authorizer.
+Public routes (`/health`, `/config`, `/slogans`, `/leaderboard`, `/farms/{farm_id}`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`) have no authorizer.
 
 Errors:
 
@@ -54,6 +54,29 @@ follows that window. `featured_tournament_id` is the admin-chosen home
 showcase (`active` or `ended`). It is `null` when none is set. It is
 not the scoring pointer — featuring an ended event does not stop live
 sync.
+
+### `GET /slogans`
+
+Ordered header slogans. The browser picks one per UTC day (exhaust the
+list, then restart). Empty storage returns the seeded six. This is **not**
+the tournament window document.
+
+```json
+{
+  "slogans": [
+    { "text": "Slap my pets", "icon": "hand" },
+    { "text": "Grow my banana", "icon": "banana" },
+    { "text": "Squeeze my orange", "icon": "orange" },
+    { "text": "Clean my poop", "icon": "poop" },
+    { "text": "Want some weed?", "icon": "smiley" },
+    { "text": "Erect my monument", "icon": "statue" }
+  ],
+  "count": 6
+}
+```
+
+`icon` is a short token (`hand`, `banana`, `orange`, `poop`, `smiley`,
+`statue`) or a literal glyph. `text` is 1–80 characters.
 
 ### `GET /leaderboard`
 
@@ -587,6 +610,58 @@ Same public shape as `GET /config` — never the raw DynamoDB item.
     "last_full_sync_at": "2026-08-14T13:00:00+00:00",
     "updated_at": "2026-08-14T13:00:00+00:00"
   }
+}
+```
+
+### `GET /admin/slogans`
+
+Same list shape as `GET /slogans`.
+
+### `POST /admin/slogans`
+
+Append one slogan. Empty storage is seeded first, then the new row is
+added. `201`.
+
+```json
+{ "text": "Feed my chicken", "icon": "hand" }
+```
+
+```json
+{
+  "slogan": { "text": "Feed my chicken", "icon": "hand" },
+  "slogans": [
+    { "text": "Slap my pets", "icon": "hand" },
+    { "text": "Grow my banana", "icon": "banana" },
+    { "text": "Squeeze my orange", "icon": "orange" },
+    { "text": "Clean my poop", "icon": "poop" },
+    { "text": "Want some weed?", "icon": "smiley" },
+    { "text": "Erect my monument", "icon": "statue" },
+    { "text": "Feed my chicken", "icon": "hand" }
+  ],
+  "count": 7
+}
+```
+
+### `PUT /admin/slogans`
+
+Replace the whole ordered list. Must not be empty.
+
+```json
+{
+  "slogans": [
+    { "text": "Slap my pets", "icon": "hand" },
+    { "text": "Grow my banana", "icon": "banana" }
+  ]
+}
+```
+
+```json
+{
+  "slogans": [
+    { "text": "Slap my pets", "icon": "hand" },
+    { "text": "Grow my banana", "icon": "banana" }
+  ],
+  "count": 2
 }
 ```
 

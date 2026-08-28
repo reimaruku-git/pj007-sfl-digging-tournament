@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addSlogan,
   addTournamentFarms,
   approveSubmission,
   createTournament,
   fetchAdminConfig,
   fetchAdminFarm,
+  fetchAdminSlogans,
   fetchTournamentRoster,
   listIdentities,
   refreshFarm,
   rejectSubmission,
   saveConfig,
+  saveSlogans,
   setFeaturedTournament,
   updateTournament,
 } from "./admin";
@@ -58,6 +61,48 @@ describe("admin api", () => {
     expect(mockRequest).toHaveBeenCalledWith("admin/identities");
     expect(identities[0]?.farm_id).toBe("3666918801844311");
     expect(identities[0]?.name).toBe("rmr");
+  });
+
+  it("round-trips the slogan list on admin slogans", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        slogans: [{ text: "Slap my pets", icon: "hand" }],
+        count: 1,
+      }),
+    );
+    const listed = await fetchAdminSlogans();
+    expect(mockRequest).toHaveBeenCalledWith("admin/slogans");
+    expect(listed.slogans[0]?.text).toBe("Slap my pets");
+
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        slogan: { text: "Feed my chicken", icon: "hand" },
+        slogans: [
+          { text: "Slap my pets", icon: "hand" },
+          { text: "Feed my chicken", icon: "hand" },
+        ],
+        count: 2,
+      }),
+    );
+    const added = await addSlogan({ text: "Feed my chicken", icon: "hand" });
+    expect(mockRequest).toHaveBeenCalledWith("admin/slogans", {
+      method: "POST",
+      body: JSON.stringify({ text: "Feed my chicken", icon: "hand" }),
+    });
+    expect(added.count).toBe(2);
+
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        slogans: [{ text: "Slap my pets", icon: "hand" }],
+        count: 1,
+      }),
+    );
+    const saved = await saveSlogans([{ text: "Slap my pets", icon: "hand" }]);
+    expect(mockRequest).toHaveBeenCalledWith("admin/slogans", {
+      method: "PUT",
+      body: JSON.stringify({ slogans: [{ text: "Slap my pets", icon: "hand" }] }),
+    });
+    expect(saved.count).toBe(1);
   });
 
   it("loads admin config from the authenticated route", async () => {

@@ -101,6 +101,22 @@ export type SubmissionList = {
   count: number;
 };
 
+export type Slogan = {
+  text: string;
+  icon: string;
+};
+
+export type SloganList = {
+  slogans: Slogan[];
+  count: number;
+};
+
+export async function fetchSlogans(): Promise<SloganList> {
+  const { response, data } = await requestJson<SloganList>("slogans");
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load slogans"));
+  return data;
+}
+
 export async function fetchHealth(): Promise<{ status: string }> {
   const { response, data } = await requestJson<{ status: string }>("health");
   if (!response.ok || !data) throw new Error("API is unreachable");

@@ -1,5 +1,12 @@
 import { errorMessage, requestJson } from "./client";
-import type { LeaderboardEntry, Submission, TournamentConfig, TournamentList } from "./public";
+import type {
+  LeaderboardEntry,
+  Slogan,
+  SloganList,
+  Submission,
+  TournamentConfig,
+  TournamentList,
+} from "./public";
 
 export type TrackedFarm = {
   farm_id: string;
@@ -157,6 +164,30 @@ export async function removeTournamentFarm(tournamentId: string, farmId: string)
     { method: "DELETE" },
   );
   if (!response.ok) throw new Error(errorMessage(data, "failed to remove farm from tournament"));
+}
+
+export async function fetchAdminSlogans(): Promise<SloganList> {
+  const { response, data } = await requestJson<SloganList>("admin/slogans");
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load slogans"));
+  return data;
+}
+
+export async function addSlogan(input: { text: string; icon?: string }): Promise<SloganList> {
+  const { response, data } = await requestJson<SloganList & { slogan: Slogan }>("admin/slogans", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to add slogan"));
+  return data;
+}
+
+export async function saveSlogans(slogans: Slogan[]): Promise<SloganList> {
+  const { response, data } = await requestJson<SloganList>("admin/slogans", {
+    method: "PUT",
+    body: JSON.stringify({ slogans }),
+  });
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to save slogans"));
+  return data;
 }
 
 export async function fetchAdminConfig(): Promise<TournamentConfig> {

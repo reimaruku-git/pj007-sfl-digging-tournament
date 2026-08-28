@@ -17,6 +17,7 @@ from tournament.scoring import STATUS_NOT_STARTED
 logger = logging.getLogger(__name__)
 
 CONFIG_PK = "CONFIG"
+SLOGANS_PK = "SLOGANS"
 CACHE_PK = "LEADERBOARD"
 TOURNAMENT_INDEX_PK = "TOURNAMENT_INDEX"
 TOURNAMENT_PK_PREFIX = "TOURNAMENT#"
@@ -82,6 +83,22 @@ class Store:
         item = dict(config)
         item["pk"] = CONFIG_PK
         item["updated_at"] = utc_now_iso()
+        self.config_table.put_item(Item=_to_ddb(item))
+        return item
+
+    def get_slogans(self) -> dict[str, Any]:
+        response = self.config_table.get_item(Key={"pk": SLOGANS_PK})
+        item = response.get("Item")
+        if not item:
+            return {"pk": SLOGANS_PK, "slogans": [], "updated_at": None}
+        return _from_ddb(item)
+
+    def put_slogans(self, slogans: list[dict[str, Any]]) -> dict[str, Any]:
+        item = {
+            "pk": SLOGANS_PK,
+            "slogans": slogans,
+            "updated_at": utc_now_iso(),
+        }
         self.config_table.put_item(Item=_to_ddb(item))
         return item
 

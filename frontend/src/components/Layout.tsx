@@ -9,13 +9,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { fetchSlogans } from "../api/public";
 import { useFarmSession } from "../lib/farmSession";
 import {
+  copyText,
   DONATION_WALLET,
   OPERATOR_FARM_NAME,
   OPERATOR_FARM_URL,
+  OPERATOR_X_URL,
+  truncatedDonationWallet,
 } from "../lib/operator";
+import { pickDailySlogan, SEED_SLOGANS, sloganGlyph } from "../lib/slogans";
 import { SITE_VERSION } from "../siteVersion";
 import { ColorCanvas } from "./ColorCanvas";
 import { FarmConnect } from "./FarmConnect";
@@ -135,6 +141,69 @@ function PublicHeader() {
         </NavLink>
       </nav>
       <div className="topbar-tools">
+        <CreatorChip />
+        <div className="topbar-session" ref={chipRef}>
+          {identity ? (
+            <div className="connected-chip-wrap">
+              <button
+                type="button"
+                className="connected-chip"
+                data-testid="farm-connected"
+                aria-expanded={chipOpen}
+                onClick={() => setChipOpen((value) => !value)}
+              >
+                <ColorCanvas tone="avatar" className="connected-avatar" />
+                <span className="connected-copy">
+                  <span className="farm-connected-kicker">Connected</span>
+                  <span className="farm-connected-name">{identity.name}</span>
+                </span>
+              </button>
+              {chipOpen && (
+                <div className="connected-menu" data-testid="menu-options">
+                  <Link to={`/farm/${identity.farm_id}`} onClick={() => setChipOpen(false)}>
+                    View farm
+                  </Link>
+                  <button type="button" data-testid="disconnect-farm" onClick={onDisconnect}>
+                    Disconnect {identity.name}
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <FarmConnect />
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function CreatorChip() {
+  const slogansQuery = useQuery({
+    queryKey: ["slogans"],
+    queryFn: fetchSlogans,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  });
+  const slogans = slogansQuery.data?.slogans?.length ? slogansQuery.data.slogans : SEED_SLOGANS;
+  const slogan = pickDailySlogan(slogans) ?? SEED_SLOGANS[0];
+  const glyph = sloganGlyph(slogan.icon);
+
+  return (
+    <div className="creator-chip" data-testid="creator-chip">
+      <p className="daily-slogan" data-testid="daily-slogan">
+        <span>
+          {slogan.text}
+          {glyph ? (
+            <span
+              className={`slogan-icon${slogan.icon.toLowerCase() === "smiley" ? " slogan-icon-smiley" : ""}`}
+              aria-hidden
+            >
+              {glyph}
+            </span>
+          ) : null}
+          {": "}
+        </span>
         <a
           className="operator-farm-link"
           href={OPERATOR_FARM_URL}
@@ -142,43 +211,36 @@ function PublicHeader() {
           rel="noreferrer"
           data-testid="operator-farm-link"
         >
-          Support {OPERATOR_FARM_NAME}&apos;s farm
+          {OPERATOR_FARM_NAME}
         </a>
-        {identity ? (
-          <div className="connected-chip-wrap" ref={chipRef}>
-            <button
-              type="button"
-              className="connected-chip"
-              data-testid="farm-connected"
-              aria-expanded={chipOpen}
-              onClick={() => setChipOpen((value) => !value)}
-            >
-              <ColorCanvas tone="avatar" className="connected-avatar" />
-              <span className="connected-copy">
-                <span className="farm-connected-kicker">Connected</span>
-                <span className="farm-connected-name">{identity.name}</span>
-              </span>
-            </button>
-            {chipOpen && (
-              <div className="connected-menu" data-testid="menu-options">
-                <Link to={`/farm/${identity.farm_id}`} onClick={() => setChipOpen(false)}>
-                  View farm
-                </Link>
-                <button type="button" data-testid="disconnect-farm" onClick={onDisconnect}>
-                  Disconnect {identity.name}
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <FarmConnect />
-        )}
-      </div>
-    </header>
+      </p>
+      <p className="created-by" data-testid="created-by">
+        Created by <strong>{OPERATOR_FARM_NAME}</strong>
+        <a
+          className="x-link"
+          href={OPERATOR_X_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${OPERATOR_FARM_NAME} on X`}
+          data-testid="operator-x-link"
+        >
+          <XLogo />
+        </a>
+      </p>
+    </div>
   );
 }
 
 function PublicFooter() {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy() {
+    const ok = await copyText(DONATION_WALLET);
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  }
+
   return (
     <footer className="public-footer" data-testid="public-footer">
       <div className="public-footer-inner">
@@ -187,13 +249,60 @@ function PublicFooter() {
           operated by the official Sunflower Land team.
         </p>
         <p className="donation-line" data-testid="donation-wallet">
-          Support the tournament · {DONATION_WALLET}
+          <strong className="donation-label">Support the tournaments:</strong>{" "}
+          <span className="donation-wallet-short" data-testid="donation-wallet-short">
+            {truncatedDonationWallet()}
+          </span>
+          <button
+            type="button"
+            className="copy-wallet"
+            aria-label="Copy wallet address"
+            data-testid="copy-wallet"
+            onClick={() => void onCopy()}
+          >
+            <CopyIcon />
+            <span className="copy-wallet-label">{copied ? "Copied" : "Copy"}</span>
+          </button>
         </p>
         <p className="site-version" data-testid="site-version">
           v{SITE_VERSION}
         </p>
       </div>
     </footer>
+  );
+}
+
+function XLogo() {
+  return (
+    <svg className="x-logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        fill="currentColor"
+        d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.74l7.727-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+      />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg className="copy-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect
+        x="8"
+        y="8"
+        width="12"
+        height="14"
+        rx="2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
 

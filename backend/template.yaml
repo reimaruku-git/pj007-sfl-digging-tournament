@@ -477,6 +477,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /config
             Method: GET
+        GetSlogans:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /slogans
+            Method: GET
         GetLeaderboard:
           Type: HttpApi
           Properties:
@@ -540,6 +546,30 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /admin/config
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminGetSlogans:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/slogans
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminPostSlogans:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/slogans
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminPutSlogans:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/slogans
             Method: PUT
             Auth:
               Authorizer: CognitoAuthorizer

@@ -1,7 +1,8 @@
 import { act, useCallback } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,9 +13,26 @@ import {
   OPERATOR_FARM_ID,
   OPERATOR_FARM_NAME,
   OPERATOR_FARM_URL,
+  OPERATOR_X_URL,
+  truncatedDonationWallet,
 } from "../lib/operator";
+import { pickDailySlogan, SEED_SLOGANS } from "../lib/slogans";
 import { SITE_VERSION } from "../siteVersion";
 import { Layout, useAdminHeaderActions } from "./Layout";
+
+vi.mock("../api/public", () => ({
+  fetchSlogans: vi.fn().mockResolvedValue({
+    slogans: [
+      { text: "Slap my pets", icon: "hand" },
+      { text: "Grow my banana", icon: "banana" },
+      { text: "Squeeze my orange", icon: "orange" },
+      { text: "Clean my poop", icon: "poop" },
+      { text: "Want some weed?", icon: "smiley" },
+      { text: "Erect my monument", icon: "statue" },
+    ],
+    count: 6,
+  }),
+}));
 
 function AdminDashStub() {
   const onSignOut = useCallback(() => undefined, []);
@@ -49,14 +67,17 @@ function renderAt(path = "/") {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   act(() => {
     root.render(
       <MemoryRouter initialEntries={[path]}>
-        <FarmSessionProvider>
-          <Layout>
-            <main>page-body</main>
-          </Layout>
-        </FarmSessionProvider>
+        <QueryClientProvider client={client}>
+          <FarmSessionProvider>
+            <Layout>
+              <main>page-body</main>
+            </Layout>
+          </FarmSessionProvider>
+        </QueryClientProvider>
       </MemoryRouter>,
     );
   });
@@ -69,6 +90,7 @@ afterEach(() => {
   });
   container.remove();
   localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 describe("public chrome", () => {
@@ -106,28 +128,61 @@ describe("public chrome", () => {
     expect(el.querySelector(".public-shell")?.contains(footer)).toBe(false);
   });
 
-  it("links the operator farm top-right and shows the donation wallet", () => {
+  it("links the operator farm top-right and shows the donation wallet", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
     const el = renderAt("/");
-    const tools = el.querySelector(".topbar-tools");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const header = el.querySelector(".public-topbar");
     const farmLink = el.querySelector('[data-testid="operator-farm-link"]');
+    const slogan = el.querySelector('[data-testid="daily-slogan"]');
+    const picked = pickDailySlogan(SEED_SLOGANS, new Date());
     expect(farmLink).not.toBeNull();
-    expect(tools?.contains(farmLink)).toBe(true);
+    expect(header?.contains(farmLink)).toBe(true);
     expect(farmLink?.getAttribute("href")).toBe(OPERATOR_FARM_URL);
     expect(farmLink?.getAttribute("href")).toContain(OPERATOR_FARM_ID);
-    expect(farmLink?.textContent).toMatch(new RegExp(OPERATOR_FARM_NAME, "i"));
-    expect(farmLink?.textContent).toMatch(/support/i);
+    expect(farmLink?.getAttribute("href")).toMatch(/sunflower-land\.com\/play\/#\/visit\//);
+    expect(farmLink?.getAttribute("href")).not.toMatch(/sfl\.world/);
+    expect(farmLink?.textContent).toBe(OPERATOR_FARM_NAME);
+    expect(slogan?.textContent).toContain(picked?.text ?? "");
+    expect(slogan?.textContent).toMatch(/:\s*rmr/);
+    const created = el.querySelector('[data-testid="created-by"]');
+    expect(created?.textContent).toMatch(/Created by/);
+    expect(created?.querySelector("strong")?.textContent).toBe(OPERATOR_FARM_NAME);
+    const xLink = el.querySelector('[data-testid="operator-x-link"]');
+    expect(xLink?.getAttribute("href")).toBe(OPERATOR_X_URL);
+    expect(xLink?.querySelector("svg")).not.toBeNull();
+    expect(header?.contains(created)).toBe(true);
     const wallet = el.querySelector('[data-testid="donation-wallet"]');
-    expect(wallet?.textContent).toMatch(/support the tournament/i);
-    expect(wallet?.textContent).toContain(DONATION_WALLET);
+    const label = wallet?.querySelector(".donation-label");
+    expect(label?.tagName).toBe("STRONG");
+    expect(label?.textContent).toBe("Support the tournaments:");
+    expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe(
+      truncatedDonationWallet(),
+    );
+    expect(wallet?.textContent).not.toContain(DONATION_WALLET.replace("0xad89dD", ""));
     expect(el.querySelector('[data-testid="public-footer"]')?.contains(wallet)).toBe(true);
+    await act(async () => {
+      (el.querySelector('[data-testid="copy-wallet"]') as HTMLButtonElement).click();
+    });
+    expect(writeText).toHaveBeenCalledWith(DONATION_WALLET);
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.donation-label\s*\{[^}]*font-weight:\s*700/s);
+    expect(css).toMatch(/\.donation-line\s*\{[^}]*font-size:\s*14px/s);
+    vi.unstubAllGlobals();
   });
 
   it("puts the connect field on the right when no farm is connected", () => {
     const el = renderAt("/");
-    const tools = el.querySelector(".topbar-tools");
-    const connect = tools?.querySelector('[data-testid="farm-connect"]');
-    const input = tools?.querySelector('[data-testid="farm-id-input"]');
-    const submit = tools?.querySelector('[data-testid="farm-id-submit"]');
+    const header = el.querySelector(".public-topbar");
+    const connect = header?.querySelector('[data-testid="farm-connect"]');
+    const input = header?.querySelector('[data-testid="farm-id-input"]');
+    const submit = header?.querySelector('[data-testid="farm-id-submit"]');
     expect(connect).not.toBeNull();
     expect(input).not.toBeNull();
     expect(submit).not.toBeNull();
@@ -139,11 +194,11 @@ describe("public chrome", () => {
   it("shows the connected farm chip in the header, not a burger", () => {
     writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
     const el = renderAt("/");
-    const tools = el.querySelector(".topbar-tools");
-    expect(tools?.querySelector('[data-testid="farm-connect"]')).toBeNull();
+    const header = el.querySelector(".public-topbar");
+    expect(header?.querySelector('[data-testid="farm-connect"]')).toBeNull();
     const connected = el.querySelector('[data-testid="farm-connected"]');
     expect(connected).not.toBeNull();
-    expect(tools?.contains(connected)).toBe(true);
+    expect(header?.contains(connected)).toBe(true);
     expect(connected?.querySelector(".farm-connected-name")?.textContent).toBe("rmr");
     expect(connected?.querySelector('[data-testid="color-canvas"]')).not.toBeNull();
     expect(el.querySelector('button[aria-label="Menu"]')).toBeNull();
@@ -164,9 +219,11 @@ describe("public chrome", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
       root.render(
         <MemoryRouter initialEntries={["/"]}>
+          <QueryClientProvider client={client}>
           <FarmSessionProvider>
             <Routes>
               <Route
@@ -187,6 +244,7 @@ describe("public chrome", () => {
               />
             </Routes>
           </FarmSessionProvider>
+          </QueryClientProvider>
         </MemoryRouter>,
       );
     });
@@ -213,6 +271,8 @@ describe("public chrome", () => {
     expect(el.querySelector('[data-testid="public-brand"]')).toBeNull();
     expect(el.querySelector('[data-testid="public-footer"]')).toBeNull();
     expect(el.querySelector('[data-testid="operator-farm-link"]')).toBeNull();
+    expect(el.querySelector('[data-testid="created-by"]')).toBeNull();
+    expect(el.querySelector('[data-testid="operator-x-link"]')).toBeNull();
     expect(el.querySelector('[data-testid="donation-wallet"]')).toBeNull();
     expect(el.querySelector('[data-testid="site-version"]')).toBeNull();
     expect(el.querySelector("h1")?.textContent).toBe("SFL Digging Tournament");
@@ -271,14 +331,17 @@ describe("public chrome", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     act(() => {
       root.render(
         <MemoryRouter initialEntries={["/admin"]}>
-          <FarmSessionProvider>
-            <Layout>
-              <AdminDashStub />
-            </Layout>
-          </FarmSessionProvider>
+          <QueryClientProvider client={client}>
+            <FarmSessionProvider>
+              <Layout>
+                <AdminDashStub />
+              </Layout>
+            </FarmSessionProvider>
+          </QueryClientProvider>
         </MemoryRouter>,
       );
     });
