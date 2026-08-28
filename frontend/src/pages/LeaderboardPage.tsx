@@ -13,8 +13,8 @@ import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import {
   featuredHomeTournament,
+  homeBoardRows,
   nextColumnSort,
-  sortedStandings,
   type StandingsColumn,
   type StandingsSort,
 } from "../lib/board";
@@ -258,7 +258,8 @@ function LiveEventBand({
   youName?: string;
   youLoading?: boolean;
 }) {
-  const rows = sortedStandings(entries, sort);
+  const rows = homeBoardRows(entries, sort);
+  const standingsHref = `/tournaments/${encodeURIComponent(tournament.tournament_id)}`;
   return (
     <div
       id={`live-${tournament.tournament_id}`}
@@ -288,13 +289,18 @@ function LiveEventBand({
         )}
         {!loading && rows.length === 0 && <p className="muted">No farms on this board yet.</p>}
         {rows.length > 0 && (
-          <StandingsTable
-            rows={rows}
-            mine={mine}
-            tournamentId={tournament.tournament_id}
-            sort={sort}
-            onSort={onSort}
-          />
+          <>
+            <StandingsTable
+              rows={rows}
+              mine={mine}
+              tournamentId={tournament.tournament_id}
+              sort={sort}
+              onSort={onSort}
+            />
+            <Link to={standingsHref} className="detail-crumb check-standings" data-testid="check-standings">
+              Check Standings &gt;
+            </Link>
+          </>
         )}
         {youName && (
           <YouFarmCard

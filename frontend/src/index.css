@@ -1677,6 +1677,42 @@ tr.is-you,
   font-weight: 700;
 }
 
+.podium-tie {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--mute);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.check-standings {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin: 12px 0 0;
+}
+
+.operator-farm-link {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.operator-farm-link:hover {
+  text-decoration: underline;
+}
+
+.donation-line {
+  margin: 8px 0 0;
+  color: var(--mute);
+  font-size: 12px;
+  word-break: break-all;
+}
+
 .latest-result {
   margin: 0;
 }
@@ -3044,6 +3080,13 @@ a.past-card:hover {
 
   .admin-topbar .topbar-tools {
     flex-shrink: 0;
+  }
+
+  .operator-farm-link {
+    max-width: 110px;
+    white-space: normal;
+    text-align: right;
+    line-height: 1.2;
   }
 
   .site-nav {

@@ -12,6 +12,8 @@ import {
   sortedStandings,
   upcomingTournaments,
   visibleBoardEntries,
+  homeBoardRows,
+  podiumPlaceTiedOnPrimary,
 } from "./board";
 
 function entry(
@@ -169,6 +171,30 @@ describe("sortedStandings", () => {
       column: "today",
       dir: "asc",
     });
+  });
+});
+
+describe("homeBoardRows", () => {
+  it("caps at 10 and keeps all when there are fewer", () => {
+    const many = Array.from({ length: 12 }, (_, index) =>
+      entry({ farm_id: String(index + 1), rank: index + 1, score: index + 1 }),
+    );
+    expect(homeBoardRows(many, null)).toHaveLength(10);
+    expect(homeBoardRows(many.slice(0, 8), null)).toHaveLength(8);
+  });
+});
+
+describe("podiumPlaceTiedOnPrimary", () => {
+  it("is true only for top-3 places that share the official average", () => {
+    const rows = [
+      entry({ farm_id: "a", rank: 1, score: 10, score_second_op: 6 }),
+      entry({ farm_id: "b", rank: 2, score: 10, score_second_op: 8 }),
+      entry({ farm_id: "c", rank: 3, score: 14, score_second_op: 9 }),
+    ];
+    expect(podiumPlaceTiedOnPrimary(rows[0], rows)).toBe(true);
+    expect(podiumPlaceTiedOnPrimary(rows[1], rows)).toBe(true);
+    expect(podiumPlaceTiedOnPrimary(rows[2], rows)).toBe(false);
+    expect(podiumPlaceTiedOnPrimary(undefined, rows)).toBe(false);
   });
 });
 

@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import type { LeaderboardEntry } from "../api/public";
+import { podiumPlaceTiedOnPrimary } from "../lib/board";
+import { formatScore } from "../lib/format";
 import { ColorCanvas, type CanvasTone } from "./ColorCanvas";
 import { Pebbles } from "./Pebbles";
 
@@ -20,10 +22,12 @@ function Slot({
   entry,
   place,
   tournamentId,
+  showTieBreak,
 }: {
   entry?: LeaderboardEntry;
   place: 1 | 2 | 3;
   tournamentId?: string;
+  showTieBreak: boolean;
 }) {
   if (!entry) {
     return (
@@ -44,10 +48,16 @@ function Slot({
       </div>
       <div className="podium-meta">
         <div className="podium-name">{entry.name || "Unnamed farm"}</div>
-        <div className="podium-score">
-          {entry.digs_to_third_op ?? "—"}
-          <span>Digs</span>
+        <div className="podium-score" data-testid={`podium-avg-${place}`}>
+          {formatScore(entry.score)}
+          <span>Avg/day</span>
         </div>
+        {showTieBreak ? (
+          <div className="podium-tie" data-testid={`podium-tie-${place}`}>
+            <span>2nd {formatScore(entry.score_second_op)}</span>
+            <span>3rd {formatScore(entry.score)}</span>
+          </div>
+        ) : null}
         <Pebbles count={entry.otter_count} />
       </div>
     </Link>
@@ -67,9 +77,24 @@ export function Podium({
   if (!first && !second && !third) return null;
   return (
     <section className="podium" aria-label="Top three" data-testid="tournament-podium">
-      <Slot entry={second} place={2} tournamentId={tournamentId} />
-      <Slot entry={first} place={1} tournamentId={tournamentId} />
-      <Slot entry={third} place={3} tournamentId={tournamentId} />
+      <Slot
+        entry={second}
+        place={2}
+        tournamentId={tournamentId}
+        showTieBreak={podiumPlaceTiedOnPrimary(second, entries)}
+      />
+      <Slot
+        entry={first}
+        place={1}
+        tournamentId={tournamentId}
+        showTieBreak={podiumPlaceTiedOnPrimary(first, entries)}
+      />
+      <Slot
+        entry={third}
+        place={3}
+        tournamentId={tournamentId}
+        showTieBreak={podiumPlaceTiedOnPrimary(third, entries)}
+      />
     </section>
   );
 }

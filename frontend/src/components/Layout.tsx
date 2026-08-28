@@ -11,6 +11,11 @@ import {
 } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useFarmSession } from "../lib/farmSession";
+import {
+  DONATION_WALLET,
+  OPERATOR_FARM_NAME,
+  OPERATOR_FARM_URL,
+} from "../lib/operator";
 import { SITE_VERSION } from "../siteVersion";
 import { ColorCanvas } from "./ColorCanvas";
 import { FarmConnect } from "./FarmConnect";
@@ -130,6 +135,15 @@ function PublicHeader() {
         </NavLink>
       </nav>
       <div className="topbar-tools">
+        <a
+          className="operator-farm-link"
+          href={OPERATOR_FARM_URL}
+          target="_blank"
+          rel="noreferrer"
+          data-testid="operator-farm-link"
+        >
+          Support {OPERATOR_FARM_NAME}&apos;s farm
+        </a>
         {identity ? (
           <div className="connected-chip-wrap" ref={chipRef}>
             <button
@@ -171,6 +185,9 @@ function PublicFooter() {
         <p data-testid="public-disclaimer">
           This is an unofficial, third-party site. It is not affiliated with, endorsed by, or
           operated by the official Sunflower Land team.
+        </p>
+        <p className="donation-line" data-testid="donation-wallet">
+          Support the tournament · {DONATION_WALLET}
         </p>
         <p className="site-version" data-testid="site-version">
           v{SITE_VERSION}

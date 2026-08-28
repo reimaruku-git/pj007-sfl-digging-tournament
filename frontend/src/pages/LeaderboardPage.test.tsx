@@ -1,6 +1,6 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LeaderboardEntry, TournamentArchive, TournamentSummary } from "../api/public";
@@ -207,7 +207,9 @@ describe("LeaderboardPage home", () => {
     expect(podium.textContent).not.toMatch(/Top three/);
     expect(podium.querySelector('[data-testid="tournament-podium"]')).not.toBeNull();
     expect(podium.querySelector(".place-1")?.textContent).toMatch(/rmr/);
-    expect(podium.querySelector(".place-1")?.textContent).toMatch(/193/);
+    expect(podium.querySelector('[data-testid="podium-avg-1"]')?.textContent).toMatch(/27\.57/);
+    expect(podium.querySelector('[data-testid="podium-avg-1"]')?.textContent).toMatch(/Avg\/day/);
+    expect(podium.querySelector(".place-1")?.textContent).not.toMatch(/193/);
     expect(podium.querySelector(".place-2")?.textContent).toMatch(/Farm 218/);
     expect(podium.querySelector(".place-3")?.textContent).toMatch(/Farm 219/);
 
@@ -435,6 +437,108 @@ describe("LeaderboardPage home", () => {
       total.click();
     });
     expect(firstName()).toMatch(/Dug today/);
+  });
+
+  it("lists at most 10 farms on the home board and links Check Standings to the event", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 12,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(
+        live,
+        Array.from({ length: 12 }, (_, index) =>
+          entry({
+            farm_id: String(index + 1),
+            rank: index + 1,
+            score: 10 + index,
+            name: `Farm ${index + 1}`,
+          }),
+        ),
+      ),
+    );
+    const page = await renderHome();
+    const tableRows = page.querySelectorAll('[data-testid="standings"] tbody tr');
+    const cards = page.querySelectorAll('[data-testid="standings"] .board-cards .farm-card');
+    expect(tableRows).toHaveLength(10);
+    expect(cards).toHaveLength(10);
+    const names = [...tableRows].map((row) => row.querySelector("td a")?.childNodes[0]?.textContent);
+    expect(names).toContain("Farm 10");
+    expect(names).not.toContain("Farm 11");
+    expect(names).not.toContain("Farm 12");
+    const check = page.querySelector('[data-testid="check-standings"]');
+    expect(check?.textContent).toMatch(/Check Standings >/);
+    expect(check?.getAttribute("href")).toBe("/tournaments/sprint");
+  });
+
+  it("lists every farm when the live board has 10 or fewer", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Small cup",
+      status: "active",
+      count: 3,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({ farm_id: "1", rank: 1, score: 10, name: "A" }),
+        entry({ farm_id: "2", rank: 2, score: 12, name: "B" }),
+        entry({ farm_id: "3", rank: 3, score: 14, name: "C" }),
+      ]),
+    );
+    const page = await renderHome();
+    expect(page.querySelectorAll('[data-testid="standings"] tbody tr')).toHaveLength(3);
+    expect(page.querySelector('[data-testid="check-standings"]')?.getAttribute("href")).toBe(
+      "/tournaments/sprint",
+    );
+  });
+
+  it("navigates Check Standings to the tournament standings page", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 1,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [entry({ farm_id: "1", rank: 1, score: 10, name: "A" })]),
+    );
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    act(() => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <FarmSessionProvider>
+              <Routes>
+                <Route path="/" element={<LeaderboardPage />} />
+                <Route
+                  path="/tournaments/:tournamentId"
+                  element={<main data-testid="event-standings">event board</main>}
+                />
+              </Routes>
+            </FarmSessionProvider>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    act(() => {
+      (container.querySelector('[data-testid="check-standings"]') as HTMLAnchorElement).click();
+    });
+    expect(container.querySelector('[data-testid="event-standings"]')?.textContent).toBe(
+      "event board",
+    );
   });
 
   it("shows only the admin-featured board, including an ended event", async () => {

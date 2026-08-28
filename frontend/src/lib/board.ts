@@ -51,6 +51,33 @@ function numericOrNull(value: number | null | undefined): number | null {
   return Number(value);
 }
 
+export const HOME_BOARD_LIMIT = 10;
+
+export function homeBoardRows(
+  entries: LeaderboardEntry[],
+  sort: StandingsSort,
+): LeaderboardEntry[] {
+  return sortedStandings(entries, sort).slice(0, HOME_BOARD_LIMIT);
+}
+
+function numericScore(value: number | null | undefined): number | null {
+  return numericOrNull(value);
+}
+
+/** True when this top-3 row shares its official average with another top-3 row. */
+export function podiumPlaceTiedOnPrimary(
+  entry: LeaderboardEntry | undefined,
+  entries: LeaderboardEntry[],
+): boolean {
+  const mine = numericScore(entry?.score);
+  if (entry == null || mine == null) return false;
+  const top = [1, 2, 3]
+    .map((rank) => entries.find((row) => row.rank === rank))
+    .filter((row): row is LeaderboardEntry => Boolean(row));
+  const same = top.filter((row) => numericScore(row.score) === mine);
+  return same.length >= 2;
+}
+
 export function sortedStandings(
   entries: LeaderboardEntry[],
   sort: StandingsSort,

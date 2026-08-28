@@ -7,6 +7,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
 import { writeFarmIdentity } from "../lib/followFarm";
+import {
+  DONATION_WALLET,
+  OPERATOR_FARM_ID,
+  OPERATOR_FARM_NAME,
+  OPERATOR_FARM_URL,
+} from "../lib/operator";
 import { SITE_VERSION } from "../siteVersion";
 import { Layout, useAdminHeaderActions } from "./Layout";
 
@@ -100,6 +106,22 @@ describe("public chrome", () => {
     expect(el.querySelector(".public-shell")?.contains(footer)).toBe(false);
   });
 
+  it("links the operator farm top-right and shows the donation wallet", () => {
+    const el = renderAt("/");
+    const tools = el.querySelector(".topbar-tools");
+    const farmLink = el.querySelector('[data-testid="operator-farm-link"]');
+    expect(farmLink).not.toBeNull();
+    expect(tools?.contains(farmLink)).toBe(true);
+    expect(farmLink?.getAttribute("href")).toBe(OPERATOR_FARM_URL);
+    expect(farmLink?.getAttribute("href")).toContain(OPERATOR_FARM_ID);
+    expect(farmLink?.textContent).toMatch(new RegExp(OPERATOR_FARM_NAME, "i"));
+    expect(farmLink?.textContent).toMatch(/support/i);
+    const wallet = el.querySelector('[data-testid="donation-wallet"]');
+    expect(wallet?.textContent).toMatch(/support the tournament/i);
+    expect(wallet?.textContent).toContain(DONATION_WALLET);
+    expect(el.querySelector('[data-testid="public-footer"]')?.contains(wallet)).toBe(true);
+  });
+
   it("puts the connect field on the right when no farm is connected", () => {
     const el = renderAt("/");
     const tools = el.querySelector(".topbar-tools");
@@ -190,6 +212,8 @@ describe("public chrome", () => {
     expect(el.querySelector(".public-topbar")).toBeNull();
     expect(el.querySelector('[data-testid="public-brand"]')).toBeNull();
     expect(el.querySelector('[data-testid="public-footer"]')).toBeNull();
+    expect(el.querySelector('[data-testid="operator-farm-link"]')).toBeNull();
+    expect(el.querySelector('[data-testid="donation-wallet"]')).toBeNull();
     expect(el.querySelector('[data-testid="site-version"]')).toBeNull();
     expect(el.querySelector("h1")?.textContent).toBe("SFL Digging Tournament");
     expect(el.querySelector('[data-testid="admin-sign-out"]')).toBeNull();
