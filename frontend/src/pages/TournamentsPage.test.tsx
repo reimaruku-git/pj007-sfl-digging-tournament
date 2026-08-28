@@ -270,6 +270,12 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(
       /100 Flower/,
     );
+    expect(page.querySelector('[data-testid="tourney-participants-soon"]')?.textContent).toMatch(
+      /Joined\s*6/,
+    );
+    expect(page.querySelector('[data-testid="tourney-participants-soon"]')?.textContent).not.toMatch(
+      /None/,
+    );
     expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(/6/);
     expect(ended?.textContent).toMatch(/30 Flower/);
     expect(ongoing?.textContent).not.toMatch(/Old cup/);
@@ -730,7 +736,7 @@ describe("TournamentsPage", () => {
     expect(css).toMatch(/\.detail-stat-list\s*\{/);
   });
 
-  it("renders min dig streak and max players as None when unset", async () => {
+  it("renders min dig streak as None and joined-only count when max players is unset", async () => {
     const live = summary({
       tournament_id: "live",
       name: "Open cup",
@@ -744,7 +750,13 @@ describe("TournamentsPage", () => {
     const page = await renderAt("/tournaments/live");
     expect(page.querySelector('[data-testid="tournament-streak"]')?.textContent).toMatch(/None/);
     expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).toMatch(
-      /6 \/ None/,
+      /Participants\s*6/,
+    );
+    expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).not.toMatch(
+      /None/,
+    );
+    expect(page.querySelector('[data-testid="tournament-participants"]')?.textContent).not.toMatch(
+      /6\s*\/\s*None/,
     );
     expect(page.textContent).not.toMatch(/\d+\s+players? win/i);
     expect(page.querySelector('[data-testid="prize-place-count"]')?.textContent).toMatch(/Prizes/);
@@ -1012,6 +1024,60 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Joining as/);
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
+  });
+
+  it("hides join after a pending request even if the detail remounts", async () => {
+    const next = summary({
+      tournament_id: "next",
+      name: "Confirm cup",
+      status: "scheduled",
+      join_mode: "confirm",
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(next, []),
+      config: { ...archive(next, []).config, join_mode: "confirm" },
+    });
+    submitFarm.mockResolvedValue({
+      submissions: [
+        {
+          farm_id: "3666918801844311",
+          name: "rmr",
+          tournament_id: "next",
+          submitted_at: "2026-08-16T12:00:00.000Z",
+          status: "pending",
+        },
+      ],
+      count: 1,
+    });
+    const page = await renderAt("/tournaments/next");
+    expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
+    act(() => {
+      (page.querySelector('[data-testid="join-tournament"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Join this tournament/);
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    const again = await renderAt("/tournaments/next");
+    expect(again.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(again.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(again.textContent).not.toMatch(/Join this tournament/);
+    expect(submitFarm).toHaveBeenCalledTimes(1);
+  });
+
+  it("matches join helper copy color to Back to tournaments", () => {
+    const css = shippedCss();
+    const crumb = css.match(/\.detail-crumb\s*\{[^}]+\}/);
+    const hint = css.match(/\.join-hint\s*\{[^}]+\}/);
+    expect(crumb).not.toBeNull();
+    expect(hint).not.toBeNull();
+    expect(crumb![0]).toMatch(/color:\s*var\(--cream\)/);
+    expect(hint![0]).toMatch(/color:\s*var\(--cream\)/);
   });
 
   it("still offers join when the connected farm is not in the standings", async () => {

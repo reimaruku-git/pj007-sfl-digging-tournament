@@ -258,7 +258,7 @@ function LiveEventBand({
   youName?: string;
   youLoading?: boolean;
 }) {
-  const rows = homeBoardRows(entries, sort);
+  const rows = homeBoardRows(entries, sort, mine);
   const standingsHref = `/tournaments/${encodeURIComponent(tournament.tournament_id)}`;
   return (
     <div

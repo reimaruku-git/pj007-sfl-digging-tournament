@@ -474,6 +474,102 @@ describe("LeaderboardPage home", () => {
     expect(check?.getAttribute("href")).toBe("/tournaments/sprint");
   });
 
+  it("appends the connected farm as the last standings row when they rank outside the top 10", async () => {
+    writeFarmIdentity({ farm_id: "12", name: "YouFarm" });
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 12,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(
+        live,
+        Array.from({ length: 12 }, (_, index) =>
+          entry({
+            farm_id: String(index + 1),
+            rank: index + 1,
+            score: 10 + index,
+            name: `Farm ${index + 1}`,
+          }),
+        ),
+      ),
+    );
+    const page = await renderHome();
+    const tableRows = [...page.querySelectorAll('[data-testid="standings"] tbody tr')];
+    const cards = [...page.querySelectorAll('[data-testid="standings"] .board-cards .farm-card')];
+    expect(tableRows).toHaveLength(11);
+    expect(cards).toHaveLength(11);
+    expect(tableRows[10]?.textContent).toMatch(/Farm 12/);
+    expect(tableRows[10]?.querySelector(".rank")?.textContent).toBe("12");
+    expect(tableRows[10]?.classList.contains("is-you")).toBe(true);
+    expect(cards[10]?.textContent).toMatch(/Farm 12/);
+    expect(cards[10]?.querySelector(".rank")?.textContent).toBe("12");
+  });
+
+  it("does not duplicate the connected farm when they already sit in the top 10", async () => {
+    writeFarmIdentity({ farm_id: "1", name: "Farm 1" });
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 12,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(
+        live,
+        Array.from({ length: 12 }, (_, index) =>
+          entry({
+            farm_id: String(index + 1),
+            rank: index + 1,
+            score: 10 + index,
+            name: `Farm ${index + 1}`,
+          }),
+        ),
+      ),
+    );
+    const page = await renderHome();
+    const tableRows = [...page.querySelectorAll('[data-testid="standings"] tbody tr')];
+    expect(tableRows).toHaveLength(10);
+    expect(tableRows.filter((row) => row.classList.contains("is-you"))).toHaveLength(1);
+    expect(tableRows[0]?.classList.contains("is-you")).toBe(true);
+    expect(tableRows[0]?.querySelector(".farm-id")?.textContent).toBe("1");
+    expect(page.querySelectorAll('[data-testid="standings"] .board-cards .farm-card')).toHaveLength(
+      10,
+    );
+  });
+
+  it("does not add a standings row for a connected farm that is not on the board", async () => {
+    writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 12,
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(
+        live,
+        Array.from({ length: 12 }, (_, index) =>
+          entry({
+            farm_id: String(index + 1),
+            rank: index + 1,
+            score: 10 + index,
+            name: `Farm ${index + 1}`,
+          }),
+        ),
+      ),
+    );
+    const page = await renderHome();
+    expect(page.querySelectorAll('[data-testid="standings"] tbody tr')).toHaveLength(10);
+    expect(page.querySelectorAll('[data-testid="standings"] .board-cards .farm-card')).toHaveLength(
+      10,
+    );
+  });
+
   it("lists every farm when the live board has 10 or fewer", async () => {
     const live = summary({
       tournament_id: "sprint",

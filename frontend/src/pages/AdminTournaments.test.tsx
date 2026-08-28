@@ -553,6 +553,88 @@ describe("AdminTournaments", () => {
     );
   });
 
+  it("previews 5 events per bucket and expands with Check all", () => {
+    const live = Array.from({ length: 6 }, (_, index) =>
+      row({
+        tournament_id: `live-${index + 1}`,
+        name: `Live ${index + 1}`,
+        status: "active",
+        start_at: "2026-08-01T00:00:00.000Z",
+        end_at: `2026-08-${String(20 + index).padStart(2, "0")}T00:00:00.000Z`,
+      }),
+    );
+    const upcoming = Array.from({ length: 6 }, (_, index) =>
+      row({
+        tournament_id: `up-${index + 1}`,
+        name: `Upcoming ${index + 1}`,
+        status: "scheduled",
+        start_at: `2026-09-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+        end_at: `2026-09-${String(index + 8).padStart(2, "0")}T00:00:00.000Z`,
+      }),
+    );
+    const past = Array.from({ length: 6 }, (_, index) =>
+      row({
+        tournament_id: `past-${index + 1}`,
+        name: `Past ${index + 1}`,
+        status: "ended",
+        start_at: `2026-0${index + 1}-01T00:00:00.000Z`,
+        end_at: `2026-0${index + 1}-08T00:00:00.000Z`,
+      }),
+    );
+    const { container } = render([...live, ...upcoming, ...past]);
+    const ongoing = container.querySelector('[data-testid="admin-ongoing-group"]');
+    const upcomingGroup = container.querySelector('[data-testid="admin-upcoming-group"]');
+    const pastGroup = container.querySelector('[data-testid="admin-past-group"]');
+    expect(ongoing?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(5);
+    expect(upcomingGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(5);
+    expect(pastGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(5);
+    expect(ongoing?.querySelector('[data-testid="admin-card-live-1"]')).not.toBeNull();
+    expect(ongoing?.querySelector('[data-testid="admin-card-live-6"]')).toBeNull();
+    expect(upcomingGroup?.querySelector('[data-testid="admin-card-up-1"]')).not.toBeNull();
+    expect(upcomingGroup?.querySelector('[data-testid="admin-card-up-6"]')).toBeNull();
+    expect(pastGroup?.querySelector('[data-testid="admin-card-past-6"]')).not.toBeNull();
+    expect(pastGroup?.querySelector('[data-testid="admin-card-past-1"]')).toBeNull();
+    const checkOngoing = container.querySelector(
+      '[data-testid="admin-check-all-ongoing"]',
+    ) as HTMLButtonElement;
+    const checkUpcoming = container.querySelector(
+      '[data-testid="admin-check-all-upcoming"]',
+    ) as HTMLButtonElement;
+    const checkPast = container.querySelector(
+      '[data-testid="admin-check-all-past"]',
+    ) as HTMLButtonElement;
+    expect(checkOngoing?.textContent).toMatch(/Check all ongoing/i);
+    expect(checkUpcoming?.textContent).toMatch(/Check all upcoming/i);
+    expect(checkPast?.textContent).toMatch(/Check all past/i);
+    act(() => {
+      checkOngoing.click();
+    });
+    expect(ongoing?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
+    expect(ongoing?.querySelector('[data-testid="admin-card-live-6"]')).not.toBeNull();
+    act(() => {
+      checkUpcoming.click();
+      checkPast.click();
+    });
+    expect(upcomingGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
+    expect(pastGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
+  });
+
+  it("omits Check all when a bucket has 5 or fewer events", () => {
+    const { container } = render([
+      row({ tournament_id: "live", name: "Live cup", status: "active" }),
+      row({
+        tournament_id: "next",
+        name: "September cup",
+        status: "scheduled",
+        start_at: "2026-09-01T00:00:00.000Z",
+        end_at: "2026-09-08T00:00:00.000Z",
+      }),
+    ]);
+    expect(container.querySelector('[data-testid="admin-check-all-ongoing"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-check-all-upcoming"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-check-all-past"]')).toBeNull();
+  });
+
   it("lets admin groups size to their content in the shipped stylesheet", () => {
     const css = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),

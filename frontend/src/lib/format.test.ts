@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   catalogStatusLabel,
+  joinedCountLabel,
   formatDateRangeUtc,
   formatDateUtc,
   formatDetailDateRangeUtc,
@@ -33,6 +34,20 @@ describe("windowStatusLabel", () => {
     expect(windowStatusLabel("active")).toBe("Live");
     expect(windowStatusLabel("scheduled")).toBe("Upcoming");
     expect(windowStatusLabel("ended")).toBe("Ended");
+  });
+});
+
+describe("joinedCountLabel", () => {
+  it("prints only the joined count when max players is unset", () => {
+    expect(joinedCountLabel(6, null)).toBe("6");
+    expect(joinedCountLabel(6, null, 0, true)).toBe("6");
+    expect(joinedCountLabel(undefined, undefined, 6)).toBe("6");
+    expect(joinedCountLabel(6, null)).not.toMatch(/None/);
+  });
+
+  it("prints joined / max when a cap is set", () => {
+    expect(joinedCountLabel(4, 32)).toBe("4 / 32");
+    expect(joinedCountLabel(2, 8, 0, true)).toBe("2/8");
   });
 });
 

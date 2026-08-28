@@ -3,7 +3,13 @@ import type { RosterMember, TrackedFarm } from "../api/admin";
 import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
-import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
+import {
+  adminBucketNeedsCheckAll,
+  adminBucketPreview,
+  liveTournamentsSoonestFirst,
+  pastTournaments,
+  upcomingTournaments,
+} from "../lib/board";
 import {
   formatDateRangeUtc,
   inclusiveCalendarDays,
@@ -565,15 +571,19 @@ function AdminGroup({
   onDelete?: (row: TournamentSummary) => void | Promise<void>;
   onFeature?: (id: string | null) => Promise<void>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = adminBucketPreview(items, expanded);
+  const showCheckAll = adminBucketNeedsCheckAll(items.length) && !expanded;
+  const bucket = title.toLowerCase();
   return (
-    <div className="tourney-group" data-testid={`admin-${title.toLowerCase()}-group`}>
+    <div className="tourney-group" data-testid={`admin-${bucket}-group`}>
       <div className="kicker">{title}</div>
       {items.length === 0 && (
-        <p className="muted tourney-empty" data-testid={`admin-${title.toLowerCase()}-empty`}>
+        <p className="muted tourney-empty" data-testid={`admin-${bucket}-empty`}>
           {empty}
         </p>
       )}
-      {items.map((row) => (
+      {visible.map((row) => (
         <article
           key={row.tournament_id}
           className={selectedId === row.tournament_id ? "tourney-card is-open" : "tourney-card"}
@@ -635,6 +645,16 @@ function AdminGroup({
           </div>
         </article>
       ))}
+      {showCheckAll ? (
+        <button
+          type="button"
+          className="detail-crumb check-standings"
+          data-testid={`admin-check-all-${bucket}`}
+          onClick={() => setExpanded(true)}
+        >
+          Check all {bucket} &gt;
+        </button>
+      ) : null}
     </div>
   );
 }

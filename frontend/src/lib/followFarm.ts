@@ -68,3 +68,49 @@ export function writeFollowedFarm(farmId: string, name = ""): void {
   if (!name.trim()) return;
   writeFarmIdentity({ farm_id, name: name.trim() });
 }
+
+const REQUESTED_KEY = "pj007.requestedTournamentIds";
+
+function readRequestedMap(): Record<string, string[]> {
+  try {
+    const raw = localStorage.getItem(REQUESTED_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, string[]> = {};
+    for (const [farmId, ids] of Object.entries(parsed as Record<string, unknown>)) {
+      if (!Array.isArray(ids)) continue;
+      const clean = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
+      const key = farmId.trim();
+      if (key && clean.length) out[key] = clean;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function readRequestedTournamentIds(farmId: string): string[] {
+  const id = farmId.trim();
+  if (!id) return [];
+  return readRequestedMap()[id] ?? [];
+}
+
+export function addRequestedTournamentId(farmId: string, tournamentId: string): void {
+  const id = farmId.trim();
+  const tid = tournamentId.trim();
+  if (!id || !tid) return;
+  try {
+    const map = readRequestedMap();
+    const current = new Set(map[id] ?? []);
+    current.add(tid);
+    map[id] = [...current];
+    localStorage.setItem(REQUESTED_KEY, JSON.stringify(map));
+  } catch {
+    /* private mode */
+  }
+}
+
+export function hasRequestedTournament(farmId: string, tournamentId: string): boolean {
+  return readRequestedTournamentIds(farmId).includes(tournamentId.trim());
+}

@@ -285,3 +285,15 @@ export function opensLabel(startAt: string | null | undefined, now: Date = new D
   if (days === 1) return "Opens in 1 day";
   return `Opens in ${days} days`;
 }
+
+/** Joined count, or `joined / max` when a participant cap is set. */
+export function joinedCountLabel(
+  enrolled: number | null | undefined,
+  max: number | null | undefined,
+  fallback = 0,
+  compact = false,
+): string {
+  const joined = enrolled ?? fallback;
+  if (max == null) return String(joined);
+  return compact ? `${joined}/${max}` : `${joined} / ${max}`;
+}

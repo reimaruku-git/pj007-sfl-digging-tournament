@@ -139,6 +139,12 @@ describe("public chrome", () => {
     expect(footer?.contains(disclaimer)).toBe(true);
     expect(footer?.contains(version)).toBe(true);
     expect(el.querySelector(".public-shell")?.contains(footer)).toBe(false);
+    const support = el.querySelector('[data-testid="public-footer-support"]');
+    expect(support).not.toBeNull();
+    expect(support?.contains(el.querySelector('[data-testid="donation-wallet"]'))).toBe(true);
+    expect(support?.contains(version)).toBe(true);
+    const donation = support?.querySelector('[data-testid="donation-wallet"]') as HTMLElement;
+    expect(support?.contains(donation) && donation.compareDocumentPosition(version as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("links the operator farm top-right and shows the donation wallet", async () => {
@@ -192,6 +198,10 @@ describe("public chrome", () => {
     );
     expect(css).toMatch(/\.donation-label\s*\{[^}]*font-weight:\s*700/s);
     expect(css).toMatch(/\.donation-line\s*\{[^}]*font-size:\s*14px/s);
+    expect(css).toMatch(/\.public-footer-support\s*\{[^}]*align-items:\s*flex-end/s);
+    expect(css).toMatch(/\.public-footer-support\s*\{[^}]*flex-direction:\s*column/s);
+    expect(css).not.toMatch(/\.public-footer \.donation-line\s*\{[^}]*flex:\s*1 1 100%/s);
+    expect(css).toMatch(/\.public-footer\s*\{[^}]*padding:\s*12px 18px 14px/s);
     vi.unstubAllGlobals();
   });
 
@@ -287,13 +297,19 @@ describe("public chrome", () => {
     expect(el.querySelector(".public-shell")).toBeNull();
     expect(el.querySelector(".public-topbar")).toBeNull();
     expect(el.querySelector('[data-testid="public-brand"]')).toBeNull();
-    expect(el.querySelector('[data-testid="public-footer"]')).toBeNull();
+    expect(el.querySelector('[data-testid="admin-brand"]')?.querySelector("h1")?.textContent).toBe(
+      "Bumpkin Clash: Digging",
+    );
+    expect(el.querySelector('[data-testid="admin-brand"]')?.querySelector("p")?.textContent).toBe(
+      "Sunflower Land Digging Tournament",
+    );
+    expect(el.querySelector('[data-testid="public-footer"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="public-disclaimer"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="donation-wallet"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="site-version"]')).not.toBeNull();
     expect(el.querySelector('[data-testid="operator-farm-link"]')).toBeNull();
     expect(el.querySelector('[data-testid="created-by"]')).toBeNull();
     expect(el.querySelector('[data-testid="operator-x-link"]')).toBeNull();
-    expect(el.querySelector('[data-testid="donation-wallet"]')).toBeNull();
-    expect(el.querySelector('[data-testid="site-version"]')).toBeNull();
-    expect(el.querySelector("h1")?.textContent).toBe("SFL Digging Tournament");
     expect(el.querySelector('[data-testid="admin-sign-out"]')).toBeNull();
   });
 
@@ -345,7 +361,21 @@ describe("public chrome", () => {
     expect(css).not.toMatch(/\.admin-topbar\s*\{[^}]*background:\s*rgba\(/s);
   });
 
-  it("parks Sign out in the full-bleed admin top bar when the dashboard is open", () => {
+  it("matches public and admin brand title sizes", () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    const brandH1 = css.match(/\.brand h1\s*\{[^}]+\}/);
+    const brandP = css.match(/\.brand p\s*\{[^}]+\}/);
+    expect(brandH1?.[0]).toMatch(/font-size:\s*22px/);
+    expect(brandP?.[0]).toMatch(/font-size:\s*12px/);
+    expect(css).not.toMatch(/\.public-topbar \.brand h1\s*\{[^}]*font-size:/s);
+    expect(css).not.toMatch(/\.public-topbar \.brand p\s*\{[^}]*font-size:\s*11px/s);
+    expect(css).not.toMatch(/\.admin-topbar \.brand h1\s*\{[^}]*font-size:/s);
+  });
+
+  it("puts Sign out in the admin burger and the timer in the center", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -364,15 +394,31 @@ describe("public chrome", () => {
       );
     });
     const topbar = container.querySelector('[data-testid="admin-topbar"]');
-    const signOut = container.querySelector('[data-testid="admin-sign-out"]');
-    expect(signOut).not.toBeNull();
-    expect(signOut?.textContent).toMatch(/Sign out/);
-    expect(topbar?.contains(signOut)).toBe(true);
-    expect(container.querySelector(".shell")?.contains(signOut)).toBe(false);
+    expect(topbar?.querySelector("h1")?.textContent).toBe("Bumpkin Clash: Digging");
+    expect(topbar?.querySelector("p")?.textContent).toBe("Sunflower Land Digging Tournament");
+    expect(container.querySelector('[data-testid="admin-sign-out"]')).toBeNull();
+    const timer = container.querySelector('[data-testid="admin-next-refresh"]');
+    expect(timer).not.toBeNull();
+    expect(topbar?.contains(timer)).toBe(true);
+    expect(topbar?.querySelector(".topbar-tools")?.contains(timer)).toBe(false);
+    expect(container.querySelector('[data-testid="public-footer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="public-disclaimer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="donation-wallet"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="site-version"]')).not.toBeNull();
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.admin-topbar-timer\s*\{[^}]*justify-self:\s*center/s);
 
     act(() => {
       (container.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
     });
+    const signOut = container.querySelector('[data-testid="admin-sign-out"]');
+    expect(signOut).not.toBeNull();
+    expect(signOut?.textContent).toMatch(/Sign out/);
+    expect(container.querySelector('[data-testid="menu-options"]')?.contains(signOut)).toBe(true);
+    expect(container.querySelector(".shell")?.contains(signOut)).toBe(false);
     const slogansItem = container.querySelector('[data-testid="admin-menu-slogans"]');
     expect(slogansItem?.textContent).toMatch(/Header slogans/);
     act(() => {

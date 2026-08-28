@@ -207,7 +207,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
 
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar admin-sync-toolbar">
         <button
           className="btn"
           type="button"

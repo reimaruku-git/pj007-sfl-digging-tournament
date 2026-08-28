@@ -14,6 +14,8 @@ import {
   visibleBoardEntries,
   homeBoardRows,
   podiumPlaceTiedOnPrimary,
+  adminBucketPreview,
+  adminBucketNeedsCheckAll,
 } from "./board";
 
 function entry(
@@ -181,6 +183,31 @@ describe("homeBoardRows", () => {
     );
     expect(homeBoardRows(many, null)).toHaveLength(10);
     expect(homeBoardRows(many.slice(0, 8), null)).toHaveLength(8);
+  });
+
+  it("appends the connected farm after the top 10 when they rank outside it", () => {
+    const many = Array.from({ length: 12 }, (_, index) =>
+      entry({ farm_id: String(index + 1), rank: index + 1, score: index + 1 }),
+    );
+    const rows = homeBoardRows(many, null, "12");
+    expect(rows).toHaveLength(11);
+    expect(rows[10]?.farm_id).toBe("12");
+    expect(rows[10]?.rank).toBe(12);
+    expect(homeBoardRows(many, null, "1")).toHaveLength(10);
+    expect(homeBoardRows(many, null, "1").filter((row) => row.farm_id === "1")).toHaveLength(1);
+    expect(homeBoardRows(many, null, "99")).toHaveLength(10);
+    expect(homeBoardRows(many, null, "")).toHaveLength(10);
+  });
+});
+
+describe("adminBucketPreview", () => {
+  it("shows 5 until expanded when the bucket is longer", () => {
+    const items = [1, 2, 3, 4, 5, 6];
+    expect(adminBucketPreview(items, false)).toEqual([1, 2, 3, 4, 5]);
+    expect(adminBucketPreview(items, true)).toEqual(items);
+    expect(adminBucketPreview([1, 2, 3], false)).toEqual([1, 2, 3]);
+    expect(adminBucketNeedsCheckAll(6)).toBe(true);
+    expect(adminBucketNeedsCheckAll(5)).toBe(false);
   });
 });
 

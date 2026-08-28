@@ -41,7 +41,7 @@ type AdminHeaderActionsContextValue = {
 
 const AdminHeaderActionsContext = createContext<AdminHeaderActionsContextValue | null>(null);
 
-/** Let the authed admin dashboard park Sign out in the full-bleed top bar. */
+/** Let the authed admin dashboard park Sign out in the burger menu. */
 export function useAdminHeaderActions(actions: AdminHeaderActions) {
   const ctx = useContext(AdminHeaderActionsContext);
   const setActions = ctx?.setActions;
@@ -73,6 +73,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="app-frame admin-frame">
           <AdminHeader />
           <div className="shell">{children}</div>
+          <PublicFooter />
         </div>
       </AdminHeaderActionsProvider>
     );
@@ -83,6 +84,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="shell public-shell">{children}</div>
       <PublicFooter />
     </div>
+  );
+}
+
+function SiteBrand({ testId }: { testId: string }) {
+  return (
+    <Link to="/" className="brand" data-testid={testId}>
+      <div className="brand-mark" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </div>
+      <div>
+        <h1>Bumpkin Clash: Digging</h1>
+        <p>Sunflower Land Digging Tournament</p>
+      </div>
+    </Link>
   );
 }
 
@@ -118,17 +135,7 @@ function PublicHeader() {
 
   return (
     <header className="topbar public-topbar">
-      <Link to="/" className="brand" data-testid="public-brand">
-        <div className="brand-mark" aria-hidden>
-          <span />
-          <span />
-          <span />
-        </div>
-        <div>
-          <h1>Bumpkin Clash: Digging</h1>
-          <p>Sunflower Land Digging Tournament</p>
-        </div>
-      </Link>
+      <SiteBrand testId="public-brand" />
       <nav className="site-nav" data-testid="public-nav" aria-label="Primary">
         <NavLink to="/" end className={({ isActive }) => navClass(isActive)} data-testid="nav-live">
           Live
@@ -241,25 +248,27 @@ function PublicFooter() {
           This is an unofficial, third-party site. It is not affiliated with, endorsed by, or
           operated by the official Sunflower Land team.
         </p>
-        <p className="donation-line" data-testid="donation-wallet">
-          <strong className="donation-label">Support the tournaments:</strong>{" "}
-          <span className="donation-wallet-short" data-testid="donation-wallet-short">
-            {truncatedDonationWallet()}
-          </span>
-          <button
-            type="button"
-            className={`copy-wallet${copied ? " copied" : ""}`}
-            aria-label={copied ? "Wallet address copied" : "Copy wallet address"}
-            title={copied ? "Copied" : "Copy address"}
-            data-testid="copy-wallet"
-            onClick={() => void onCopy()}
-          >
-            <CopyIcon />
-          </button>
-        </p>
-        <p className="site-version" data-testid="site-version">
-          v{SITE_VERSION}
-        </p>
+        <div className="public-footer-support" data-testid="public-footer-support">
+          <p className="donation-line" data-testid="donation-wallet">
+            <strong className="donation-label">Support the tournaments:</strong>{" "}
+            <span className="donation-wallet-short" data-testid="donation-wallet-short">
+              {truncatedDonationWallet()}
+            </span>
+            <button
+              type="button"
+              className={`copy-wallet${copied ? " copied" : ""}`}
+              aria-label={copied ? "Wallet address copied" : "Copy wallet address"}
+              title={copied ? "Copied" : "Copy address"}
+              data-testid="copy-wallet"
+              onClick={() => void onCopy()}
+            >
+              <CopyIcon />
+            </button>
+          </p>
+          <p className="site-version" data-testid="site-version">
+            v{SITE_VERSION}
+          </p>
+        </div>
       </div>
     </footer>
   );
@@ -332,29 +341,11 @@ function AdminHeader() {
 
   return (
     <header className="topbar admin-topbar" data-testid="admin-topbar">
-      <Link to="/" className="brand">
-        <div className="brand-mark" aria-hidden>
-          <span />
-          <span />
-          <span />
-        </div>
-        <div>
-          <h1>SFL Digging Tournament</h1>
-          <p>3 Otter Pebbles · fewest digs wins</p>
-        </div>
-      </Link>
-      <div className="topbar-tools">
+      <SiteBrand testId="admin-brand" />
+      <div className="admin-topbar-timer" data-testid="admin-next-refresh">
         <SyncCountdown compact />
-        {onSignOut ? (
-          <button
-            className="btn ghost"
-            type="button"
-            data-testid="admin-sign-out"
-            onClick={onSignOut}
-          >
-            Sign out
-          </button>
-        ) : null}
+      </div>
+      <div className="topbar-tools">
         <div className="menu-wrap" ref={rootRef}>
           <button
             type="button"
@@ -402,6 +393,19 @@ function AdminHeader() {
                     }}
                   >
                     Header slogans
+                  </button>
+                ) : null}
+                {onSignOut ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="admin-sign-out"
+                    onClick={() => {
+                      setOpen(false);
+                      onSignOut();
+                    }}
+                  >
+                    Sign out
                   </button>
                 ) : null}
               </div>

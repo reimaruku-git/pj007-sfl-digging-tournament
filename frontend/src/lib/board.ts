@@ -56,8 +56,30 @@ export const HOME_BOARD_LIMIT = 10;
 export function homeBoardRows(
   entries: LeaderboardEntry[],
   sort: StandingsSort,
+  connectedFarmId?: string | null,
 ): LeaderboardEntry[] {
-  return sortedStandings(entries, sort).slice(0, HOME_BOARD_LIMIT);
+  const top = sortedStandings(entries, sort).slice(0, HOME_BOARD_LIMIT);
+  const mine = (connectedFarmId || "").trim();
+  if (!mine) return top;
+  if (top.some((row) => row.farm_id === mine)) return top;
+  const self = entries.find((row) => row.farm_id === mine);
+  if (!self) return top;
+  return [...top, self];
+}
+
+export const ADMIN_BUCKET_PREVIEW = 5;
+
+export function adminBucketPreview<T>(
+  items: T[],
+  expanded: boolean,
+  limit = ADMIN_BUCKET_PREVIEW,
+): T[] {
+  if (expanded || items.length <= limit) return items;
+  return items.slice(0, limit);
+}
+
+export function adminBucketNeedsCheckAll(count: number, limit = ADMIN_BUCKET_PREVIEW): boolean {
+  return count > limit;
 }
 
 function numericScore(value: number | null | undefined): number | null {

@@ -15,6 +15,7 @@ import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
 import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
+import { addRequestedTournamentId, hasRequestedTournament } from "../lib/followFarm";
 import {
   formatDateUtc,
   formatDetailDateRangeUtc,
@@ -22,6 +23,7 @@ import {
   formatScore,
   inclusiveFinalDayIso,
   isZeroFlowerAmount,
+  joinedCountLabel,
   opensLabel,
   remainingLabel,
   statusLabel,
@@ -153,24 +155,6 @@ function islandLabel(island: string | null | undefined): string {
   return island.charAt(0).toUpperCase() + island.slice(1);
 }
 
-function joinedTotal(
-  enrolled: number | null | undefined,
-  max: number | null | undefined,
-  fallback = 0,
-): string {
-  const joined = enrolled ?? fallback;
-  return `${joined}/${max == null ? "None" : max}`;
-}
-
-function joinedDisplay(
-  enrolled: number | null | undefined,
-  max: number | null | undefined,
-  fallback = 0,
-): string {
-  const joined = enrolled ?? fallback;
-  return `${joined} / ${max == null ? "None" : max}`;
-}
-
 export function TournamentsPage() {
   const { tournamentId } = useParams();
   if (tournamentId) return <TournamentDetail tournamentId={tournamentId} />;
@@ -291,7 +275,7 @@ function CatalogWindow({
       <dl className="window-card-facts">
         <div data-testid={`tourney-participants-${row.tournament_id}`}>
           <dt>Joined</dt>
-          <dd>{joinedTotal(row.enrolled_count, row.max_players, row.count)}</dd>
+          <dd>{joinedCountLabel(row.enrolled_count, row.max_players, row.count, true)}</dd>
         </div>
         <div data-testid={`tourney-island-${row.tournament_id}`}>
           <dt>Island</dt>
@@ -337,6 +321,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
       return submitFarm(identity.farm_id, identity.name, [tournamentId]);
     },
     onSuccess: (result) => {
+      if (identity) addRequestedTournamentId(identity.farm_id, tournamentId);
       const enrolled = result.submissions.some((item) => item.status === "enrolled");
       setNotice(
         enrolled
@@ -357,7 +342,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const alreadyEnrolled = Boolean(
     identity && data?.entries.some((row) => row.farm_id === identity.farm_id),
   );
-  const showJoinCta = joinable && Boolean(identity) && !alreadyEnrolled && !join.isSuccess;
+  const alreadyRequested = Boolean(
+    identity && hasRequestedTournament(identity.farm_id, tournamentId),
+  );
+  const showJoinCta =
+    joinable && Boolean(identity) && !alreadyEnrolled && !alreadyRequested && !join.isSuccess;
   return (
     <section className="page-inner tournament-detail" data-testid="tournament-detail">
       <div className="detail-chrome">
@@ -446,7 +435,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                       Participants
                     </div>
                     <div className="val">
-                      {joinedDisplay(
+                      {joinedCountLabel(
                         data.config.enrolled_count,
                         data.config.max_players,
                         data.count,
@@ -518,12 +507,12 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
           ) : null}
           {showJoinCta && identity ? (
             <div className="join-detail" data-testid="join-detail">
-              <p className="meta" data-testid="join-copy">
+              <p className="meta join-hint" data-testid="join-copy">
                 {autoJoin
                   ? "You'll be enrolled immediately."
                   : "An admin will approve your join request."}
               </p>
-              <p className="meta">
+              <p className="meta join-hint">
                 Joining as <strong>{identity.name}</strong> · {identity.farm_id}
               </p>
               <button
@@ -541,7 +530,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             </div>
           ) : null}
           {joinable && !identity && (
-            <p className="meta" data-testid="join-need-connect">
+            <p className="meta join-hint" data-testid="join-need-connect">
               Connect your farm in the header to join this event.
             </p>
           )}
