@@ -378,16 +378,17 @@ not trusted for named launches, so the same files are also in
 
 | Name | When | Agents (max) |
 |------|------|----------------|
-| `pj007-review` | Before push / after a feature | 5 reviewers + 1 skeptic per finding (cap 16) |
-| `pj007-live-check` | After a deploy | 3 probes (public API, admin 401, frontend bundle) |
+| `pj007-review` | Only when the user asks for a review | 5 reviewers + 1 skeptic per finding (cap 16) |
+| `pj007-live-check` | Only when the user asks for a live-check | 3 probes (public API, admin 401, frontend bundle) |
 
 ```
 /workflow pj007-review {"target":"working tree vs AGENTS.md"}
 /workflow pj007-live-check
 ```
 
-Review is read-only. Live-check is GET-only against the CloudFront site and
-our API — it must not POST `/submissions` or call SFL.
+**Do not auto-launch these.** They are expensive. Push/deploy still happens
+without them. Review is read-only. Live-check is GET-only against the
+CloudFront site and our API — it must not POST `/submissions` or call SFL.
 
 ---
 
@@ -430,5 +431,6 @@ our API — it must not POST `/submissions` or call SFL.
 4. Deploy → push `dev` when the change is done. Do not wait to be asked.
    Do not improvise a second pipeline.
 5. Auth → Cognito ID token on `/admin/*` only. Public stays public.
-6. Repeatable review / post-deploy probe → `/workflow pj007-review` or
-   `/workflow pj007-live-check` (see Workflows).
+6. Review / live-check only if the user asked → `/workflow pj007-review`
+   or `/workflow pj007-live-check` (see Workflows). Do not launch them
+   on every prompt or `/goal`.
