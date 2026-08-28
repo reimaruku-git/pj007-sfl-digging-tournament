@@ -54,9 +54,8 @@ from tournament.scoring import STATUS_COMPLETED
 from tournament.slogans import (
     SloganError,
     add_slogan,
-    list_slogans,
-    public_slogans,
     replace_slogans,
+    slogans_document,
 )
 from tournament.stats import player_detail, player_list_row
 from tournament.sfl_world import SflWorldError, lookup_farm_name
@@ -164,7 +163,7 @@ def handle_health(_event: dict[str, Any]) -> dict[str, Any]:
 
 
 def handle_get_slogans(_event: dict[str, Any]) -> dict[str, Any]:
-    return create_response(200, public_slogans(list_slogans(_get_store())))
+    return create_response(200, slogans_document(_get_store()))
 
 
 def _slogan_error(exc: SloganError) -> dict[str, Any]:
@@ -172,26 +171,24 @@ def _slogan_error(exc: SloganError) -> dict[str, Any]:
 
 
 def handle_admin_get_slogans(_event: dict[str, Any]) -> dict[str, Any]:
-    return create_response(200, public_slogans(list_slogans(_get_store())))
+    return create_response(200, slogans_document(_get_store()))
 
 
 def handle_admin_post_slogans(event: dict[str, Any]) -> dict[str, Any]:
     try:
-        slogan, rows = add_slogan(_get_store(), _body(event))
+        slogan, payload = add_slogan(_get_store(), _body(event))
     except SloganError as exc:
         return _slogan_error(exc)
-    payload = public_slogans(rows)
     payload["slogan"] = slogan
     return create_response(201, payload)
 
 
 def handle_admin_put_slogans(event: dict[str, Any]) -> dict[str, Any]:
-    body = _body(event)
     try:
-        rows = replace_slogans(_get_store(), body.get("slogans"))
+        payload = replace_slogans(_get_store(), _body(event))
     except SloganError as exc:
         return _slogan_error(exc)
-    return create_response(200, public_slogans(rows))
+    return create_response(200, payload)
 
 
 def handle_get_config(_event: dict[str, Any]) -> dict[str, Any]:

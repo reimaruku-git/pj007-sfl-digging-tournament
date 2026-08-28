@@ -58,25 +58,28 @@ sync.
 ### `GET /slogans`
 
 Ordered header slogans. The browser picks one per UTC day (exhaust the
-list, then restart). Empty storage returns the seeded six. This is **not**
-the tournament window document.
+list, then restart). A `today_text` whose `today_day` is the current UTC
+date wins for that day only. Empty never-stored returns the seeded six.
+This is **not** the tournament window document.
 
 ```json
 {
   "slogans": [
-    { "text": "Slap my pets", "icon": "hand" },
-    { "text": "Grow my banana", "icon": "banana" },
-    { "text": "Squeeze my orange", "icon": "orange" },
-    { "text": "Clean my poop", "icon": "poop" },
-    { "text": "Want some weed?", "icon": "smiley" },
-    { "text": "Erect my monument", "icon": "statue" }
+    { "text": "Slap my pets" },
+    { "text": "Grow my banana" },
+    { "text": "Squeeze my orange" },
+    { "text": "Clean my poop" },
+    { "text": "Want some weed?" },
+    { "text": "Erect my monument" }
   ],
-  "count": 6
+  "count": 6,
+  "today_text": null,
+  "today_day": null
 }
 ```
 
-`icon` is a short token (`hand`, `banana`, `orange`, `poop`, `smiley`,
-`statue`) or a literal glyph. `text` is 1–80 characters.
+`text` is 1–80 characters. Put any emoji in the text. `today_day` is
+`YYYY-MM-DD` UTC.
 
 ### `GET /leaderboard`
 
@@ -623,45 +626,53 @@ Append one slogan. Empty storage is seeded first, then the new row is
 added. `201`.
 
 ```json
-{ "text": "Feed my chicken", "icon": "hand" }
+{ "text": "Feed my chicken" }
 ```
 
 ```json
 {
-  "slogan": { "text": "Feed my chicken", "icon": "hand" },
+  "slogan": { "text": "Feed my chicken" },
   "slogans": [
-    { "text": "Slap my pets", "icon": "hand" },
-    { "text": "Grow my banana", "icon": "banana" },
-    { "text": "Squeeze my orange", "icon": "orange" },
-    { "text": "Clean my poop", "icon": "poop" },
-    { "text": "Want some weed?", "icon": "smiley" },
-    { "text": "Erect my monument", "icon": "statue" },
-    { "text": "Feed my chicken", "icon": "hand" }
+    { "text": "Slap my pets" },
+    { "text": "Grow my banana" },
+    { "text": "Squeeze my orange" },
+    { "text": "Clean my poop" },
+    { "text": "Want some weed?" },
+    { "text": "Erect my monument" },
+    { "text": "Feed my chicken" }
   ],
-  "count": 7
+  "count": 7,
+  "today_text": null,
+  "today_day": null
 }
 ```
 
 ### `PUT /admin/slogans`
 
-Replace the whole ordered list. Must not be empty.
+Replace the whole ordered list. `today_text` pins that line for the
+current UTC day (`today_day` is stamped server-side). `today_text: null`
+clears the pin. Omitting `today_text` keeps the existing pin when it
+still matches a row. An empty list is allowed.
 
 ```json
 {
   "slogans": [
-    { "text": "Slap my pets", "icon": "hand" },
-    { "text": "Grow my banana", "icon": "banana" }
-  ]
+    { "text": "Slap my pets" },
+    { "text": "Grow my banana" }
+  ],
+  "today_text": "Grow my banana"
 }
 ```
 
 ```json
 {
   "slogans": [
-    { "text": "Slap my pets", "icon": "hand" },
-    { "text": "Grow my banana", "icon": "banana" }
+    { "text": "Slap my pets" },
+    { "text": "Grow my banana" }
   ],
-  "count": 2
+  "count": 2,
+  "today_text": "Grow my banana",
+  "today_day": "2026-08-28"
 }
 ```
 

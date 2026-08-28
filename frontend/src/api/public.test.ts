@@ -30,17 +30,18 @@ describe("public api", () => {
   it("loads the ordered slogan list from our API", async () => {
     mockRequest.mockResolvedValueOnce(
       ok({
-        slogans: [
-          { text: "Slap my pets", icon: "hand" },
-          { text: "Grow my banana", icon: "banana" },
-        ],
+        slogans: [{ text: "Slap my pets" }, { text: "Grow my banana" }],
         count: 2,
+        today_text: "Grow my banana",
+        today_day: "2026-08-28",
       }),
     );
     const listed = await fetchSlogans();
     expect(mockRequest).toHaveBeenCalledWith("slogans");
     expect(listed.count).toBe(2);
-    expect(listed.slogans[0]).toEqual({ text: "Slap my pets", icon: "hand" });
+    expect(listed.slogans[0]).toEqual({ text: "Slap my pets" });
+    expect(listed.today_text).toBe("Grow my banana");
+    expect(listed.today_day).toBe("2026-08-28");
   });
 
   it("loads the cached leaderboard from our API", async () => {

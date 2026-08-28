@@ -4,14 +4,12 @@ import { confirmSignIn, signIn, signOut } from "aws-amplify/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addFarm,
-  addSlogan,
   addTournamentFarms,
   adminSession,
   approveSubmission,
   createTournament,
   deleteTournament,
   fetchAdminFarm,
-  fetchAdminSlogans,
   fetchSnapshot,
   fetchTournamentRoster,
   listAdminTournaments,
@@ -31,7 +29,6 @@ import { getAuthToken } from "../auth/session";
 import { useAdminHeaderActions } from "../components/Layout";
 import { AdminPendingJoins } from "./AdminPendingJoins";
 import { AdminPlayers } from "./AdminPlayers";
-import { AdminSlogans } from "./AdminSlogans";
 import { AdminTournaments } from "./AdminTournaments";
 
 export function AdminPage() {
@@ -176,7 +173,6 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   const identities = useQuery({ queryKey: ["admin-identities"], queryFn: listIdentities });
   const submissions = useQuery({ queryKey: ["admin-submissions"], queryFn: listSubmissions });
   const tournaments = useQuery({ queryKey: ["admin-tournaments"], queryFn: listAdminTournaments });
-  const slogans = useQuery({ queryKey: ["admin-slogans"], queryFn: fetchAdminSlogans });
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -203,8 +199,6 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
     void queryClient.invalidateQueries({ queryKey: ["admin-identities"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-config"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-tournaments"] });
-    void queryClient.invalidateQueries({ queryKey: ["admin-slogans"] });
-    void queryClient.invalidateQueries({ queryKey: ["slogans"] });
     void queryClient.invalidateQueries({ queryKey: ["admin-roster"] });
     void queryClient.invalidateQueries({ queryKey: ["config"] });
     void queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
@@ -228,16 +222,6 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         </button>
       </div>
       {flash && <div className={`flash ${flash.kind}`}>{flash.text}</div>}
-
-      <AdminSlogans
-        slogans={slogans.data?.slogans ?? []}
-        loading={slogans.isLoading}
-        onAdd={async (input) => {
-          await addSlogan(input);
-          note("Slogan added.");
-          invalidate();
-        }}
-      />
 
       <AdminTournaments
         items={tournaments.data?.tournaments ?? []}

@@ -1789,13 +1789,14 @@ tr.is-you,
 .copy-wallet {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 1px solid var(--line);
   background: var(--panel-2);
   color: var(--cream);
   border-radius: 8px;
-  padding: 3px 8px;
-  font-size: 12px;
   cursor: pointer;
 }
 
@@ -1810,8 +1811,9 @@ tr.is-you,
   display: block;
 }
 
-.copy-wallet-label {
-  font-weight: 600;
+.copy-wallet.copied {
+  color: var(--gold);
+  border-color: var(--gold);
 }
 
 .latest-result {
@@ -2936,12 +2938,28 @@ a.past-card:hover {
   flex-shrink: 0;
 }
 
-.slogan-admin-list {
-  margin: 10px 0 16px;
-  padding-left: 1.2rem;
-  color: var(--cream);
-  font-size: 14px;
-  line-height: 1.6;
+.slogan-editor-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.slogan-editor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 800px) {
+  .slogan-editor-row {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .slogan-editor-row input {
+    grid-column: 1 / -1;
+  }
 }
 
 .standings-panel {

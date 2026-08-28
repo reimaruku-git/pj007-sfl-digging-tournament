@@ -23,15 +23,28 @@ import { Layout, useAdminHeaderActions } from "./Layout";
 vi.mock("../api/public", () => ({
   fetchSlogans: vi.fn().mockResolvedValue({
     slogans: [
-      { text: "Slap my pets", icon: "hand" },
-      { text: "Grow my banana", icon: "banana" },
-      { text: "Squeeze my orange", icon: "orange" },
-      { text: "Clean my poop", icon: "poop" },
-      { text: "Want some weed?", icon: "smiley" },
-      { text: "Erect my monument", icon: "statue" },
+      { text: "Slap my pets" },
+      { text: "Grow my banana" },
+      { text: "Squeeze my orange" },
+      { text: "Clean my poop" },
+      { text: "Want some weed?" },
+      { text: "Erect my monument" },
     ],
     count: 6,
+    today_text: null,
+    today_day: null,
   }),
+}));
+
+vi.mock("../api/admin", () => ({
+  fetchAdminSlogans: vi.fn().mockResolvedValue({
+    slogans: [{ text: "Slap my pets" }],
+    count: 1,
+    today_text: null,
+    today_day: null,
+  }),
+  saveSlogans: vi.fn(),
+  addSlogan: vi.fn(),
 }));
 
 function AdminDashStub() {
@@ -159,13 +172,18 @@ describe("public chrome", () => {
     const label = wallet?.querySelector(".donation-label");
     expect(label?.tagName).toBe("STRONG");
     expect(label?.textContent).toBe("Support the tournaments:");
+    expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe("0xa...f2c");
     expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe(
       truncatedDonationWallet(),
     );
-    expect(wallet?.textContent).not.toContain(DONATION_WALLET.replace("0xad89dD", ""));
+    expect(wallet?.textContent).not.toContain(DONATION_WALLET.slice(3, -3));
+    const copyBtn = el.querySelector('[data-testid="copy-wallet"]') as HTMLButtonElement;
+    expect(copyBtn.querySelector("svg")).not.toBeNull();
+    expect(copyBtn.textContent).not.toMatch(/copy/i);
+    expect(copyBtn.getAttribute("aria-label")).toMatch(/copy wallet address/i);
     expect(el.querySelector('[data-testid="public-footer"]')?.contains(wallet)).toBe(true);
     await act(async () => {
-      (el.querySelector('[data-testid="copy-wallet"]') as HTMLButtonElement).click();
+      copyBtn.click();
     });
     expect(writeText).toHaveBeenCalledWith(DONATION_WALLET);
     const css = readFileSync(
@@ -351,6 +369,16 @@ describe("public chrome", () => {
     expect(signOut?.textContent).toMatch(/Sign out/);
     expect(topbar?.contains(signOut)).toBe(true);
     expect(container.querySelector(".shell")?.contains(signOut)).toBe(false);
+
+    act(() => {
+      (container.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
+    });
+    const slogansItem = container.querySelector('[data-testid="admin-menu-slogans"]');
+    expect(slogansItem?.textContent).toMatch(/Header slogans/);
+    act(() => {
+      (slogansItem as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="admin-slogans-panel"]')).not.toBeNull();
   });
 
   it("keeps the dusk palette and Live badge green", () => {

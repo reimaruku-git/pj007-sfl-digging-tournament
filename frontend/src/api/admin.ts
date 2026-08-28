@@ -172,7 +172,7 @@ export async function fetchAdminSlogans(): Promise<SloganList> {
   return data;
 }
 
-export async function addSlogan(input: { text: string; icon?: string }): Promise<SloganList> {
+export async function addSlogan(input: { text: string }): Promise<SloganList> {
   const { response, data } = await requestJson<SloganList & { slogan: Slogan }>("admin/slogans", {
     method: "POST",
     body: JSON.stringify(input),
@@ -181,10 +181,15 @@ export async function addSlogan(input: { text: string; icon?: string }): Promise
   return data;
 }
 
-export async function saveSlogans(slogans: Slogan[]): Promise<SloganList> {
+export async function saveSlogans(
+  slogans: Slogan[],
+  extra: { today_text?: string | null } = {},
+): Promise<SloganList> {
+  const body: { slogans: Slogan[]; today_text?: string | null } = { slogans };
+  if ("today_text" in extra) body.today_text = extra.today_text ?? null;
   const { response, data } = await requestJson<SloganList>("admin/slogans", {
     method: "PUT",
-    body: JSON.stringify({ slogans }),
+    body: JSON.stringify(body),
   });
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to save slogans"));
   return data;

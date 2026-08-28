@@ -21,8 +21,9 @@ import {
   OPERATOR_X_URL,
   truncatedDonationWallet,
 } from "../lib/operator";
-import { pickDailySlogan, SEED_SLOGANS, sloganGlyph } from "../lib/slogans";
+import { pickDailySlogan, SEED_SLOGANS, todayPickFrom } from "../lib/slogans";
 import { SITE_VERSION } from "../siteVersion";
+import { AdminSlogansPanel } from "./AdminSlogansPanel";
 import { ColorCanvas } from "./ColorCanvas";
 import { FarmConnect } from "./FarmConnect";
 import { SyncCountdown } from "./SyncCountdown";
@@ -186,22 +187,14 @@ function CreatorChip() {
     retry: 1,
   });
   const slogans = slogansQuery.data?.slogans?.length ? slogansQuery.data.slogans : SEED_SLOGANS;
-  const slogan = pickDailySlogan(slogans) ?? SEED_SLOGANS[0];
-  const glyph = sloganGlyph(slogan.icon);
+  const slogan =
+    pickDailySlogan(slogans, new Date(), todayPickFrom(slogansQuery.data)) ?? SEED_SLOGANS[0];
 
   return (
     <div className="creator-chip" data-testid="creator-chip">
       <p className="daily-slogan" data-testid="daily-slogan">
         <span>
           {slogan.text}
-          {glyph ? (
-            <span
-              className={`slogan-icon${slogan.icon.toLowerCase() === "smiley" ? " slogan-icon-smiley" : ""}`}
-              aria-hidden
-            >
-              {glyph}
-            </span>
-          ) : null}
           {": "}
         </span>
         <a
@@ -255,13 +248,13 @@ function PublicFooter() {
           </span>
           <button
             type="button"
-            className="copy-wallet"
-            aria-label="Copy wallet address"
+            className={`copy-wallet${copied ? " copied" : ""}`}
+            aria-label={copied ? "Wallet address copied" : "Copy wallet address"}
+            title={copied ? "Copied" : "Copy address"}
             data-testid="copy-wallet"
             onClick={() => void onCopy()}
           >
             <CopyIcon />
-            <span className="copy-wallet-label">{copied ? "Copied" : "Copy"}</span>
           </button>
         </p>
         <p className="site-version" data-testid="site-version">
@@ -312,6 +305,7 @@ function navClass(isActive: boolean) {
 
 function AdminHeader() {
   const [open, setOpen] = useState(false);
+  const [slogansOpen, setSlogansOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -397,11 +391,25 @@ function AdminHeader() {
                 >
                   Tournaments
                 </button>
+                {onSignOut ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="admin-menu-slogans"
+                    onClick={() => {
+                      setOpen(false);
+                      setSlogansOpen(true);
+                    }}
+                  >
+                    Header slogans
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
         </div>
       </div>
+      {onSignOut ? <AdminSlogansPanel open={slogansOpen} onClose={() => setSlogansOpen(false)} /> : null}
     </header>
   );
 }

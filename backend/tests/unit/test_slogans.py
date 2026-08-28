@@ -3,6 +3,7 @@
 import importlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from tournament.slogans import SEED_SLOGANS
@@ -54,6 +55,8 @@ def test_public_get_slogans_returns_seed_list(aws_env, monkeypatch):
     payload = _json(response)
     assert payload["count"] == 6
     assert payload["slogans"] == SEED_SLOGANS
+    assert payload["today_text"] is None
+    assert payload["today_day"] is None
     assert [row["text"] for row in payload["slogans"]] == [
         "Slap my pets",
         "Grow my banana",
@@ -67,25 +70,25 @@ def test_public_get_slogans_returns_seed_list(aws_env, monkeypatch):
 def test_admin_post_appends_after_seeding(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     created = app.lambda_handler(
-        _event("POST", "/admin/slogans", {"text": "Feed my chicken", "icon": "hand"}),
+        _event("POST", "/admin/slogans", {"text": "Feed my chicken"}),
         None,
     )
     assert created["statusCode"] == 201, created
     body = _json(created)
-    assert body["slogan"] == {"text": "Feed my chicken", "icon": "hand"}
+    assert body["slogan"] == {"text": "Feed my chicken"}
     assert body["count"] == 7
     assert body["slogans"][-1]["text"] == "Feed my chicken"
     assert body["slogans"][0]["text"] == "Slap my pets"
 
     listed = _json(app.lambda_handler(_event("GET", "/slogans"), None))
     assert listed["count"] == 7
-    assert listed["slogans"][-1] == {"text": "Feed my chicken", "icon": "hand"}
+    assert listed["slogans"][-1] == {"text": "Feed my chicken"}
 
     admin = _json(app.lambda_handler(_event("GET", "/admin/slogans"), None))
     assert admin["slogans"] == listed["slogans"]
 
 
-def test_admin_put_replaces_the_list(aws_env, monkeypatch):
+def test_admin_put_replaces_the_list_and_pins_today(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     replaced = app.lambda_handler(
         _event(
@@ -93,18 +96,39 @@ def test_admin_put_replaces_the_list(aws_env, monkeypatch):
             "/admin/slogans",
             {
                 "slogans": [
-                    {"text": "Slap my pets", "icon": "hand"},
-                    {"text": "Grow my banana", "icon": "banana"},
-                ]
+                    {"text": "Slap my pets"},
+                    {"text": "Grow my banana"},
+                ],
+                "today_text": "Grow my banana",
             },
         ),
         None,
     )
     assert replaced["statusCode"] == 200
     payload = _json(replaced)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     assert payload["count"] == 2
+    assert payload["today_text"] == "Grow my banana"
+    assert payload["today_day"] == today
     public = _json(app.lambda_handler(_event("GET", "/slogans"), None))
     assert public["slogans"] == payload["slogans"]
+    assert public["today_text"] == "Grow my banana"
+    assert public["today_day"] == today
+
+
+def test_admin_put_rejects_today_text_not_in_list(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    response = app.lambda_handler(
+        _event(
+            "PUT",
+            "/admin/slogans",
+            {"slogans": [{"text": "Slap my pets"}], "today_text": "missing"},
+        ),
+        None,
+    )
+    assert response["statusCode"] == 400
+    payload = _json(response)
+    assert payload["error"] == "VALIDATION_ERROR"
 
 
 def test_admin_post_rejects_blank_text(aws_env, monkeypatch):

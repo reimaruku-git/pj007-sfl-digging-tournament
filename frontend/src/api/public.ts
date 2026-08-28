@@ -103,12 +103,13 @@ export type SubmissionList = {
 
 export type Slogan = {
   text: string;
-  icon: string;
 };
 
 export type SloganList = {
   slogans: Slogan[];
   count: number;
+  today_text?: string | null;
+  today_day?: string | null;
 };
 
 export async function fetchSlogans(): Promise<SloganList> {

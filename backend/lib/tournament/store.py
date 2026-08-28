@@ -93,10 +93,18 @@ class Store:
             return {"pk": SLOGANS_PK, "slogans": [], "updated_at": None}
         return _from_ddb(item)
 
-    def put_slogans(self, slogans: list[dict[str, Any]]) -> dict[str, Any]:
+    def put_slogans(
+        self,
+        slogans: list[dict[str, Any]],
+        *,
+        today_text: str | None = None,
+        today_day: str | None = None,
+    ) -> dict[str, Any]:
         item = {
             "pk": SLOGANS_PK,
             "slogans": slogans,
+            "today_text": today_text or "",
+            "today_day": today_day or "",
             "updated_at": utc_now_iso(),
         }
         self.config_table.put_item(Item=_to_ddb(item))

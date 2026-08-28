@@ -66,8 +66,10 @@ describe("admin api", () => {
   it("round-trips the slogan list on admin slogans", async () => {
     mockRequest.mockResolvedValueOnce(
       ok({
-        slogans: [{ text: "Slap my pets", icon: "hand" }],
+        slogans: [{ text: "Slap my pets" }],
         count: 1,
+        today_text: null,
+        today_day: null,
       }),
     );
     const listed = await fetchAdminSlogans();
@@ -76,33 +78,38 @@ describe("admin api", () => {
 
     mockRequest.mockResolvedValueOnce(
       ok({
-        slogan: { text: "Feed my chicken", icon: "hand" },
-        slogans: [
-          { text: "Slap my pets", icon: "hand" },
-          { text: "Feed my chicken", icon: "hand" },
-        ],
+        slogan: { text: "Feed my chicken" },
+        slogans: [{ text: "Slap my pets" }, { text: "Feed my chicken" }],
         count: 2,
+        today_text: null,
+        today_day: null,
       }),
     );
-    const added = await addSlogan({ text: "Feed my chicken", icon: "hand" });
+    const added = await addSlogan({ text: "Feed my chicken" });
     expect(mockRequest).toHaveBeenCalledWith("admin/slogans", {
       method: "POST",
-      body: JSON.stringify({ text: "Feed my chicken", icon: "hand" }),
+      body: JSON.stringify({ text: "Feed my chicken" }),
     });
     expect(added.count).toBe(2);
 
     mockRequest.mockResolvedValueOnce(
       ok({
-        slogans: [{ text: "Slap my pets", icon: "hand" }],
+        slogans: [{ text: "Slap my pets" }],
         count: 1,
+        today_text: "Slap my pets",
+        today_day: "2026-08-28",
       }),
     );
-    const saved = await saveSlogans([{ text: "Slap my pets", icon: "hand" }]);
+    const saved = await saveSlogans([{ text: "Slap my pets" }], { today_text: "Slap my pets" });
     expect(mockRequest).toHaveBeenCalledWith("admin/slogans", {
       method: "PUT",
-      body: JSON.stringify({ slogans: [{ text: "Slap my pets", icon: "hand" }] }),
+      body: JSON.stringify({
+        slogans: [{ text: "Slap my pets" }],
+        today_text: "Slap my pets",
+      }),
     });
     expect(saved.count).toBe(1);
+    expect(saved.today_text).toBe("Slap my pets");
   });
 
   it("loads admin config from the authenticated route", async () => {
