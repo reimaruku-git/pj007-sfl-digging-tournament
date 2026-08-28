@@ -386,9 +386,13 @@ not trusted for named launches, so the same files are also in
 /workflow pj007-live-check
 ```
 
-**Do not auto-launch these.** They are expensive. Push/deploy still happens
-without them. Review is read-only. Live-check is GET-only against the
-CloudFront site and our API — it must not POST `/submissions` or call SFL.
+**Do not auto-launch these.** They are expensive. After a feature, the
+implementer does a cheap same-turn check: the tests that belong with the
+change, plus a glance at `git diff` for files it touched. Fix obvious
+issues there. Push/deploy still happens without the workflows.
+
+Review is read-only. Live-check is GET-only against the CloudFront site
+and our API — it must not POST `/submissions` or call SFL.
 
 ---
 
@@ -431,6 +435,6 @@ CloudFront site and our API — it must not POST `/submissions` or call SFL.
 4. Deploy → push `dev` when the change is done. Do not wait to be asked.
    Do not improvise a second pipeline.
 5. Auth → Cognito ID token on `/admin/*` only. Public stays public.
-6. Review / live-check only if the user asked → `/workflow pj007-review`
-   or `/workflow pj007-live-check` (see Workflows). Do not launch them
-   on every prompt or `/goal`.
+6. After a change: run the tests that belong with it and glance at the
+   diff. Launch `/workflow pj007-review` or `pj007-live-check` only if
+   the user asked for that full review.
