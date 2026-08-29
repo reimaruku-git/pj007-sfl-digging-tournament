@@ -10,6 +10,7 @@ from tournament.history import day_record_from_computed, put_farm_day
 from tournament.sync import (
     apply_computed_score,
     apply_day_finalize,
+    farms_after_cursor,
     rescore_from_snapshots,
     sync_all_farms,
     sync_one_farm,
@@ -116,6 +117,123 @@ def test_sync_all_records_failures_and_rebuilds_cache(aws_env):
     assert cache["count"] == 2
     assert store.get_score("2")["error"] == "SFL HTTP 500"
     assert client.called == ["1", "2"]
+    assert result["continued"] is False
+    assert result["complete"] is True
+
+
+def test_farms_after_cursor_skips_through_the_named_farm():
+    farms = [{"farm_id": "1"}, {"farm_id": "2"}, {"farm_id": "3"}]
+    assert [farm["farm_id"] for farm in farms_after_cursor(farms, None)] == ["1", "2", "3"]
+    assert [farm["farm_id"] for farm in farms_after_cursor(farms, "1")] == ["2", "3"]
+    assert [farm["farm_id"] for farm in farms_after_cursor(farms, "3")] == []
+    assert [farm["farm_id"] for farm in farms_after_cursor(farms, "missing")] == [
+        "1",
+        "2",
+        "3",
+    ]
+
+
+def test_sync_all_stops_before_later_farms_and_does_not_mark_complete(aws_env):
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="one")
+    registry.upsert("2", name="two")
+    registry.upsert("3", name="three")
+    client = FakeClient(
+        {
+            "1": _grid_payload([shovel()]),
+            "2": _grid_payload([shovel()]),
+            "3": _grid_payload([shovel()]),
+        }
+    )
+    calls = {"n": 0}
+
+    def should_stop():
+        calls["n"] += 1
+        return True
+
+    result = sync_all_farms(store, registry, client, now=NOW, should_stop=should_stop)
+    assert client.called == ["1"]
+    assert result["synced"] == 1
+    assert result["continued"] is True
+    assert result["complete"] is False
+    assert result["after_farm_id"] == "1"
+    assert result["remaining"] == 2
+    assert result["finalized"] is False
+    assert store.get_config().get("last_full_sync_at") is None
+
+
+def test_sync_all_resumes_after_cursor(aws_env):
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="one")
+    registry.upsert("2", name="two")
+    registry.upsert("3", name="three")
+    client = FakeClient(
+        {
+            "1": _grid_payload([shovel()]),
+            "2": _grid_payload([shovel()]),
+            "3": _grid_payload([shovel()]),
+        }
+    )
+    result = sync_all_farms(store, registry, client, now=NOW, after_farm_id="1")
+    assert client.called == ["2", "3"]
+    assert result["synced"] == 2
+    assert result["complete"] is True
+    assert result["after_farm_id"] is None
+
+
+def test_sync_all_does_not_finalize_until_the_roster_is_done(aws_env):
+    clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
+    before = int(datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    after = int(datetime(2026, 8, 14, 23, 10, tzinfo=timezone.utc).timestamp() * 1000)
+
+    def pebble(dug_at):
+        return {"dugAt": dug_at, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}
+
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="done")
+    registry.upsert("2", name="short")
+    client = FakeClient(
+        {
+            "1": _grid_payload([pebble(before), pebble(before), pebble(before)]),
+            "2": _grid_payload([pebble(before), pebble(after)]),
+        }
+    )
+    first = sync_all_farms(store, registry, client, now=clock, should_stop=lambda: True)
+    assert first["continued"] is True
+    assert first["finalized"] is False
+    assert store.get_score("1")["digs_to_third_op"] == 3
+    assert store.get_score("2") is None
+
+    second = sync_all_farms(store, registry, client, now=clock, after_farm_id="1")
+    assert second["complete"] is True
+    assert second["finalized"] is True
+    assert store.get_score("2")["otter_count"] == 1
+    assert store.get_score("2")["digs_to_third_op"] == 40
 
 
 def test_rescore_from_snapshots_applies_new_window(aws_env):

@@ -177,6 +177,9 @@ digs stay. If nobody finished, the floor is 30. Mid-day syncs (14:00 /
 16:00 / 18:00 / 20:00 UTC) leave incompletes as `null`. Tiles with `dugAt` after 23:00 UTC
 that day are not counted. Admin `POST /admin/sync` still starts a full
 sweep; the worker applies finalize when the clock is 23:00 UTC or later.
+If the roster does not fit in one 15-minute Lambda, FarmSync invokes
+itself with the remaining farms and the same frozen clock. Finalize,
+daily snapshot, and archive run only after the last farm.
 
 Ranking (lowest better): `score`, then `digs_to_third_op`, then
 `digs_to_second_op`, then `digs_to_first_op`, then `third_op_at`,
@@ -901,7 +904,8 @@ handler does not call SFL and does not return a live score.
 ### `POST /admin/sync`
 
 `202` — asks the farm-sync worker to walk every tracked farm. Asynchronous;
-the HTTP handler does not wait for SFL.
+the HTTP handler does not wait for SFL. The worker continues itself when
+the 15-minute window is almost up; that is not a second HTTP call.
 
 ```json
 { "accepted": true }

@@ -440,6 +440,15 @@ Resources:
                       - config/*
                       - snapshots/*
                       - archives/*
+        - PolicyName: FarmSyncSelfInvoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectNo}-${Environment}-${ProjectName}-farm-sync
       Tags:
         - Key: BillingTag
           Value: !Ref BillingTag
@@ -752,7 +761,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
-      Description: Walks tracked farms with a 12s SFL delay per key and caches the leaderboard
+      Description: Walks tracked farms with a 12s SFL delay per key; continues itself if the 15-minute window is almost up
       CodeUri: lambda_functions/farm_sync/
       Handler: app.lambda_handler
       MemorySize: 256
@@ -760,6 +769,9 @@ Resources:
       Role: !GetAtt FarmSyncRole.Arn
       Layers:
         - !Ref CommonLayer
+      Environment:
+        Variables:
+          FARM_SYNC_FUNCTION: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
       Tags:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo

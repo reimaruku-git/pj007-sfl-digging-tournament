@@ -91,6 +91,13 @@ Browser  ──public──►  HTTP API  ──►  Main Lambda (router)
 EventBridge (14/16/18/20/23 UTC) ──► FarmSync Lambda (live enrollments only)
 Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke FarmSync
 HTTP never calls the SFL Community API.
+
+FarmSync timeout is 15 minutes (Lambda max). Two SFL keys take turns in
+one process (~120–140 farms per chunk). If remaining time drops under
+90s with farms left, it async-invokes itself with `after_farm_id` and
+the frozen `now` (so a 23:00 sweep that overruns 23:15 still finalizes).
+Only the last chunk applies the 23:00 penalty, archives, and Discord.
+Chunks are sequential — never two FarmSyncs overlapping on the same keys.
 ```
 
 | Resource | Name / key |
@@ -122,7 +129,7 @@ pj007-dev-digging-tournament/
 | Function | Path | Role |
 |----------|------|------|
 | `pj007-dev-digging-tournament-main-function` | `backend/lambda_functions/main_function/app.py` | HTTP router |
-| `pj007-dev-digging-tournament-farm-sync` | `backend/lambda_functions/farm_sync/app.py` | Scheduled sweep or one-farm refresh |
+| `pj007-dev-digging-tournament-farm-sync` | `backend/lambda_functions/farm_sync/app.py` | Scheduled sweep or one-farm refresh; self-invokes to continue a long roster |
 
 Shared code is a Lambda layer from `backend/lib/`.
 
@@ -201,6 +208,8 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Tiles outside the tournament window (by `dugAt`) are ignored.
 - Scheduled full syncs: **14:00, 16:00, 18:00, 20:00, 23:00 UTC**.
   23:00 is the day’s final sync. Admin `POST /admin/sync` is on-demand.
+  One invocation is 15 minutes; a larger roster continues in the next
+  invocation with the same frozen clock.
 - At 23:00 UTC (and later that UTC day): tiles with `dugAt` after 23:00
   are not counted. Completers keep their 3rd-OP score. Incompletes get
   `max(highest completed 3rd-OP among that event's roster today, 30) + 5 × (3 − otter_count)`.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 from urllib import error, request
@@ -513,6 +514,29 @@ def notify_new_leader(webhook_url: str, entry: dict[str, Any]) -> None:
         logger.warning("Discord webhook failed: %s", exc)
 
 
+def farms_after_cursor(
+    farms: list[dict[str, Any]], after_farm_id: str | None
+) -> list[dict[str, Any]]:
+    """Return roster farms after ``after_farm_id``, in the same order.
+
+    A missing cursor logs a warning and returns the full list so a stale
+    continuation still makes progress instead of hanging.
+    """
+    wanted = str(after_farm_id or "").strip()
+    if not wanted:
+        return list(farms)
+    ids = [str(farm.get("farm_id") or "") for farm in farms]
+    try:
+        index = ids.index(wanted)
+    except ValueError:
+        logger.warning(
+            "sync cursor farm %s is not on the roster; starting from the top",
+            wanted,
+        )
+        return list(farms)
+    return list(farms[index + 1 :])
+
+
 def sync_all_farms(
     store: Store,
     registry: FarmRegistry,
@@ -520,12 +544,19 @@ def sync_all_farms(
     *,
     webhook_url: str = "",
     now: datetime | None = None,
+    after_farm_id: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
+    previous_leader_farm_id: Any = None,
+    use_cached_leader: bool = True,
 ) -> dict[str, Any]:
     clock = now or datetime.now(timezone.utc)
     ensure_default_config(store, now=clock)
     recover_daily_history(store, now=clock)
     previous_cache = store.get_leaderboard_cache() or {}
-    previous_leader = previous_cache.get("leader_farm_id")
+    if use_cached_leader:
+        previous_leader = previous_cache.get("leader_farm_id")
+    else:
+        previous_leader = previous_leader_farm_id
     finalize = is_finalize_clock(clock)
 
     seed_legacy_roster(store, registry)
@@ -538,17 +569,45 @@ def sync_all_farms(
         farms = farms_due_for_sync(store, registry)
     else:
         farms = registry.list_farms(active_only=True)
+    queue = farms_after_cursor(farms, after_farm_id)
     results: list[dict[str, Any]] = []
     failures = 0
-    for farm in farms:
+    stopped = False
+    last_id = str(after_farm_id or "").strip() or None
+    for index, farm in enumerate(queue):
+        if index > 0 and should_stop is not None and should_stop():
+            stopped = True
+            break
         row = sync_one_farm(store, client, farm, now=clock, finalize=finalize)
+        last_id = str(farm["farm_id"])
         if row.get("error"):
             failures += 1
         results.append(row)
 
+    remaining = max(0, len(queue) - len(results))
+    cache = refresh_leaderboard(store, registry=registry)
+    if stopped:
+        logger.info(
+            "sync_all_farms pausing after %s with %s farms remaining",
+            last_id,
+            remaining,
+        )
+        return {
+            "synced": len(results),
+            "failures": failures,
+            "farms": results,
+            "leaderboard": cache,
+            "config": public_config(store.get_config()),
+            "finalized": False,
+            "continued": True,
+            "complete": False,
+            "after_farm_id": last_id,
+            "remaining": remaining,
+        }
+
     if finalize:
         apply_day_finalize(store, now=clock)
-    cache = refresh_leaderboard(store, registry=registry)
+        cache = refresh_leaderboard(store, registry=registry)
     store.mark_synced()
     config = store.get_config()
     new_leader = cache.get("leader_farm_id")
@@ -576,4 +635,8 @@ def sync_all_farms(
         "leaderboard": cache,
         "config": public_config(store.get_config()),
         "finalized": finalize,
+        "continued": False,
+        "complete": True,
+        "after_farm_id": None,
+        "remaining": 0,
     }
