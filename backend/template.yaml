@@ -898,8 +898,8 @@ Resources:
                 Resource:
                   - !GetAtt AppBucket.Arn
                   - !Sub "${AppBucket.Arn}/*"
-                  - !GetAtt SecretsBucket.Arn
-                  - !Sub "${SecretsBucket.Arn}/*"
+                  - !Sub arn:aws:s3:::${ProjectNo}-${Environment}-${ProjectName}-secrets
+                  - !Sub arn:aws:s3:::${ProjectNo}-${Environment}-${ProjectName}-secrets/*
                   - arn:aws:s3:::aws-sam-cli-managed-*
                   - arn:aws:s3:::aws-sam-cli-managed-*/*
               - Effect: Allow
