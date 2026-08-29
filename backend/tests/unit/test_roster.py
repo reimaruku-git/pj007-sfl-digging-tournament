@@ -105,6 +105,8 @@ def test_approve_enrolls_only_named_tournament(aws_env, monkeypatch, live_join_o
     pending = _json(app.lambda_handler(_event("GET", "/admin/submissions"), None))
     assert pending["count"] == 1
     assert pending["submissions"][0]["tournament_id"] == later["tournament_id"]
+    assert pending["submissions"][0]["tournament_name"] == later["name"]
+    assert pending["submissions"][0]["tournament_status"] == later["status"]
 
 
 def test_reject_leaves_other_pending_and_enrolled_rows(aws_env, monkeypatch, live_join_open):

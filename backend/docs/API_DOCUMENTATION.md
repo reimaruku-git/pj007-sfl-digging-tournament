@@ -589,7 +589,8 @@ their other enrollments and the global player row.
 ### `GET /admin/submissions`
 
 Pending joins across all events. Each row names the tournament they
-asked for.
+asked for (`tournament_name`). The admin pending list shows that name
+as a link to the public event page, not the tournament id.
 
 ```json
 {
@@ -598,6 +599,8 @@ asked for.
       "farm_id": "3666918801844311",
       "name": "rmr",
       "tournament_id": "20260814T120000Z_7d",
+      "tournament_name": "Week of 14 Aug",
+      "tournament_status": "active",
       "status": "pending",
       "submitted_at": "2026-08-14T13:00:00+00:00",
       "approved_at": null

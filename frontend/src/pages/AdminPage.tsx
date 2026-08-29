@@ -299,6 +299,8 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
 
       <AdminPendingJoins
         submissions={submissions.data ?? []}
+        tournaments={tournaments.data?.tournaments ?? []}
+        onOpen={(id) => setSelectedTournamentId(id)}
         onApprove={async (farmId, tournamentId) => {
           try {
             await approveSubmission(farmId, tournamentId);

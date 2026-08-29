@@ -91,6 +91,8 @@ export type Submission = {
   farm_id: string;
   name: string;
   tournament_id: string;
+  tournament_name?: string;
+  tournament_status?: string;
   submitted_at: string | null;
   approved_at?: string | null;
   status: string;

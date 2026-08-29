@@ -484,6 +484,24 @@ textarea {
   color: var(--cream);
 }
 
+.pending-tourney-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--cream);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pending-tourney-view {
+  color: var(--cream);
+  font-weight: 600;
+}
+
 .stats {
   display: grid;
   gap: 10px;

@@ -598,7 +598,13 @@ def handle_admin_delete_farm(event: dict[str, Any]) -> dict[str, Any]:
 
 def handle_admin_list_submissions(event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
-    submissions = [public_member(item) for item in store.list_members(status="pending")]
+    submissions = []
+    for item in store.list_members(status="pending"):
+        row = public_member(item)
+        event_row = store.get_tournament(row["tournament_id"]) or {}
+        row["tournament_name"] = str(event_row.get("name") or "")
+        row["tournament_status"] = event_row.get("status")
+        submissions.append(row)
     submissions.sort(key=lambda item: item.get("submitted_at") or "", reverse=True)
     return create_response(200, {"submissions": submissions, "count": len(submissions)})
 

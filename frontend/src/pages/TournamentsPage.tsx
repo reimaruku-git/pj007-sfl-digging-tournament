@@ -366,6 +366,21 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
           (row.status === "pending" || row.status === "enrolled"),
       ),
   );
+  const pendingMembership = Boolean(
+    identity &&
+      memberships.data?.memberships.some(
+        (row) => row.tournament_id === tournamentId && row.status === "pending",
+      ),
+  );
+  const joinEnrolled = Boolean(
+    join.data?.submissions.some((item) => item.status === "enrolled"),
+  );
+  const waitingApproval = Boolean(
+    identity &&
+      !alreadyEnrolled &&
+      !joinEnrolled &&
+      (pendingMembership || alreadyRequested || (join.isSuccess && !joinEnrolled)),
+  );
   const showJoinCta =
     joinable &&
     Boolean(identity) &&
@@ -531,6 +546,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
           ) : null}
           {joinable && identity && notice ? (
             <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>
+          ) : null}
+          {waitingApproval ? (
+            <p className="meta join-hint" data-testid="join-waiting">
+              Your join request is waiting for admin approval.
+            </p>
           ) : null}
           {showJoinCta && identity ? (
             <div className="join-detail" data-testid="join-detail">

@@ -1028,6 +1028,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Joining as/);
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
   });
 
   it("hides join when the API already has a pending membership", async () => {
@@ -1059,6 +1060,9 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.textContent).not.toMatch(/Joining as/);
+    expect(page.querySelector('[data-testid="join-waiting"]')?.textContent).toMatch(
+      /waiting for admin approval/i,
+    );
   });
 
   it("hides join after a pending request even if the detail remounts", async () => {
@@ -1102,6 +1106,9 @@ describe("TournamentsPage", () => {
     expect(again.querySelector('[data-testid="join-tournament"]')).toBeNull();
     expect(again.querySelector('[data-testid="join-detail"]')).toBeNull();
     expect(again.textContent).not.toMatch(/Join this tournament/);
+    expect(again.querySelector('[data-testid="join-waiting"]')?.textContent).toMatch(
+      /waiting for admin approval/i,
+    );
     expect(submitFarm).toHaveBeenCalledTimes(1);
   });
 
@@ -1178,6 +1185,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/You'll be enrolled immediately/);
     expect(page.textContent).not.toMatch(/Joining as/);
     expect(page.textContent).not.toMatch(/Join this tournament/);
+    expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
   });
 
   it("does not offer join submit until a farm is connected", async () => {
