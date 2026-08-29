@@ -6,7 +6,11 @@ from tournament.membership import add_farms_to_tournament
 from tournament.sfl_client import SFLApiError
 from tournament.store import Store
 from tournament.scoring import score_grid
-from tournament.history import day_record_from_computed, put_farm_day
+from tournament.history import (
+    day_record_from_computed,
+    farm_recorded_third_op_today,
+    put_farm_day,
+)
 from tournament.sync import (
     apply_computed_score,
     apply_day_finalize,
@@ -191,6 +195,80 @@ def test_sync_all_resumes_after_cursor(aws_env):
     assert result["synced"] == 2
     assert result["complete"] is True
     assert result["after_farm_id"] is None
+
+
+def test_sync_all_skips_farms_that_already_have_todays_third_op(aws_env):
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="done")
+    registry.upsert("2", name="short")
+    pebbles = [shovel({"Otter Pebble": 1}) for _ in range(3)]
+    client = FakeClient(
+        {
+            "1": _grid_payload(pebbles),
+            "2": _grid_payload([shovel({"Otter Pebble": 1})]),
+        }
+    )
+    first = sync_all_farms(store, registry, client, now=NOW)
+    assert first["skipped"] == 0
+    assert client.called == ["1", "2"]
+    assert farm_recorded_third_op_today(store, "1", now=NOW) is True
+    assert farm_recorded_third_op_today(store, "2", now=NOW) is False
+
+    client.called.clear()
+    second = sync_all_farms(store, registry, client, now=NOW)
+    assert second["skipped"] == 1
+    assert client.called == ["2"]
+    assert store.get_score("1")["score_today"] == 3
+
+
+def test_finalize_uses_stored_completers_without_fetching_them_again(aws_env):
+    clock = datetime(2026, 8, 14, 23, 0, tzinfo=timezone.utc)
+    before = int(datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    after = int(datetime(2026, 8, 14, 23, 10, tzinfo=timezone.utc).timestamp() * 1000)
+
+    def pebble(dug_at):
+        return {"dugAt": dug_at, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}
+
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="done")
+    registry.upsert("2", name="short")
+    midday = datetime(2026, 8, 14, 16, 0, tzinfo=timezone.utc)
+    client = FakeClient(
+        {
+            "1": _grid_payload([pebble(before), pebble(before), pebble(before)]),
+            "2": _grid_payload([pebble(before), pebble(after)]),
+        }
+    )
+    sync_all_farms(store, registry, client, now=midday)
+    assert store.get_score("1")["digs_to_third_op"] == 3
+    client.called.clear()
+
+    result = sync_all_farms(store, registry, client, now=clock)
+    assert result["skipped"] == 1
+    assert result["finalized"] is True
+    assert client.called == ["2"]
+    assert store.get_score("1")["digs_to_third_op"] == 3
+    assert store.get_score("2")["otter_count"] == 1
+    assert store.get_score("2")["digs_to_third_op"] == 40
 
 
 def test_sync_all_does_not_finalize_until_the_roster_is_done(aws_env):

@@ -242,15 +242,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             }
         )
         logger.info(
-            "farm_sync continue after %s chunk=%s invoked=%s remaining=%s",
+            "farm_sync continue after %s chunk=%s invoked=%s remaining=%s skipped=%s",
             result.get("after_farm_id"),
             chunk,
             invoked,
             result.get("remaining"),
+            result.get("skipped"),
         )
         return {
             "synced": result.get("synced"),
             "failures": result.get("failures"),
+            "skipped": result.get("skipped"),
             "finalized": False,
             "continued": True,
             "after_farm_id": result.get("after_farm_id"),
@@ -261,8 +263,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     archive_current(store, now=clock)
     logger.info(
-        "farm_sync done: synced=%s failures=%s finalized=%s chunk=%s",
+        "farm_sync done: synced=%s skipped=%s failures=%s finalized=%s chunk=%s",
         result.get("synced"),
+        result.get("skipped"),
         result.get("failures"),
         result.get("finalized"),
         chunk,
@@ -270,6 +273,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     return {
         "synced": result.get("synced"),
         "failures": result.get("failures"),
+        "skipped": result.get("skipped"),
         "finalized": result.get("finalized"),
         "continued": False,
         "chunk": chunk,

@@ -269,6 +269,21 @@ def recorded_farm_stats(
     }
 
 
+def farm_recorded_third_op_today(
+    store: Store, farm_id: str, *, now: datetime | None = None
+) -> bool:
+    """True when this UTC day already has a numeric 3rd-OP (found or penalized)."""
+    clock = utc_clock(now)
+    config = store.get_config()
+    day = scoring_day_key(
+        clock,
+        parse_iso(config.get("start_at")),
+        parse_iso(config.get("end_at")),
+    )
+    record = store.read_farm_day(farm_id, day)
+    return _optional_int((record or {}).get("digs_to_third_op")) is not None
+
+
 def today_live_fields(days: list[dict[str, Any]], today: str | None) -> dict[str, Any]:
     """Today's 3rd-OP and pebble count. Missing today is unscored, not zero."""
     if not today:

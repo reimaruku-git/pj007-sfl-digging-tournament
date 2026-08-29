@@ -19,6 +19,7 @@ from tournament.history import (
     day_record_from_computed,
     rebuild_score_from_days,
     days_in_window,
+    farm_recorded_third_op_today,
 )
 from tournament.leaderboard import build_leaderboard
 from tournament.membership import (
@@ -570,11 +571,22 @@ def sync_all_farms(
     else:
         farms = registry.list_farms(active_only=True)
     queue = farms_after_cursor(farms, after_farm_id)
+    fetch_queue: list[dict[str, Any]] = []
+    skipped = 0
+    for farm in queue:
+        if farm_recorded_third_op_today(store, str(farm["farm_id"]), now=clock):
+            skipped += 1
+            continue
+        fetch_queue.append(farm)
+    if skipped:
+        logger.info(
+            "sync_all_farms skipping %s farms with today's 3rd-OP already recorded", skipped
+        )
     results: list[dict[str, Any]] = []
     failures = 0
     stopped = False
     last_id = str(after_farm_id or "").strip() or None
-    for index, farm in enumerate(queue):
+    for index, farm in enumerate(fetch_queue):
         if index > 0 and should_stop is not None and should_stop():
             stopped = True
             break
@@ -584,7 +596,7 @@ def sync_all_farms(
             failures += 1
         results.append(row)
 
-    remaining = max(0, len(queue) - len(results))
+    remaining = max(0, len(fetch_queue) - len(results))
     cache = refresh_leaderboard(store, registry=registry)
     if stopped:
         logger.info(
@@ -603,6 +615,7 @@ def sync_all_farms(
             "complete": False,
             "after_farm_id": last_id,
             "remaining": remaining,
+            "skipped": skipped,
         }
 
     if finalize:
@@ -639,4 +652,5 @@ def sync_all_farms(
         "complete": True,
         "after_farm_id": None,
         "remaining": 0,
+        "skipped": skipped,
     }

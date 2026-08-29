@@ -179,7 +179,9 @@ that day are not counted. Admin `POST /admin/sync` still starts a full
 sweep; the worker applies finalize when the clock is 23:00 UTC or later.
 If the roster does not fit in one 15-minute Lambda, FarmSync invokes
 itself with the remaining farms and the same frozen clock. Finalize,
-daily snapshot, and archive run only after the last farm.
+daily snapshot, and archive run only after the last farm. Farms that
+already have a numeric 3rd-OP for that UTC day are not fetched again;
+23:00 still tallies them from the stored day file.
 
 Ranking (lowest better): `score`, then `digs_to_third_op`, then
 `digs_to_second_op`, then `digs_to_first_op`, then `third_op_at`,

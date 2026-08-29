@@ -93,11 +93,13 @@ Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke Farm
 HTTP never calls the SFL Community API.
 
 FarmSync timeout is 15 minutes (Lambda max). Two SFL keys take turns in
-one process (~120–140 farms per chunk). If remaining time drops under
-90s with farms left, it async-invokes itself with `after_farm_id` and
-the frozen `now` (so a 23:00 sweep that overruns 23:15 still finalizes).
-Only the last chunk applies the 23:00 penalty, archives, and Discord.
-Chunks are sequential — never two FarmSyncs overlapping on the same keys.
+one process (~120–140 farms per chunk). Farms that already have today's
+3rd-OP recorded are not fetched again that UTC day. If remaining time
+drops under 90s with farms left, it async-invokes itself with
+`after_farm_id` and the frozen `now` (so a 23:00 sweep that overruns
+23:15 still finalizes). Only the last chunk applies the 23:00 penalty,
+archives, and Discord. Chunks are sequential — never two FarmSyncs
+overlapping on the same keys.
 ```
 
 | Resource | Name / key |
@@ -229,7 +231,10 @@ Canonical: `backend/lib/tournament/scoring.py` +
   and delete scheduled and live events.
   Windows may overlap; several events can be live at once. FarmSync
   fetches a farm at most once, and only if it is enrolled in at least
-  one **active** event and still tracked + `active`. The same UTC-day
+  one **active** event and still tracked + `active`. A farm whose
+  **today** file already has a numeric 3rd-OP is not fetched again that
+  UTC day (still on the board; 23:00 finalize uses the stored day).
+  Admin one-farm refresh still fetches. The same UTC-day
   grid can count on two boards. Each event stores `SCORE#{id}#{farm}`
   and `LEADERBOARD#{id}` on the config table. `GET /config` and
   `GET /leaderboard` follow the soonest-ending live event. Ended events
