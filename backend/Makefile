@@ -26,16 +26,13 @@ local-api: build
 	  --port 3001
 
 deploy-dev: build
-	@test -n "$$SFL_API_KEY" || (echo "SFL_API_KEY is required" && exit 1)
 	sam deploy --config-env dev --parameter-overrides \
 	  "ProjectNo=pj007" \
 	  "ProjectName=digging-tournament" \
 	  "Environment=dev" \
 	  "BillingTag=pj007" \
 	  "AllowedOrigin=$${ALLOWED_ORIGIN:-*}" \
-	  "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
-	  "SFLApiKey=$$SFL_API_KEY" \
-	  "SFLApiKey2=$${SFL_API_KEY_2:-}"
+	  "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament"
 
 clean:
 	rm -rf .aws-sam/

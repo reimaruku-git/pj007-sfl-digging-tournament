@@ -1,8 +1,9 @@
 """Scheduled / on-demand farm sync.
 
 Walks farms that are enrolled in at least one live event (and still
-active in the S3 registry), 10–15s apart per API key, writes shared day
-grids plus per-event scores and leaderboard caches.
+active in the S3 registry). SFL keys are a JSON list in the private
+secrets bucket. A successful pass through every key waits 10s before
+the next fetch; 429/403 keep the longer backoff.
 
 A sweep is capped at 15 minutes (Lambda max). Before the remaining time
 falls under ``STOP_REMAINING_MS``, this function async-invokes itself
@@ -25,7 +26,7 @@ import boto3
 from tournament.archive import archive_current
 from tournament.catalog import rollover
 from tournament.farms import FarmRegistry
-from tournament.sfl_client import build_sfl_client
+from tournament.sfl_client import build_sfl_client, load_sfl_keys
 from tournament.store import Store
 from tournament.membership import farm_live_tournament_ids
 from tournament.sync import (
@@ -43,11 +44,12 @@ DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
 CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
 SUBMISSIONS_TABLE = os.environ.get("SUBMISSIONS_TABLE", "")
-SFL_API_KEY = os.environ.get("SFL_API_KEY", "")
-SFL_API_KEY_2 = os.environ.get("SFL_API_KEY_2", "")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
 SFL_MIN_INTERVAL_SECONDS = float(os.environ.get("SFL_MIN_INTERVAL_SECONDS", "12"))
+SFL_SUCCESS_ROUND_SECONDS = float(os.environ.get("SFL_SUCCESS_ROUND_SECONDS", "10"))
 FARM_SYNC_FUNCTION = os.environ.get("FARM_SYNC_FUNCTION", "")
+SECRETS_BUCKET = os.environ.get("SECRETS_BUCKET", "")
+SFL_KEYS_OBJECT = os.environ.get("SFL_KEYS_OBJECT", "sfl-api-keys.json")
 
 # Leave enough room for one in-flight fetch (wait + HTTP + retries),
 # Dynamo/S3 writes, and the continuation invoke.
@@ -124,7 +126,7 @@ def _cooldown_seconds(event: dict[str, Any] | None) -> float:
         except (TypeError, ValueError):
             return 0.0
     if _event_after_farm_id(payload):
-        return max(SFL_MIN_INTERVAL_SECONDS, 10)
+        return max(SFL_SUCCESS_ROUND_SECONDS, 10)
     return 0.0
 
 
@@ -134,6 +136,18 @@ def _sweep_leader_baseline(event: dict[str, Any] | None, store: Store) -> str:
         return str(payload.get("notify_leader_farm_id") or "")
     cache = store.get_leaderboard_cache() or {}
     return str(cache.get("leader_farm_id") or "")
+
+
+def _sfl_keys() -> list[str]:
+    return load_sfl_keys(SECRETS_BUCKET, SFL_KEYS_OBJECT)
+
+
+def _make_client():
+    return build_sfl_client(
+        _sfl_keys(),
+        min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
+        success_round_seconds=max(SFL_SUCCESS_ROUND_SECONDS, 10),
+    )
 
 
 def _invoke_continuation(payload: dict[str, Any]) -> bool:
@@ -161,10 +175,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         data_bucket=DATA_BUCKET,
     )
     registry = FarmRegistry(DATA_BUCKET)
-    client = build_sfl_client(
-        [SFL_API_KEY, SFL_API_KEY_2],
-        min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
-    )
+    client = _make_client()
     clock = _event_now(event)
     farm_id = _event_farm_id(event)
     after_farm_id = _event_after_farm_id(event)
@@ -238,7 +249,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "time": frozen,
                 "chunk": chunk + 1,
                 "notify_leader_farm_id": original_leader,
-                "cooldown_seconds": max(SFL_MIN_INTERVAL_SECONDS, 10),
+                "cooldown_seconds": max(SFL_SUCCESS_ROUND_SECONDS, 10),
             }
         )
         logger.info(

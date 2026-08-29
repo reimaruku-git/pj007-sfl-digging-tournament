@@ -24,9 +24,16 @@ Do **not** recreate the GitHub OIDC provider. It already exists:
 Write `backend/.env` (never commit):
 
 ```
-SFL_API_KEY=<community API key from in-game Developer Options>
-SFL_API_KEY_2=<optional second community API key>
 ALLOWED_ORIGIN=*
+```
+
+SFL Community API keys are **not** Lambda env. After the stack exists, put
+them in the private secrets bucket (never the frontend bucket):
+
+```bash
+# local file, gitignored — see backend/docs/sfl-api-keys.example.json
+aws s3 cp sfl-api-keys.json s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json \
+  --profile rm-dev
 ```
 
 ## 2. First deploy (SSO, this stack only)
@@ -92,8 +99,8 @@ Repo secrets:
 
 | Secret | Value |
 |---|---|
-| `SFL_API_KEY` | Community API key |
-| `SFL_API_KEY_2` | optional second Community API key |
+| `SFL_API_KEY` | operator source to upload the secrets-bucket JSON |
+| `SFL_API_KEY_2` | optional second key for that JSON |
 | `DISCORD_WEBHOOK_URL` | optional |
 
 The OIDC role trusts this repo only. New GitHub repos emit an immutable
@@ -104,12 +111,13 @@ classic `repo:reimaruku-git/pj007-sfl-digging-tournament:*` form.
 
 | Name | Purpose |
 |---|---|
-| `SFL_API_KEY` | Community API `X-Api-Key` |
-| `SFL_API_KEY_2` | Optional second `X-Api-Key` (own 10s interval) |
+| `SECRETS_BUCKET` | Private SFL keys JSON bucket |
+| `SFL_KEYS_OBJECT` | `sfl-api-keys.json` |
+| `SFL_SUCCESS_ROUND_SECONDS` | `10` after a successful pass through every key |
 | `DATA_BUCKET` | App bucket |
 | `CONFIG_TABLE` / `SCORES_TABLE` / `SUBMISSIONS_TABLE` | DynamoDB |
 | `ALLOWED_ORIGIN` / `ALLOWED_ORIGINS` | CORS |
-| `SFL_MIN_INTERVAL_SECONDS` | `12` (must be ≥ 10) |
+| `SFL_MIN_INTERVAL_SECONDS` | `12` failure backoff (must be ≥ 10) |
 | `DISCORD_WEBHOOK_URL` | Optional 1st-place ping |
 | `FARM_SYNC_FUNCTION` | Main Lambda invokes this for full sync |
 

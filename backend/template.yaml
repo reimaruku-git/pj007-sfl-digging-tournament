@@ -24,10 +24,7 @@ Globals:
         CONFIG_TABLE: !Ref TournamentConfigTable
         SCORES_TABLE: !Ref DigScoresTable
         SUBMISSIONS_TABLE: !Ref PendingSubmissionsTable
-        SFL_API_KEY: !Ref SFLApiKey
-        SFL_API_KEY_2: !Ref SFLApiKey2
         DISCORD_WEBHOOK_URL: !Ref DiscordWebhookUrl
-        SFL_MIN_INTERVAL_SECONDS: "12"
 
 Parameters:
   Environment:
@@ -47,16 +44,6 @@ Parameters:
     Type: String
     Default: "*"
     Description: Allowed CORS origin (CloudFront URL)
-  SFLApiKey:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: SFL Community API key (X-Api-Key). Never sent to the browser.
-  SFLApiKey2:
-    Type: String
-    NoEcho: true
-    Default: ""
-    Description: Optional second SFL Community API key. Empty keeps the single-key path.
   DiscordWebhookUrl:
     Type: String
     NoEcho: true
@@ -99,6 +86,30 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub ${ProjectNo}-${Environment}-${ProjectName}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: BillingTag
+          Value: !Ref BillingTag
+        - Key: ProjectNo
+          Value: !Ref ProjectNo
+
+  # Private SFL Community API keys. Not the CloudFront origin.
+  SecretsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-secrets
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -440,6 +451,15 @@ Resources:
                       - config/*
                       - snapshots/*
                       - archives/*
+        - PolicyName: FarmSyncSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub ${SecretsBucket.Arn}/sfl-api-keys.json
         - PolicyName: FarmSyncSelfInvoke
           PolicyDocument:
             Version: "2012-10-17"
@@ -761,7 +781,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
-      Description: Walks tracked farms with a 12s SFL delay per key; continues itself if the 15-minute window is almost up
+      Description: Walks tracked farms; SFL keys from the private secrets bucket; continues itself if the 15-minute window is almost up
       CodeUri: lambda_functions/farm_sync/
       Handler: app.lambda_handler
       MemorySize: 256
@@ -772,6 +792,10 @@ Resources:
       Environment:
         Variables:
           FARM_SYNC_FUNCTION: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
+          SECRETS_BUCKET: !Ref SecretsBucket
+          SFL_KEYS_OBJECT: sfl-api-keys.json
+          SFL_SUCCESS_ROUND_SECONDS: "10"
+          SFL_MIN_INTERVAL_SECONDS: "12"
       Tags:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo
@@ -861,9 +885,21 @@ Resources:
                   - s3:ListBucket
                   - s3:CreateBucket
                   - s3:GetBucketLocation
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetEncryptionConfiguration
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:PutBucketVersioning
+                  - s3:GetBucketVersioning
+                  - s3:PutBucketTagging
+                  - s3:GetBucketTagging
+                  - s3:PutBucketOwnershipControls
+                  - s3:GetBucketOwnershipControls
                 Resource:
                   - !GetAtt AppBucket.Arn
                   - !Sub "${AppBucket.Arn}/*"
+                  - !GetAtt SecretsBucket.Arn
+                  - !Sub "${SecretsBucket.Arn}/*"
                   - arn:aws:s3:::aws-sam-cli-managed-*
                   - arn:aws:s3:::aws-sam-cli-managed-*/*
               - Effect: Allow
@@ -1071,6 +1107,12 @@ Outputs:
     Value: !Ref AppBucket
     Export:
       Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-bucket"
+
+  SecretsBucketName:
+    Description: "Private bucket for SFL API keys JSON (not CloudFront)"
+    Value: !Ref SecretsBucket
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-secrets-bucket"
 
   FrontendPrefix:
     Description: "S3 prefix CloudFront reads from"

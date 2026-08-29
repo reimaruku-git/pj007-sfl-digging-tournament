@@ -44,18 +44,21 @@ One git remote. Not two-repo like the SFL tracker.
 3. **Do not recreate** the account GitHub OIDC provider
    (`token.actions.githubusercontent.com`). It already exists. This stack
    only owns the *role* that trusts this repo.
-4. The browser talks **only to our API**. The SFL Community API key stays
-   on Lambda (`X-Api-Key`). Never call
+4. The browser talks **only to our API**. SFL Community API keys live in
+   a **private secrets bucket** JSON list (`sfl-api-keys.json`), not
+   Lambda env. FarmSync reads them at invoke. Never call
    `https://api.sunflower-land.com` from the frontend.
-5. SFL farm fetches are **10–15s apart per API key**
-   (`SFL_MIN_INTERVAL_SECONDS=12`, hard minimum 10). A second key
-   (`SFL_API_KEY_2`) has its own last-call clock. Back off on 429/403
-   per key. Empty second key keeps the single-key path.
+5. After a **successful** pass through every loaded key, the next fetch
+   waits **10 seconds**. 429/403/5xx still back off at least 12s per key.
+   Adding a key is editing the JSON only. Logs show `sfl.` plus the
+   token’s first 4 and last 4 characters, never the full key.
 6. Explicit IAM: `AWS::IAM::Role` + `Role: !GetAtt …Arn`. No SAM
    `Policies:` shorthand. `CAPABILITY_NAMED_IAM` in every
    `samconfig.toml` env.
-7. Secrets are SAM `NoEcho` → Lambda env (and GitHub secrets). **Do not**
-   move them to Secrets Manager unless asked.
+7. SFL Community API keys are the private secrets-bucket JSON, not SAM
+   `NoEcho` env and not Secrets Manager. Discord webhook may stay env.
+   GitHub secrets `SFL_API_KEY` / `SFL_API_KEY_2` are the operator source
+   for uploading that JSON. **Do not** commit real keys.
 
 ---
 
@@ -92,14 +95,13 @@ EventBridge (14/16/18/20/23 UTC) ──► FarmSync Lambda (live enrollments onl
 Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke FarmSync
 HTTP never calls the SFL Community API.
 
-FarmSync timeout is 15 minutes (Lambda max). Two SFL keys take turns in
-one process (~120–140 farms per chunk). Farms that already have today's
-3rd-OP recorded are not fetched again that UTC day. If remaining time
-drops under 90s with farms left, it async-invokes itself with
-`after_farm_id` and the frozen `now` (so a 23:00 sweep that overruns
-23:15 still finalizes). Only the last chunk applies the 23:00 penalty,
-archives, and Discord. Chunks are sequential — never two FarmSyncs
-overlapping on the same keys.
+FarmSync timeout is 15 minutes (Lambda max). Keys are a JSON list in
+`s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json`. After a
+successful pass through every key, wait 10s; 429/403 still wait ≥12s.
+Farms that already have today's 3rd-OP recorded are not fetched again
+that UTC day. If remaining time drops under 90s with farms left, it
+async-invokes itself with `after_farm_id` and the frozen `now`. Only
+the last chunk applies the 23:00 penalty, archives, and Discord.
 ```
 
 | Resource | Name / key |
@@ -110,6 +112,7 @@ overlapping on the same keys.
 | Leaderboard cache | config table `pk=LEADERBOARD` (featured) and `LEADERBOARD#{id}` |
 | Event scores | config table `pk=SCORE#{tournament_id}#{farm_id}` |
 | Farm registry | `s3://pj007-dev-digging-tournament/config/tracked-farms.json` |
+| SFL keys | `s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json` |
 | Frontend origin | bucket prefix `frontend/` (CloudFront OriginPath) |
 | Snapshots | `s3://…/snapshots/` |
 | Tournament archives | `s3://…/archives/{tournament_id}/` |
@@ -313,7 +316,7 @@ cd backend
 poetry install
 poetry run pytest tests/unit -v
 make local-api          # http://localhost:3001 — Cognito not enforced
-make deploy-dev         # needs SFL_API_KEY in backend/.env
+make deploy-dev         # SFL keys live in the secrets bucket, not .env
 ```
 
 `sam local start-api --port 3001`. HTTP API local has **no** stage prefix
@@ -368,8 +371,9 @@ Vars: `AWS_REGION`, `DEV_VITE_API_BASE`, `DEV_AWS_DEPLOY_ROLE_ARN`,
 `DEV_S3_BUCKET`, `DEV_CF_DISTRIBUTION_ID`, `DEV_ALLOWED_ORIGIN`,
 `DEV_VITE_COGNITO_USER_POOL_ID`, `DEV_VITE_COGNITO_USER_POOL_CLIENT_ID`.
 
-Secrets: `SFL_API_KEY`. Optional `SFL_API_KEY_2` (unset = single-key
-SFL fetches). Optional `DISCORD_WEBHOOK_URL` (unset = no 1st-place ping).
+Secrets: `SFL_API_KEY` and optional `SFL_API_KEY_2` (operator source for
+the secrets-bucket JSON; not injected into Lambda env). Optional
+`DISCORD_WEBHOOK_URL` (unset = no 1st-place ping).
 
 Do not print tokens. Do not recreate vars that already exist.
 
@@ -431,7 +435,7 @@ and our API — it must not POST `/submissions` or call SFL.
 | Restore HMAC / `POST /admin/login` | Replaced by Cognito |
 | `Authorization: Bearer …` | Breaks the JWT authorizer |
 | `DefaultAuthorizer: NONE` | SAM lint rejects it |
-| Secrets Manager for SFL_API_KEY | Deliberately env/NoEcho |
+| Secrets Manager for SFL_API_KEY | Keys are the private S3 JSON list |
 | SAM `Policies:` shorthand | House IAM rule |
 | `resolve_s3=true` | AccessDenied on the managed bucket |
 | Hardcoded `VITE_API_BASE` | Wrong API in the wrong env |

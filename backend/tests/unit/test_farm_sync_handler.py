@@ -41,9 +41,10 @@ def _load_sync(aws_env, monkeypatch, client: FakeClient):
     monkeypatch.setenv("CONFIG_TABLE", aws_env["config_table"])
     monkeypatch.setenv("SCORES_TABLE", aws_env["scores_table"])
     monkeypatch.setenv("SUBMISSIONS_TABLE", aws_env["submissions_table"])
-    monkeypatch.setenv("SFL_API_KEY", "test-key")
-    monkeypatch.setenv("SFL_API_KEY_2", "")
     monkeypatch.setenv("SFL_MIN_INTERVAL_SECONDS", "12")
+    monkeypatch.setenv("SFL_SUCCESS_ROUND_SECONDS", "10")
+    monkeypatch.setenv("SECRETS_BUCKET", "pj007-test-secrets")
+    monkeypatch.setenv("SFL_KEYS_OBJECT", "sfl-api-keys.json")
     monkeypatch.setenv("DISCORD_WEBHOOK_URL", "")
     path = ROOT / "lambda_functions" / "farm_sync" / "app.py"
     spec = importlib.util.spec_from_file_location("pj007_farm_sync_app", path)
@@ -55,10 +56,11 @@ def _load_sync(aws_env, monkeypatch, client: FakeClient):
     module.CONFIG_TABLE = aws_env["config_table"]
     module.SCORES_TABLE = aws_env["scores_table"]
     module.SUBMISSIONS_TABLE = aws_env["submissions_table"]
-    module.SFL_API_KEY = "test-key"
-    module.SFL_API_KEY_2 = ""
     module.FARM_SYNC_FUNCTION = "pj007-test-farm-sync"
+    module.SECRETS_BUCKET = "pj007-test-secrets"
+    module._sfl_keys = lambda: ["test-key"]
     module.build_sfl_client = lambda *args, **kwargs: client
+    module._make_client = lambda: client
     return module
 
 
@@ -75,7 +77,9 @@ class FakeContext:
 def test_farm_sync_source_uses_key_pool_and_never_hardcodes_sfl_host():
     source = (ROOT / "lambda_functions" / "farm_sync" / "app.py").read_text()
     assert "build_sfl_client" in source
-    assert "SFL_API_KEY_2" in source
+    assert "load_sfl_keys" in source
+    assert "SECRETS_BUCKET" in source
+    assert "SFL_API_KEY" not in source
     assert "api.sunflower-land.com" not in source
 
 
@@ -258,7 +262,7 @@ def test_low_remaining_time_invokes_continuation_and_skips_finalize(aws_env, mon
     assert payload["after_farm_id"] == "1"
     assert payload["chunk"] == 2
     assert payload["now"] == "2026-08-14T23:00:00Z"
-    assert payload["cooldown_seconds"] == 12
+    assert payload["cooldown_seconds"] == 10
 
     payload["cooldown_seconds"] = 0
     second = app.lambda_handler(payload, FakeContext([900_000, 900_000]))
@@ -288,11 +292,24 @@ def test_context_none_still_walks_the_whole_roster(aws_env, monkeypatch):
     assert invokes == []
 
 
+def test_empty_roster_succeeds_without_sfl_keys(aws_env, monkeypatch):
+    client = FakeClient({})
+    app = _load_sync(aws_env, monkeypatch, client)
+    app._sfl_keys = lambda: []
+    result = app.lambda_handler({"source": "schedule"}, None)
+    assert result["synced"] == 0
+    assert result.get("continued") is not True
+    assert client.called == []
+
+
 def test_template_lets_farm_sync_invoke_itself():
     template = (ROOT / "template.yaml").read_text()
     assert "PolicyName: FarmSyncSelfInvoke" in template
     assert "FARM_SYNC_FUNCTION:" in template
     assert "lambda:InvokeFunction" in template
+    assert "SecretsBucket:" in template
+    assert "SECRETS_BUCKET:" in template
     farm_sync = template.split("FarmSyncFunction:", 1)[1].split("GitHubActionsDeployRole:", 1)[0]
     assert "FARM_SYNC_FUNCTION:" in farm_sync
     assert "Timeout: 900" in farm_sync
+    assert "sfl-api-keys.json" in farm_sync

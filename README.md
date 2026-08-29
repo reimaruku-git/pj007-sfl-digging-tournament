@@ -29,7 +29,7 @@ frontend/    Vite + React — public leaderboard + master admin
 cd backend
 poetry install
 poetry run pytest tests/unit -v
-# SFL_API_KEY in backend/.env (gitignored). Optional SFL_API_KEY_2.
+# SFL keys: s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json
 make local-api   # http://localhost:3001 (Cognito not enforced locally)
 
 # frontend
