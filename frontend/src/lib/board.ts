@@ -67,19 +67,35 @@ export function homeBoardRows(
   return [...top, self];
 }
 
-export const ADMIN_BUCKET_PREVIEW = 5;
+export const ADMIN_LIVE_PREVIEW = 3;
+export const ADMIN_PAST_PREVIEW = 6;
+export const ADMIN_OVERFLOW_SCROLL_AFTER = 10;
 
-export function adminBucketPreview<T>(
-  items: T[],
-  expanded: boolean,
-  limit = ADMIN_BUCKET_PREVIEW,
-): T[] {
-  if (expanded || items.length <= limit) return items;
+/** First `limit` rows of an admin bucket (home preview, not the overflow overlay). */
+export function adminBucketPreview<T>(items: T[], limit: number): T[] {
   return items.slice(0, limit);
 }
 
-export function adminBucketNeedsCheckAll(count: number, limit = ADMIN_BUCKET_PREVIEW): boolean {
-  return count > limit;
+export function adminLiveNeedsOverflow(ongoingCount: number, upcomingCount: number): boolean {
+  return ongoingCount > ADMIN_LIVE_PREVIEW || upcomingCount > ADMIN_LIVE_PREVIEW;
+}
+
+export function adminPastNeedsOverflow(count: number): boolean {
+  return count > ADMIN_PAST_PREVIEW;
+}
+
+/** Overlay search: keep events whose name or id contains the query. */
+export function filterTournamentsBySearch(
+  items: TournamentSummary[],
+  query: string,
+): TournamentSummary[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return items;
+  return items.filter((row) => {
+    const name = (row.name || "").toLowerCase();
+    const id = row.tournament_id.toLowerCase();
+    return name.includes(needle) || id.includes(needle);
+  });
 }
 
 function numericScore(value: number | null | undefined): number | null {

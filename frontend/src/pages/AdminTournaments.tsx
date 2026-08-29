@@ -1,20 +1,26 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
 import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
 import {
-  adminBucketNeedsCheckAll,
+  ADMIN_LIVE_PREVIEW,
+  ADMIN_PAST_PREVIEW,
   adminBucketPreview,
+  adminLiveNeedsOverflow,
+  adminPastNeedsOverflow,
+  filterTournamentsBySearch,
   liveTournamentsSoonestFirst,
   pastTournaments,
   upcomingTournaments,
 } from "../lib/board";
 import {
   formatDateRangeUtc,
+  formatDetailDateRangeUtc,
   inclusiveCalendarDays,
   inclusiveFinalDayIso,
   isoToDateInput,
+  joinedCountLabel,
 } from "../lib/format";
 
 export type TournamentDraft = {
@@ -54,6 +60,8 @@ export function AdminTournaments({
   onReject,
   featuredId = null,
   onFeature,
+  reviewId,
+  onReview,
 }: {
   items: TournamentSummary[];
   players?: TrackedFarm[];
@@ -70,6 +78,8 @@ export function AdminTournaments({
   onReject?: (farmId: string, tournamentId: string) => Promise<void>;
   featuredId?: string | null;
   onFeature?: (id: string | null) => Promise<void>;
+  reviewId?: string | null;
+  onReview?: (id: string | null) => void;
 }) {
   const live = useMemo(() => liveTournamentsSoonestFirst(items), [items]);
   const upcoming = useMemo(() => upcomingTournaments(items), [items]);
@@ -78,7 +88,32 @@ export function AdminTournaments({
   const [draft, setDraft] = useState<TournamentDraft>(emptyDraft());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [localReviewId, setLocalReviewId] = useState<string | null>(null);
+  const [liveOverflow, setLiveOverflow] = useState(false);
+  const [pastOverflow, setPastOverflow] = useState(false);
   const confirm = useConfirm();
+  const openReviewId = localReviewId;
+
+  useEffect(() => {
+    if (reviewId !== undefined) setLocalReviewId(reviewId);
+  }, [reviewId]);
+
+  function openPendingReview(id: string) {
+    setLocalReviewId(id);
+    onReview?.(id);
+    onSelect?.(id);
+  }
+
+  function closePendingReview() {
+    setLocalReviewId(null);
+    onReview?.(null);
+  }
+
+  function openRoster(id: string) {
+    setLocalReviewId(null);
+    onReview?.(null);
+    onSelect?.(selectedId === id ? null : id);
+  }
 
   function requestDelete(row: TournamentSummary) {
     const label = row.name || "this tournament";
@@ -195,40 +230,123 @@ export function AdminTournaments({
       </div>
 
       <div className="admin-tourney-home">
-        <AdminGroup
-          title="Ongoing"
-          empty="No ongoing tournament."
-          items={live}
-          selectedId={selectedId}
-          featuredId={featuredId}
-          canFeature
-          onOpen={onSelect}
-          onEdit={openEdit}
-          onDelete={requestDelete}
-          onFeature={onFeature}
-        />
-        <AdminGroup
-          title="Upcoming"
-          empty="No upcoming tournaments."
-          items={upcoming}
-          selectedId={selectedId}
-          onOpen={onSelect}
-          onEdit={openEdit}
-          onDelete={requestDelete}
-        />
-        <AdminGroup
-          title="Past"
-          empty="No past tournaments."
-          items={ended}
-          selectedId={selectedId}
-          featuredId={featuredId}
-          canFeature
-          onOpen={onSelect}
-          onFeature={onFeature}
-        />
+        <div className="admin-tourney-col" data-testid="admin-live-column">
+          <AdminGroup
+            title="Ongoing"
+            empty="No ongoing tournament."
+            items={adminBucketPreview(live, ADMIN_LIVE_PREVIEW)}
+            selectedId={selectedId}
+            featuredId={featuredId}
+            canFeature
+            onOpen={openRoster}
+            onEdit={openEdit}
+            onDelete={requestDelete}
+            onFeature={onFeature}
+          />
+          <AdminGroup
+            title="Upcoming"
+            empty="No upcoming tournaments."
+            items={adminBucketPreview(upcoming, ADMIN_LIVE_PREVIEW)}
+            selectedId={selectedId}
+            onOpen={openPendingReview}
+            onEdit={openEdit}
+            onDelete={requestDelete}
+          />
+          {adminLiveNeedsOverflow(live.length, upcoming.length) ? (
+            <button
+              type="button"
+              className="admin-overflow-link"
+              data-testid="admin-see-all-live"
+              onClick={() => setLiveOverflow(true)}
+            >
+              See all ongoing and upcoming &gt;
+            </button>
+          ) : null}
+        </div>
+        <div className="admin-tourney-col" data-testid="admin-past-column">
+          <AdminGroup
+            title="Past"
+            empty="No past tournaments."
+            items={adminBucketPreview(ended, ADMIN_PAST_PREVIEW)}
+            selectedId={selectedId}
+            featuredId={featuredId}
+            canFeature
+            onOpen={openRoster}
+            onFeature={onFeature}
+          />
+          {adminPastNeedsOverflow(ended.length) ? (
+            <button
+              type="button"
+              className="admin-overflow-link"
+              data-testid="admin-see-all-past"
+              onClick={() => setPastOverflow(true)}
+            >
+              See all past &gt;
+            </button>
+          ) : null}
+        </div>
       </div>
 
-      {selectedId && (
+      {liveOverflow && (
+        <AdminOverflow
+          kind="live"
+          live={live}
+          upcoming={upcoming}
+          past={[]}
+          selectedId={selectedId}
+          featuredId={featuredId}
+          onClose={() => setLiveOverflow(false)}
+          onOpenLive={(id) => {
+            setLiveOverflow(false);
+            openRoster(id);
+          }}
+          onOpenUpcoming={(id) => {
+            setLiveOverflow(false);
+            openPendingReview(id);
+          }}
+          onEdit={(row) => {
+            setLiveOverflow(false);
+            openEdit(row);
+          }}
+          onDelete={requestDelete}
+          onFeature={onFeature}
+        />
+      )}
+
+      {pastOverflow && (
+        <AdminOverflow
+          kind="past"
+          live={[]}
+          upcoming={[]}
+          past={ended}
+          selectedId={selectedId}
+          featuredId={featuredId}
+          onClose={() => setPastOverflow(false)}
+          onOpenLive={openRoster}
+          onOpenUpcoming={openPendingReview}
+          onOpenPast={(id) => {
+            setPastOverflow(false);
+            openRoster(id);
+          }}
+          onEdit={openEdit}
+          onDelete={requestDelete}
+          onFeature={onFeature}
+        />
+      )}
+
+      {openReviewId && (
+        <PendingJoinReview
+          tournamentId={openReviewId}
+          tournament={items.find((item) => item.tournament_id === openReviewId) ?? null}
+          roster={roster}
+          onClose={closePendingReview}
+          onApprove={onApprove}
+          onReject={onReject}
+          ask={confirm.ask}
+        />
+      )}
+
+      {selectedId && !openReviewId && (
         <TournamentRoster
           tournamentId={selectedId}
           name={items.find((item) => item.tournament_id === selectedId)?.name || selectedId}
@@ -507,7 +625,8 @@ function parseIsland(raw: string): BumpkinIsland | null {
   return MIN_BUMPKIN_ISLANDS.find((item) => item === raw) ?? null;
 }
 
-function islandLabel(island: string): string {
+function islandLabel(island: string | null | undefined): string {
+  if (!island) return "None";
   if (island === "volcano+") return "Volcano+";
   return island.charAt(0).toUpperCase() + island.slice(1);
 }
@@ -566,14 +685,11 @@ function AdminGroup({
   selectedId?: string | null;
   featuredId?: string | null;
   canFeature?: boolean;
-  onOpen?: (id: string | null) => void;
+  onOpen?: (id: string) => void;
   onEdit?: (row: TournamentSummary) => void;
   onDelete?: (row: TournamentSummary) => void | Promise<void>;
   onFeature?: (id: string | null) => Promise<void>;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = adminBucketPreview(items, expanded);
-  const showCheckAll = adminBucketNeedsCheckAll(items.length) && !expanded;
   const bucket = title.toLowerCase();
   return (
     <div className="tourney-group" data-testid={`admin-${bucket}-group`}>
@@ -583,78 +699,411 @@ function AdminGroup({
           {empty}
         </p>
       )}
-      {visible.map((row) => (
-        <article
+      {items.map((row) => (
+        <AdminTourneyCard
           key={row.tournament_id}
-          className={selectedId === row.tournament_id ? "tourney-card is-open" : "tourney-card"}
-          data-testid={`admin-card-${row.tournament_id}`}
-        >
-          <button
-            type="button"
-            className="tourney-open"
-            data-testid={`admin-open-${row.tournament_id}`}
-            onClick={() => onOpen?.(selectedId === row.tournament_id ? null : row.tournament_id)}
-          >
-            <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
-            <div className="tourney-card-meta">
-              {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
-              Flower
-              {row.min_bumpkin_island ? ` · ${islandLabel(row.min_bumpkin_island)}` : ""}
-              {row.max_players ? ` · max ${row.max_players}` : ""}
-              {` · ${row.join_mode === "auto" ? "Auto join" : "Must confirm"}`}
-              {featuredId === row.tournament_id ? " · Featured on home" : ""}
-            </div>
-            {row.description ? <p className="tourney-card-desc">{row.description}</p> : null}
-            {row.prize_places && row.prize_places.length > 0 ? (
-              <p className="tourney-card-desc" data-testid={`admin-prizes-${row.tournament_id}`}>
-                {row.prize_places
-                  .map((item) => `${placeLabel(item.place)} ${item.amount}`)
-                  .join(" · ")}{" "}
-                Flower
-              </p>
-            ) : null}
-          </button>
-          <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
-            {canFeature && (
-              <button
-                className="btn"
-                type="button"
-                data-testid={`admin-feature-${row.tournament_id}`}
-                onClick={() =>
-                  void onFeature?.(featuredId === row.tournament_id ? null : row.tournament_id)
-                }
-              >
-                {featuredId === row.tournament_id ? "Featured" : "Feature"}
-              </button>
-            )}
-            {onEdit && (
-              <button className="btn" type="button" onClick={() => onEdit(row)}>
-                Edit
-              </button>
-            )}
-            {onDelete && (
-              <button
-                className="btn"
-                type="button"
-                data-testid={`admin-delete-${row.tournament_id}`}
-                onClick={() => void onDelete(row)}
-              >
-                Delete
-              </button>
-            )}
-          </div>
-        </article>
+          row={row}
+          selectedId={selectedId}
+          featuredId={featuredId}
+          canFeature={canFeature}
+          onOpen={onOpen}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onFeature={onFeature}
+        />
       ))}
-      {showCheckAll ? (
-        <button
-          type="button"
-          className="detail-crumb check-standings"
-          data-testid={`admin-check-all-${bucket}`}
-          onClick={() => setExpanded(true)}
-        >
-          Check all {bucket} &gt;
-        </button>
-      ) : null}
+    </div>
+  );
+}
+
+function AdminTourneyCard({
+  row,
+  selectedId,
+  featuredId,
+  canFeature,
+  onOpen,
+  onEdit,
+  onDelete,
+  onFeature,
+}: {
+  row: TournamentSummary;
+  selectedId?: string | null;
+  featuredId?: string | null;
+  canFeature?: boolean;
+  onOpen?: (id: string) => void;
+  onEdit?: (row: TournamentSummary) => void;
+  onDelete?: (row: TournamentSummary) => void | Promise<void>;
+  onFeature?: (id: string | null) => Promise<void>;
+}) {
+  return (
+    <article
+      className={selectedId === row.tournament_id ? "tourney-card is-open" : "tourney-card"}
+      data-testid={`admin-card-${row.tournament_id}`}
+    >
+      <button
+        type="button"
+        className="tourney-open"
+        data-testid={`admin-open-${row.tournament_id}`}
+        onClick={() => onOpen?.(row.tournament_id)}
+      >
+        <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
+        <div className="tourney-card-meta">
+          {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
+          Flower
+          {row.min_bumpkin_island ? ` · ${islandLabel(row.min_bumpkin_island)}` : ""}
+          {row.max_players ? ` · max ${row.max_players}` : ""}
+          {` · ${row.join_mode === "auto" ? "Auto join" : "Must confirm"}`}
+          {featuredId === row.tournament_id ? " · Featured on home" : ""}
+        </div>
+        {row.description ? <p className="tourney-card-desc">{row.description}</p> : null}
+        {row.prize_places && row.prize_places.length > 0 ? (
+          <p className="tourney-card-desc" data-testid={`admin-prizes-${row.tournament_id}`}>
+            {row.prize_places.map((item) => `${placeLabel(item.place)} ${item.amount}`).join(" · ")}{" "}
+            Flower
+          </p>
+        ) : null}
+      </button>
+      <div className="toolbar" style={{ marginTop: 10, marginBottom: 0 }}>
+        {canFeature && (
+          <button
+            className="btn"
+            type="button"
+            data-testid={`admin-feature-${row.tournament_id}`}
+            onClick={() =>
+              void onFeature?.(featuredId === row.tournament_id ? null : row.tournament_id)
+            }
+          >
+            {featuredId === row.tournament_id ? "Featured" : "Feature"}
+          </button>
+        )}
+        {onEdit && (
+          <button className="btn" type="button" onClick={() => onEdit(row)}>
+            Edit
+          </button>
+        )}
+        {onDelete && (
+          <button
+            className="btn"
+            type="button"
+            data-testid={`admin-delete-${row.tournament_id}`}
+            onClick={() => void onDelete(row)}
+          >
+            Delete
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function AdminOverflow({
+  kind,
+  live,
+  upcoming,
+  past,
+  selectedId,
+  featuredId,
+  onClose,
+  onOpenLive,
+  onOpenUpcoming,
+  onOpenPast,
+  onEdit,
+  onDelete,
+  onFeature,
+}: {
+  kind: "live" | "past";
+  live: TournamentSummary[];
+  upcoming: TournamentSummary[];
+  past: TournamentSummary[];
+  selectedId?: string | null;
+  featuredId?: string | null;
+  onClose: () => void;
+  onOpenLive: (id: string) => void;
+  onOpenUpcoming: (id: string) => void;
+  onOpenPast?: (id: string) => void;
+  onEdit?: (row: TournamentSummary) => void;
+  onDelete?: (row: TournamentSummary) => void | Promise<void>;
+  onFeature?: (id: string | null) => Promise<void>;
+}) {
+  const [query, setQuery] = useState("");
+  const liveShown = filterTournamentsBySearch(live, query);
+  const upcomingShown = filterTournamentsBySearch(upcoming, query);
+  const pastShown = filterTournamentsBySearch(past, query);
+  return (
+    <div
+      className="create-overlay"
+      data-testid={kind === "live" ? "admin-overflow-live" : "admin-overflow-past"}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className={`create-window admin-overflow-window${kind === "past" ? " is-past" : ""}`}>
+        <div className="admin-overflow-head">
+          <div className="kicker">
+            {kind === "live" ? "Ongoing and upcoming" : "Past tournaments"}
+          </div>
+          <input
+            data-testid="admin-overflow-search"
+            placeholder="Search name or id"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label="Search tournaments"
+          />
+          <button className="btn" type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        {kind === "live" ? (
+          <div className="admin-overflow-grid">
+            <div className="admin-overflow-col" data-testid="admin-overflow-ongoing">
+              <div className="kicker">Ongoing</div>
+              {liveShown.length === 0 && <p className="muted">No matching ongoing events.</p>}
+              {liveShown.map((row) => (
+                <AdminTourneyCard
+                  key={row.tournament_id}
+                  row={row}
+                  selectedId={selectedId}
+                  featuredId={featuredId}
+                  canFeature
+                  onOpen={onOpenLive}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onFeature={onFeature}
+                />
+              ))}
+            </div>
+            <div className="admin-overflow-col" data-testid="admin-overflow-upcoming">
+              <div className="kicker">Upcoming</div>
+              {upcomingShown.length === 0 && <p className="muted">No matching upcoming events.</p>}
+              {upcomingShown.map((row) => (
+                <AdminTourneyCard
+                  key={row.tournament_id}
+                  row={row}
+                  selectedId={selectedId}
+                  onOpen={onOpenUpcoming}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="admin-overflow-grid">
+            <div className="admin-overflow-col" data-testid="admin-overflow-past-list">
+              {pastShown.length === 0 && <p className="muted">No matching past events.</p>}
+              {pastShown.map((row) => (
+                <AdminTourneyCard
+                  key={row.tournament_id}
+                  row={row}
+                  selectedId={selectedId}
+                  featuredId={featuredId}
+                  canFeature
+                  onOpen={onOpenPast}
+                  onFeature={onFeature}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PendingJoinReview({
+  tournamentId,
+  tournament,
+  roster,
+  onClose,
+  onApprove,
+  onReject,
+  ask,
+}: {
+  tournamentId: string;
+  tournament: TournamentSummary | null;
+  roster: RosterMember[];
+  onClose: () => void;
+  onApprove?: (farmId: string, tournamentId: string) => Promise<void>;
+  onReject?: (farmId: string, tournamentId: string) => Promise<void>;
+  ask: (title: string, message: string, run: () => void | Promise<void>) => void;
+}) {
+  const pending = roster.filter((item) => item.status === "pending");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  function toggle(farmId: string) {
+    setPicked((current) =>
+      current.includes(farmId) ? current.filter((id) => id !== farmId) : [...current, farmId],
+    );
+  }
+
+  function selectedMembers() {
+    return pending.filter((item) => picked.includes(item.farm_id));
+  }
+
+  async function runBulk(action: "approve" | "reject") {
+    const chosen = selectedMembers();
+    setBusy(true);
+    try {
+      for (const item of chosen) {
+        if (action === "approve") await onApprove?.(item.farm_id, tournamentId);
+        else await onReject?.(item.farm_id, tournamentId);
+      }
+      setPicked([]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function requestBulk(action: "approve" | "reject") {
+    const n = selectedMembers().length;
+    if (n === 0) return;
+    const verb = action === "approve" ? "Approve" : "Reject";
+    ask(
+      "Are you sure to do this?",
+      `${verb} ${n} join request${n === 1 ? "" : "s"}?`,
+      () => runBulk(action),
+    );
+  }
+
+  const name = tournament?.name || "Untitled tournament";
+  const range = tournament
+    ? formatDetailDateRangeUtc(
+        tournament.start_at,
+        inclusiveFinalDayIso(tournament.start_at, tournament.duration_days),
+      )
+    : "";
+  const prizes =
+    tournament?.prize_places && tournament.prize_places.length > 0
+      ? tournament.prize_places
+          .map((item) => {
+            const flower = `${placeLabel(item.place)} ${item.amount} Flower`;
+            return item.nft_name ? `${flower} · ${item.nft_name}` : flower;
+          })
+          .join(" · ")
+      : tournament
+        ? `${tournament.prize_amount} Flower`
+        : "";
+
+  return (
+    <div
+      className="create-overlay"
+      data-testid="admin-pending-review"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="create-window admin-review-window">
+        <div className="toolbar" style={{ justifyContent: "space-between" }}>
+          <div className="kicker" style={{ marginBottom: 0 }}>
+            {name}
+          </div>
+          <button className="btn" type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <div className="admin-review-facts" data-testid="admin-review-facts">
+          {range ? (
+            <div className="detail-range" data-testid="admin-review-window">
+              {range}
+            </div>
+          ) : null}
+          {tournament?.description ? <p className="tourney-description">{tournament.description}</p> : null}
+          {prizes ? (
+            <p className="tourney-card-desc" data-testid="admin-review-prizes">
+              {prizes}
+            </p>
+          ) : null}
+          {tournament ? (
+            <dl className="window-card-facts">
+              <div>
+                <dt>Joined</dt>
+                <dd>
+                  {joinedCountLabel(
+                    tournament.enrolled_count,
+                    tournament.max_players,
+                    tournament.count,
+                    true,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>Island</dt>
+                <dd>{islandLabel(tournament.min_bumpkin_island)}</dd>
+              </div>
+              <div>
+                <dt>Streak</dt>
+                <dd>
+                  {tournament.min_digging_streak == null ? "None" : tournament.min_digging_streak}
+                </dd>
+              </div>
+              <div>
+                <dt>VIP</dt>
+                <dd>{tournament.vip_required ? "Yes" : "No"}</dd>
+              </div>
+              <div>
+                <dt>Needs approval</dt>
+                <dd>{tournament.join_mode === "auto" ? "No" : "Yes"}</dd>
+              </div>
+            </dl>
+          ) : null}
+        </div>
+        <div className="kicker">Joining players</div>
+        {pending.length === 0 && <p className="muted">None waiting for this event.</p>}
+        {pending.map((item) => (
+          <label key={item.farm_id} className="join-option">
+            <input
+              type="checkbox"
+              data-testid={`admin-review-pick-${item.farm_id}`}
+              checked={picked.includes(item.farm_id)}
+              onChange={() => toggle(item.farm_id)}
+            />
+            <span>
+              {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
+            </span>
+          </label>
+        ))}
+        {pending.length > 0 && (
+          <div className="toolbar admin-review-actions">
+            <span className="toolbar" style={{ marginBottom: 0 }}>
+              <button
+                className="btn"
+                type="button"
+                data-testid="admin-review-select-all"
+                onClick={() => setPicked(pending.map((item) => item.farm_id))}
+              >
+                Select all
+              </button>
+              <button
+                className="btn"
+                type="button"
+                data-testid="admin-review-deselect-all"
+                onClick={() => setPicked([])}
+              >
+                Deselect all
+              </button>
+            </span>
+            <span className="toolbar" style={{ marginBottom: 0 }}>
+              <button
+                className="btn primary"
+                type="button"
+                data-testid="admin-review-approve"
+                disabled={busy || picked.length === 0}
+                onClick={() => requestBulk("approve")}
+              >
+                Approve selected
+              </button>
+              <button
+                className="btn"
+                type="button"
+                data-testid="admin-review-reject"
+                disabled={busy || picked.length === 0}
+                onClick={() => requestBulk("reject")}
+              >
+                Reject selected
+              </button>
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

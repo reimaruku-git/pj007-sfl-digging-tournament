@@ -15,7 +15,11 @@ import {
   homeBoardRows,
   podiumPlaceTiedOnPrimary,
   adminBucketPreview,
-  adminBucketNeedsCheckAll,
+  adminLiveNeedsOverflow,
+  adminPastNeedsOverflow,
+  filterTournamentsBySearch,
+  ADMIN_LIVE_PREVIEW,
+  ADMIN_PAST_PREVIEW,
 } from "./board";
 
 function entry(
@@ -201,13 +205,56 @@ describe("homeBoardRows", () => {
 });
 
 describe("adminBucketPreview", () => {
-  it("shows 5 until expanded when the bucket is longer", () => {
-    const items = [1, 2, 3, 4, 5, 6];
-    expect(adminBucketPreview(items, false)).toEqual([1, 2, 3, 4, 5]);
-    expect(adminBucketPreview(items, true)).toEqual(items);
-    expect(adminBucketPreview([1, 2, 3], false)).toEqual([1, 2, 3]);
-    expect(adminBucketNeedsCheckAll(6)).toBe(true);
-    expect(adminBucketNeedsCheckAll(5)).toBe(false);
+  it("caps live buckets at 3 and past at 6", () => {
+    expect(adminBucketPreview([1, 2, 3, 4], ADMIN_LIVE_PREVIEW)).toEqual([1, 2, 3]);
+    expect(adminBucketPreview([1, 2, 3], ADMIN_LIVE_PREVIEW)).toEqual([1, 2, 3]);
+    expect(adminBucketPreview([1, 2, 3, 4, 5, 6, 7], ADMIN_PAST_PREVIEW)).toEqual([
+      1, 2, 3, 4, 5, 6,
+    ]);
+    expect(adminLiveNeedsOverflow(4, 1)).toBe(true);
+    expect(adminLiveNeedsOverflow(3, 3)).toBe(false);
+    expect(adminLiveNeedsOverflow(3, 4)).toBe(true);
+    expect(adminPastNeedsOverflow(6)).toBe(false);
+    expect(adminPastNeedsOverflow(7)).toBe(true);
+  });
+
+  it("filters overlay search by tournament name or id", () => {
+    const items: TournamentSummary[] = [
+      {
+        tournament_id: "live-1",
+        name: "Otter Cup",
+        status: "active",
+        start_at: "2026-08-01T00:00:00.000Z",
+        end_at: "2026-08-08T00:00:00.000Z",
+        duration_days: 7,
+        prize_amount: "30",
+        archived_at: null,
+        count: 0,
+        leader_farm_id: null,
+      },
+      {
+        tournament_id: "up-hidden",
+        name: "September shovel",
+        status: "scheduled",
+        start_at: "2026-09-01T00:00:00.000Z",
+        end_at: "2026-09-08T00:00:00.000Z",
+        duration_days: 7,
+        prize_amount: "30",
+        archived_at: null,
+        count: 0,
+        leader_farm_id: null,
+      },
+    ];
+    expect(filterTournamentsBySearch(items, "otter").map((row) => row.tournament_id)).toEqual([
+      "live-1",
+    ]);
+    expect(filterTournamentsBySearch(items, "UP-HIDDEN").map((row) => row.tournament_id)).toEqual([
+      "up-hidden",
+    ]);
+    expect(filterTournamentsBySearch(items, "  ").map((row) => row.tournament_id)).toEqual([
+      "live-1",
+      "up-hidden",
+    ]);
   });
 });
 

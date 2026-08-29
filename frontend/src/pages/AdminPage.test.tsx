@@ -122,5 +122,19 @@ describe("AdminPage", () => {
       (el.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
     });
     expect(el.querySelector('[data-testid="admin-sign-out"]')?.textContent).toMatch(/Sign out/);
+    expect(el.querySelector('[data-testid="admin-identities"]')).toBeNull();
+    expect(el.querySelector(".shell")?.textContent).not.toMatch(/Identified farms/);
+    expect(el.querySelector('[data-testid="admin-menu-identities"]')?.textContent).toMatch(
+      /Identified farms/,
+    );
+    act(() => {
+      (el.querySelector('[data-testid="admin-menu-identities"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+    expect(el.querySelector('[data-testid="identified-farms-overlay"]')?.textContent).toMatch(
+      /Identified farms/,
+    );
   });
 });

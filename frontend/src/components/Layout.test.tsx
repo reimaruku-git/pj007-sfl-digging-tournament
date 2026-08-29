@@ -45,6 +45,10 @@ vi.mock("../api/admin", () => ({
   }),
   saveSlogans: vi.fn(),
   addSlogan: vi.fn(),
+  listIdentities: vi.fn().mockResolvedValue([
+    { farm_id: "111", name: "Alpha" },
+    { farm_id: "999", name: "Zed" },
+  ]),
 }));
 
 function AdminDashStub() {
@@ -426,10 +430,63 @@ describe("public chrome", () => {
     expect(container.querySelector(".shell")?.contains(signOut)).toBe(false);
     const slogansItem = container.querySelector('[data-testid="admin-menu-slogans"]');
     expect(slogansItem?.textContent).toMatch(/Header slogans/);
+    const identitiesItem = container.querySelector('[data-testid="admin-menu-identities"]');
+    expect(identitiesItem?.textContent).toMatch(/Identified farms/);
     act(() => {
       (slogansItem as HTMLButtonElement).click();
     });
     expect(container.querySelector('[data-testid="admin-slogans-panel"]')).not.toBeNull();
+  });
+
+  it("opens Identified farms from the admin burger as a Name/ID overlay with top-right search", async () => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={["/admin"]}>
+          <QueryClientProvider client={client}>
+            <FarmSessionProvider>
+              <Layout>
+                <AdminDashStub />
+              </Layout>
+            </FarmSessionProvider>
+          </QueryClientProvider>
+        </MemoryRouter>,
+      );
+    });
+    expect(container.querySelector('[data-testid="identified-farms-overlay"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-identities"]')).toBeNull();
+    act(() => {
+      (container.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="admin-menu-identities"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+    const overlay = container.querySelector('[data-testid="identified-farms-overlay"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.querySelector(".kicker")?.textContent).toBe("Identified farms");
+    const table = overlay?.querySelector('[data-testid="identified-farms-table"]') as HTMLTableElement;
+    expect([...table.querySelectorAll("th")].map((node) => node.textContent)).toEqual(["Name", "ID"]);
+    const search = overlay?.querySelector(
+      '[data-testid="identified-farms-search"]',
+    ) as HTMLInputElement;
+    const head = overlay?.querySelector(".identified-farms-head");
+    expect(head?.contains(search)).toBe(true);
+    expect(search.compareDocumentPosition(overlay!.querySelector(".kicker") as Node) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(search, "zed");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const ids = [...table.querySelectorAll("tbody tr")].map(
+      (row) => row.querySelector(".farm-id")?.textContent,
+    );
+    expect(ids[0]).toBe("999");
   });
 
   it("keeps the dusk palette and Live badge green", () => {

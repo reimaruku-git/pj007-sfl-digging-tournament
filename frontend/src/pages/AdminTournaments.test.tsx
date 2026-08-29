@@ -553,8 +553,8 @@ describe("AdminTournaments", () => {
     );
   });
 
-  it("previews 5 events per bucket and expands with Check all", () => {
-    const live = Array.from({ length: 6 }, (_, index) =>
+  it("previews 3 ongoing + 3 upcoming in column 1 and 6 past in column 2", () => {
+    const live = Array.from({ length: 4 }, (_, index) =>
       row({
         tournament_id: `live-${index + 1}`,
         name: `Live ${index + 1}`,
@@ -563,7 +563,7 @@ describe("AdminTournaments", () => {
         end_at: `2026-08-${String(20 + index).padStart(2, "0")}T00:00:00.000Z`,
       }),
     );
-    const upcoming = Array.from({ length: 6 }, (_, index) =>
+    const upcoming = Array.from({ length: 4 }, (_, index) =>
       row({
         tournament_id: `up-${index + 1}`,
         name: `Upcoming ${index + 1}`,
@@ -572,54 +572,99 @@ describe("AdminTournaments", () => {
         end_at: `2026-09-${String(index + 8).padStart(2, "0")}T00:00:00.000Z`,
       }),
     );
-    const past = Array.from({ length: 6 }, (_, index) =>
+    const past = Array.from({ length: 7 }, (_, index) =>
       row({
         tournament_id: `past-${index + 1}`,
         name: `Past ${index + 1}`,
         status: "ended",
-        start_at: `2026-0${index + 1}-01T00:00:00.000Z`,
-        end_at: `2026-0${index + 1}-08T00:00:00.000Z`,
+        start_at: `2026-0${Math.min(index + 1, 9)}-01T00:00:00.000Z`,
+        end_at: `2026-0${Math.min(index + 1, 9)}-08T00:00:00.000Z`,
       }),
     );
     const { container } = render([...live, ...upcoming, ...past]);
+    const col1 = container.querySelector('[data-testid="admin-live-column"]');
+    const col2 = container.querySelector('[data-testid="admin-past-column"]');
     const ongoing = container.querySelector('[data-testid="admin-ongoing-group"]');
     const upcomingGroup = container.querySelector('[data-testid="admin-upcoming-group"]');
     const pastGroup = container.querySelector('[data-testid="admin-past-group"]');
-    expect(ongoing?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(5);
-    expect(upcomingGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(5);
-    expect(pastGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(5);
-    expect(ongoing?.querySelector('[data-testid="admin-card-live-1"]')).not.toBeNull();
-    expect(ongoing?.querySelector('[data-testid="admin-card-live-6"]')).toBeNull();
-    expect(upcomingGroup?.querySelector('[data-testid="admin-card-up-1"]')).not.toBeNull();
-    expect(upcomingGroup?.querySelector('[data-testid="admin-card-up-6"]')).toBeNull();
-    expect(pastGroup?.querySelector('[data-testid="admin-card-past-6"]')).not.toBeNull();
-    expect(pastGroup?.querySelector('[data-testid="admin-card-past-1"]')).toBeNull();
-    const checkOngoing = container.querySelector(
-      '[data-testid="admin-check-all-ongoing"]',
-    ) as HTMLButtonElement;
-    const checkUpcoming = container.querySelector(
-      '[data-testid="admin-check-all-upcoming"]',
-    ) as HTMLButtonElement;
-    const checkPast = container.querySelector(
-      '[data-testid="admin-check-all-past"]',
-    ) as HTMLButtonElement;
-    expect(checkOngoing?.textContent).toMatch(/Check all ongoing/i);
-    expect(checkUpcoming?.textContent).toMatch(/Check all upcoming/i);
-    expect(checkPast?.textContent).toMatch(/Check all past/i);
-    act(() => {
-      checkOngoing.click();
-    });
-    expect(ongoing?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
-    expect(ongoing?.querySelector('[data-testid="admin-card-live-6"]')).not.toBeNull();
-    act(() => {
-      checkUpcoming.click();
-      checkPast.click();
-    });
-    expect(upcomingGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
+    expect(col1?.contains(ongoing)).toBe(true);
+    expect(col1?.contains(upcomingGroup)).toBe(true);
+    expect(col2?.contains(pastGroup)).toBe(true);
+    expect(ongoing?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(3);
+    expect(upcomingGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(3);
     expect(pastGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
+    expect(ongoing?.querySelector('[data-testid="admin-card-live-4"]')).toBeNull();
+    expect(upcomingGroup?.querySelector('[data-testid="admin-card-up-4"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-check-all-ongoing"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-check-all-past"]')).toBeNull();
+    const seeLive = container.querySelector(
+      '[data-testid="admin-see-all-live"]',
+    ) as HTMLButtonElement;
+    const seePast = container.querySelector(
+      '[data-testid="admin-see-all-past"]',
+    ) as HTMLButtonElement;
+    expect(seeLive?.textContent).toMatch(/See all ongoing and upcoming/i);
+    expect(seePast?.textContent).toMatch(/See all past/i);
+    expect(seeLive.className).toMatch(/admin-overflow-link/);
+    expect(seeLive.className).not.toMatch(/check-standings/);
+    expect(seeLive.className).not.toMatch(/btn/);
+    expect(container.querySelector('[data-testid="admin-overflow-live"]')).toBeNull();
+    act(() => {
+      seeLive.click();
+    });
+    const liveOverlay = container.querySelector('[data-testid="admin-overflow-live"]');
+    expect(liveOverlay).not.toBeNull();
+    expect(liveOverlay?.querySelector('[data-testid="admin-overflow-search"]')).not.toBeNull();
+    expect(liveOverlay?.querySelector('[data-testid="admin-overflow-ongoing"]')).not.toBeNull();
+    expect(liveOverlay?.querySelector('[data-testid="admin-overflow-upcoming"]')).not.toBeNull();
+    expect(
+      liveOverlay?.querySelectorAll('[data-testid="admin-overflow-ongoing"] [data-testid^="admin-card-"]'),
+    ).toHaveLength(4);
+    expect(
+      liveOverlay?.querySelectorAll(
+        '[data-testid="admin-overflow-upcoming"] [data-testid^="admin-card-"]',
+      ),
+    ).toHaveLength(4);
+    expect(ongoing?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(3);
+    expect(upcomingGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(3);
+    act(() => {
+      const input = liveOverlay?.querySelector(
+        '[data-testid="admin-overflow-search"]',
+      ) as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "Upcoming 4");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(liveOverlay?.querySelector('[data-testid="admin-card-up-4"]')).not.toBeNull();
+    expect(liveOverlay?.querySelector('[data-testid="admin-card-up-1"]')).toBeNull();
+    expect(liveOverlay?.querySelector('[data-testid="admin-card-live-1"]')).toBeNull();
+    act(() => {
+      seePast.click();
+    });
+    const pastOverlay = container.querySelector('[data-testid="admin-overflow-past"]');
+    expect(pastOverlay).not.toBeNull();
+    expect(pastOverlay?.querySelector('[data-testid="admin-overflow-search"]')).not.toBeNull();
+    expect(pastOverlay?.querySelector('[data-testid="admin-overflow-past-list"]')).not.toBeNull();
+    expect(pastOverlay?.querySelector('[data-testid="admin-overflow-ongoing"]')).toBeNull();
+    expect(
+      pastOverlay?.querySelectorAll(
+        '[data-testid="admin-overflow-past-list"] [data-testid^="admin-card-"]',
+      ),
+    ).toHaveLength(7);
+    expect(pastGroup?.querySelectorAll('[data-testid^="admin-card-"]')).toHaveLength(6);
+    act(() => {
+      const input = pastOverlay?.querySelector(
+        '[data-testid="admin-overflow-search"]',
+      ) as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, "past-1");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(pastOverlay?.querySelector('[data-testid="admin-card-past-1"]')).not.toBeNull();
+    expect(pastOverlay?.querySelector('[data-testid="admin-card-past-2"]')).toBeNull();
   });
 
-  it("omits Check all when a bucket has 5 or fewer events", () => {
+  it("omits overflow controls when live buckets have 3 or fewer and past has 6 or fewer", () => {
     const { container } = render([
       row({ tournament_id: "live", name: "Live cup", status: "active" }),
       row({
@@ -630,9 +675,171 @@ describe("AdminTournaments", () => {
         end_at: "2026-09-08T00:00:00.000Z",
       }),
     ]);
+    expect(container.querySelector('[data-testid="admin-see-all-live"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-see-all-past"]')).toBeNull();
     expect(container.querySelector('[data-testid="admin-check-all-ongoing"]')).toBeNull();
-    expect(container.querySelector('[data-testid="admin-check-all-upcoming"]')).toBeNull();
-    expect(container.querySelector('[data-testid="admin-check-all-past"]')).toBeNull();
+  });
+
+  it("keeps the overflow control as text only, without a gray fill", () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    const block = css.match(/button\.admin-overflow-link\s*\{[^}]+\}/);
+    expect(block).not.toBeNull();
+    expect(block![0]).toMatch(/background:\s*transparent/);
+    expect(block![0]).toMatch(/background-color:\s*transparent/);
+    expect(block![0]).toMatch(/border:\s*none/);
+    expect(block![0]).not.toMatch(/background:\s*#/);
+    expect(block![0]).not.toMatch(/background:\s*rgb/);
+    expect(block![0]).not.toMatch(/zinc/);
+    expect(block![0]).not.toMatch(/var\(--mute\)/);
+    expect(css).toMatch(/\.admin-overflow-col\s*\{[^}]*overflow(?:-y)?:\s*auto/s);
+    expect(css).toMatch(/\.admin-overflow-col\s*\{[^}]*max-height:\s*calc\(10 \*/s);
+    expect(css).toMatch(/\.admin-overflow-grid\s*\{[^}]*grid-template-columns:\s*1fr 1fr/s);
+    expect(css).toMatch(
+      /\.admin-overflow-window\.is-past\s+\.admin-overflow-grid\s*\{[^}]*grid-template-columns:\s*1fr/s,
+    );
+  });
+
+  it("opens a pending-only review from an upcoming card with confirmed bulk approve and reject", async () => {
+    const onApprove = vi.fn().mockResolvedValue(undefined);
+    const onReject = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "next",
+          name: "September cup",
+          status: "scheduled",
+          start_at: "2026-09-01T00:00:00.000Z",
+          end_at: "2026-09-08T00:00:00.000Z",
+          description: "Bring a shovel.",
+          prize_amount: "30",
+          prize_places: [{ place: 1, amount: "30" }],
+          min_bumpkin_island: "desert",
+          vip_required: true,
+          join_mode: "confirm",
+          max_players: 16,
+        }),
+      ],
+      {
+        roster: [
+          {
+            farm_id: "11",
+            name: "pending-a",
+            tournament_id: "next",
+            status: "pending",
+            submitted_at: "2026-08-14T13:00:00+00:00",
+          },
+          {
+            farm_id: "12",
+            name: "pending-b",
+            tournament_id: "next",
+            status: "pending",
+            submitted_at: "2026-08-14T13:10:00+00:00",
+          },
+          {
+            farm_id: "22",
+            name: "already-in",
+            tournament_id: "next",
+            status: "enrolled",
+            submitted_at: "2026-08-14T12:00:00+00:00",
+          },
+        ],
+        onApprove,
+        onReject,
+      },
+    );
+    act(() => {
+      (container.querySelector('[data-testid="admin-open-next"]') as HTMLButtonElement).click();
+    });
+    const overlay = container.querySelector('[data-testid="admin-pending-review"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.textContent).toMatch(/September cup/);
+    expect(overlay?.querySelector('[data-testid="admin-review-facts"]')?.textContent).toMatch(
+      /Bring a shovel/,
+    );
+    expect(overlay?.querySelector('[data-testid="admin-review-prizes"]')?.textContent).toMatch(/30/);
+    expect(overlay?.textContent).toMatch(/pending-a/);
+    expect(overlay?.textContent).toMatch(/pending-b/);
+    expect(overlay?.textContent).not.toMatch(/already-in/);
+    expect(overlay?.textContent).not.toMatch(/Add existing players/);
+    expect(overlay?.textContent).not.toMatch(/Enrolled/);
+    expect(container.querySelector('[data-testid="admin-roster-next"]')).toBeNull();
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-select-all"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-approve"]') as HTMLButtonElement).click();
+    });
+    expect(onApprove).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="confirm-dialog"]')?.textContent).toMatch(
+      /Approve 2 join requests/,
+    );
+    act(() => {
+      (container.querySelector('[data-testid="confirm-no"]') as HTMLButtonElement).click();
+    });
+    expect(onApprove).not.toHaveBeenCalled();
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-approve"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
+    });
+    expect(onApprove).toHaveBeenCalledTimes(2);
+    expect(onApprove).toHaveBeenCalledWith("11", "next");
+    expect(onApprove).toHaveBeenCalledWith("12", "next");
+
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-pick-11"]') as HTMLInputElement).click();
+      (container.querySelector('[data-testid="admin-review-pick-12"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-deselect-all"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-pick-11"]') as HTMLInputElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="admin-review-reject"]') as HTMLButtonElement).click();
+    });
+    expect(onReject).not.toHaveBeenCalled();
+    await act(async () => {
+      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
+    });
+    expect(onReject).toHaveBeenCalledTimes(1);
+    expect(onReject).toHaveBeenCalledWith("11", "next");
+  });
+
+  it("opens the same pending review when reviewId is set from pending joins", () => {
+    const { container } = render(
+      [
+        row({
+          tournament_id: "next",
+          name: "September cup",
+          status: "scheduled",
+          start_at: "2026-09-01T00:00:00.000Z",
+          end_at: "2026-09-08T00:00:00.000Z",
+        }),
+      ],
+      {
+        reviewId: "next",
+        roster: [
+          {
+            farm_id: "11",
+            name: "pending-a",
+            tournament_id: "next",
+            status: "pending",
+            submitted_at: "2026-08-14T13:00:00+00:00",
+          },
+        ],
+      },
+    );
+    const overlay = container.querySelector('[data-testid="admin-pending-review"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.textContent).toMatch(/September cup/);
+    expect(overlay?.textContent).toMatch(/pending-a/);
+    expect(overlay?.textContent).not.toMatch(/Add existing players/);
   });
 
   it("lets admin groups size to their content in the shipped stylesheet", () => {

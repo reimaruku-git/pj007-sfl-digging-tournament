@@ -550,6 +550,13 @@ a.tourney-home-catalog:hover {
   }
 }
 
+.admin-tourney-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
 .admin-tourney-home .tourney-group {
   flex: none;
   overflow: visible;
@@ -560,6 +567,153 @@ a.tourney-home-catalog:hover {
 .admin-tourney-home .tourney-empty {
   padding: 8px 2px 6px;
   line-height: 1.45;
+}
+
+button.admin-overflow-link {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: flex-end;
+  width: auto;
+  margin: 2px 2px 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--cream);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+button.admin-overflow-link:hover {
+  color: var(--gold);
+  background: transparent;
+  background-color: transparent;
+}
+
+.admin-overflow-window {
+  width: min(64rem, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-overflow-window.is-past {
+  width: min(36rem, 100%);
+}
+
+.admin-overflow-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.admin-overflow-head .kicker {
+  margin-bottom: 0;
+}
+
+.admin-overflow-head input {
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.admin-overflow-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  min-height: 0;
+}
+
+.admin-overflow-window.is-past .admin-overflow-grid {
+  grid-template-columns: 1fr;
+}
+
+.admin-overflow-col {
+  min-width: 0;
+  overflow: auto;
+  overflow-y: auto;
+  max-height: calc(10 * (var(--tourney-block) + 2.85rem));
+}
+
+.admin-review-window {
+  width: min(44rem, 100%);
+  max-height: 90vh;
+}
+
+.admin-review-facts {
+  margin-bottom: 16px;
+}
+
+.admin-review-actions {
+  justify-content: space-between;
+}
+
+.pending-join-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pending-join-row:hover {
+  border-color: rgba(184, 154, 86, 0.4);
+}
+
+.pending-join-count {
+  color: var(--mute);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.identified-farms-window {
+  width: min(40rem, 100%);
+  max-height: 90vh;
+}
+
+.identified-farms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.identified-farms-head .kicker {
+  margin-bottom: 0;
+}
+
+.identified-farms-search {
+  margin-left: auto;
+  width: 14rem;
+}
+
+.identified-farms-table {
+  width: 100%;
+}
+
+.identified-farms-table th:first-child,
+.identified-farms-table td:first-child {
+  width: 60%;
 }
 
 .admin-tourney-form {

@@ -26,6 +26,7 @@ import { SITE_VERSION } from "../siteVersion";
 import { AdminSlogansPanel } from "./AdminSlogansPanel";
 import { ColorCanvas } from "./ColorCanvas";
 import { FarmConnect } from "./FarmConnect";
+import { IdentifiedFarmsPanel } from "./IdentifiedFarmsPanel";
 import { SyncCountdown } from "./SyncCountdown";
 
 export { formatWhen, statusLabel } from "../lib/format";
@@ -315,6 +316,7 @@ function navClass(isActive: boolean) {
 function AdminHeader() {
   const [open, setOpen] = useState(false);
   const [slogansOpen, setSlogansOpen] = useState(false);
+  const [identitiesOpen, setIdentitiesOpen] = useState(false);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -386,6 +388,19 @@ function AdminHeader() {
                   <button
                     type="button"
                     role="menuitem"
+                    data-testid="admin-menu-identities"
+                    onClick={() => {
+                      setOpen(false);
+                      setIdentitiesOpen(true);
+                    }}
+                  >
+                    Identified farms
+                  </button>
+                ) : null}
+                {onSignOut ? (
+                  <button
+                    type="button"
+                    role="menuitem"
                     data-testid="admin-menu-slogans"
                     onClick={() => {
                       setOpen(false);
@@ -414,6 +429,9 @@ function AdminHeader() {
         </div>
       </div>
       {onSignOut ? <AdminSlogansPanel open={slogansOpen} onClose={() => setSlogansOpen(false)} /> : null}
+      {onSignOut ? (
+        <IdentifiedFarmsPanel open={identitiesOpen} onClose={() => setIdentitiesOpen(false)} />
+      ) : null}
     </header>
   );
 }

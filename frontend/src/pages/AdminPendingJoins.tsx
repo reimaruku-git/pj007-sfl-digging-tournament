@@ -1,6 +1,4 @@
-import { Link } from "react-router-dom";
 import type { Submission, TournamentSummary } from "../api/public";
-import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
 
 export function tournamentNameForJoin(
   item: Submission,
@@ -12,84 +10,61 @@ export function tournamentNameForJoin(
   return (match?.name || "").trim() || "Untitled tournament";
 }
 
+export type PendingJoinGroup = {
+  tournament_id: string;
+  name: string;
+  count: number;
+};
+
+export function pendingJoinsByTournament(
+  submissions: Submission[],
+  tournaments: TournamentSummary[] = [],
+): PendingJoinGroup[] {
+  const groups = new Map<string, PendingJoinGroup>();
+  for (const item of submissions) {
+    const existing = groups.get(item.tournament_id);
+    if (existing) {
+      existing.count += 1;
+      continue;
+    }
+    groups.set(item.tournament_id, {
+      tournament_id: item.tournament_id,
+      name: tournamentNameForJoin(item, tournaments),
+      count: 1,
+    });
+  }
+  return [...groups.values()];
+}
+
 export function AdminPendingJoins({
   submissions,
   tournaments = [],
   onOpen,
-  onApprove,
-  onReject,
 }: {
   submissions: Submission[];
   tournaments?: TournamentSummary[];
   onOpen?: (tournamentId: string) => void;
-  onApprove: (farmId: string, tournamentId: string) => Promise<void>;
-  onReject: (farmId: string, tournamentId: string) => Promise<void>;
 }) {
-  const confirm = useConfirm();
-
-  function requestReject(item: Submission) {
-    confirm.ask(
-      "Are you sure to do this?",
-      `Reject the join request from ${item.name || item.farm_id}?`,
-      () => onReject(item.farm_id, item.tournament_id),
-    );
-  }
+  const groups = pendingJoinsByTournament(submissions, tournaments);
 
   return (
     <section className="card" style={{ marginBottom: 16 }} data-testid="admin-pending-joins">
       <div className="kicker">Pending joins</div>
-      {submissions.length === 0 && <p className="muted">None waiting.</p>}
-      {submissions.map((item) => {
-        const label = tournamentNameForJoin(item, tournaments);
-        const href = `/tournaments/${encodeURIComponent(item.tournament_id)}`;
-        return (
-          <div key={`${item.farm_id}-${item.tournament_id}`} className="toolbar">
-            <span>
-              {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
-              <div className="meta">
-                wants{" "}
-                <button
-                  type="button"
-                  className="pending-tourney-name"
-                  data-testid={`admin-pending-open-${item.tournament_id}`}
-                  onClick={() => onOpen?.(item.tournament_id)}
-                >
-                  {label}
-                </button>
-                {" · "}
-                <Link
-                  to={href}
-                  className="pending-tourney-view"
-                  data-testid={`admin-pending-view-${item.tournament_id}`}
-                >
-                  View
-                </Link>
-              </div>
-            </span>
-            <button
-              className="btn primary"
-              type="button"
-              data-testid={`admin-dashboard-approve-${item.farm_id}`}
-              onClick={() => void onApprove(item.farm_id, item.tournament_id)}
-            >
-              Approve
-            </button>
-            <button
-              className="btn"
-              type="button"
-              data-testid={`admin-dashboard-reject-${item.farm_id}`}
-              onClick={() => requestReject(item)}
-            >
-              Reject
-            </button>
-          </div>
-        );
-      })}
-      <ConfirmDialog
-        pending={confirm.pending}
-        onYes={() => void confirm.accept()}
-        onNo={confirm.cancel}
-      />
+      {groups.length === 0 && <p className="muted">None waiting.</p>}
+      {groups.map((group) => (
+        <button
+          key={group.tournament_id}
+          type="button"
+          className="pending-join-row"
+          data-testid={`admin-pending-open-${group.tournament_id}`}
+          onClick={() => onOpen?.(group.tournament_id)}
+        >
+          <span>{group.name}</span>
+          <span className="pending-join-count" data-testid={`admin-pending-count-${group.tournament_id}`}>
+            {group.count} pending
+          </span>
+        </button>
+      ))}
     </section>
   );
 }

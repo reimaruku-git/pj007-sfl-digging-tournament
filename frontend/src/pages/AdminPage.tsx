@@ -15,7 +15,6 @@ import {
   listAdminTournaments,
   listFarms,
   setFeaturedTournament,
-  listIdentities,
   listSubmissions,
   refreshFarm,
   rejectSubmission,
@@ -170,11 +169,11 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
   useAdminHeaderActions({ onSignOut });
   const queryClient = useQueryClient();
   const farms = useQuery({ queryKey: ["admin-farms"], queryFn: listFarms });
-  const identities = useQuery({ queryKey: ["admin-identities"], queryFn: listIdentities });
   const submissions = useQuery({ queryKey: ["admin-submissions"], queryFn: listSubmissions });
   const tournaments = useQuery({ queryKey: ["admin-tournaments"], queryFn: listAdminTournaments });
   const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
+  const [pendingReviewId, setPendingReviewId] = useState<string | null>(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string>("");
   const detail = useQuery({
@@ -229,8 +228,13 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         players={farms.data ?? []}
         loading={tournaments.isLoading}
         selectedId={selectedTournamentId}
+        reviewId={pendingReviewId}
         roster={roster.data ?? []}
         onSelect={(id) => setSelectedTournamentId(id)}
+        onReview={(id) => {
+          setPendingReviewId(id);
+          if (id) setSelectedTournamentId(id);
+        }}
         onFeature={async (id) => {
           await setFeaturedTournament(id);
           note(id ? "Featured on the public home page." : "Home showcase cleared.");
@@ -284,40 +288,12 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
         }}
       />
 
-      <section className="card" style={{ marginBottom: 16 }} data-testid="admin-identities">
-        <div className="kicker">Identified farms</div>
-        <p className="meta">Farm IDs that signed in on the public site, with the sfl.world name.</p>
-        {(identities.data ?? []).length === 0 && <p className="muted">None yet.</p>}
-        {(identities.data ?? []).map((item) => (
-          <div key={item.farm_id} className="toolbar">
-            <span>
-              {item.name || "Unnamed"} <span className="farm-id">{item.farm_id}</span>
-            </span>
-          </div>
-        ))}
-      </section>
-
       <AdminPendingJoins
         submissions={submissions.data ?? []}
         tournaments={tournaments.data?.tournaments ?? []}
-        onOpen={(id) => setSelectedTournamentId(id)}
-        onApprove={async (farmId, tournamentId) => {
-          try {
-            await approveSubmission(farmId, tournamentId);
-            note("Approved.");
-            invalidate();
-          } catch (error) {
-            note(error instanceof Error ? error.message : "failed to approve", "err");
-          }
-        }}
-        onReject={async (farmId, tournamentId) => {
-          try {
-            await rejectSubmission(farmId, tournamentId);
-            note("Rejected.");
-            invalidate();
-          } catch (error) {
-            note(error instanceof Error ? error.message : "failed to reject", "err");
-          }
+        onOpen={(id) => {
+          setPendingReviewId(id);
+          setSelectedTournamentId(id);
         }}
       />
 
