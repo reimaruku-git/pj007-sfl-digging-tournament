@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchFarm,
+  fetchFarmMemberships,
   fetchLeaderboard,
   fetchSlogans,
   fetchTournament,
@@ -146,6 +147,29 @@ describe("public api", () => {
     expect(result.count).toBe(1);
     expect(result.submissions[0]?.status).toBe("pending");
     expect(result.submissions[0]?.tournament_id).toBe("cup-1");
+  });
+
+  it("loads pending and enrolled memberships for a farm", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        memberships: [
+          {
+            farm_id: "3666918801844311",
+            name: "rmr",
+            tournament_id: "cup-1",
+            submitted_at: "2026-08-14T13:00:00+00:00",
+            approved_at: null,
+            status: "pending",
+          },
+        ],
+        count: 1,
+      }),
+    );
+    const listed = await fetchFarmMemberships("3666918801844311");
+    expect(mockRequest).toHaveBeenCalledWith("farms/3666918801844311/memberships");
+    expect(listed.count).toBe(1);
+    expect(listed.memberships[0]?.status).toBe("pending");
+    expect(listed.memberships[0]?.tournament_id).toBe("cup-1");
   });
 
   it("loads a tournament info payload including overall average per day", async () => {

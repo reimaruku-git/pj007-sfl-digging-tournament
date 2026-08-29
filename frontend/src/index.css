@@ -2347,11 +2347,6 @@ a.past-card:hover {
   }
 
   .brand p {
-    display: none;
-  }
-
-  .public-topbar .brand p {
-    display: block;
     font-size: 12px;
     line-height: 1.25;
   }
@@ -2508,8 +2503,8 @@ a.past-card:hover {
 }
 
 .public-topbar .brand p {
-  text-transform: none;
-  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .public-topbar .site-nav {
@@ -2931,17 +2926,20 @@ a.past-card:hover {
   max-width: 1120px;
   margin: 0 auto;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px 24px;
+  gap: 12px 28px;
 }
 
 .public-footer p {
   color: var(--mute);
   font-size: 12px;
-  max-width: 46rem;
+  max-width: none;
+  flex: 1 1 auto;
+  min-width: 0;
   line-height: 1.45;
+  margin: 0;
 }
 
 .public-footer-support {
@@ -2949,7 +2947,7 @@ a.past-card:hover {
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
-  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .public-footer .donation-line {

@@ -178,7 +178,7 @@ describe("public chrome", () => {
     const label = wallet?.querySelector(".donation-label");
     expect(label?.tagName).toBe("STRONG");
     expect(label?.textContent).toBe("Support the tournaments:");
-    expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe("0xa...f2c");
+    expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe("0xad8...f2c");
     expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe(
       truncatedDonationWallet(),
     );
@@ -200,6 +200,8 @@ describe("public chrome", () => {
     expect(css).toMatch(/\.donation-line\s*\{[^}]*font-size:\s*14px/s);
     expect(css).toMatch(/\.public-footer-support\s*\{[^}]*align-items:\s*flex-end/s);
     expect(css).toMatch(/\.public-footer-support\s*\{[^}]*flex-direction:\s*column/s);
+    expect(css).toMatch(/\.public-footer-inner\s*\{[^}]*flex-wrap:\s*nowrap/s);
+    expect(css).toMatch(/\.public-footer-inner\s*\{[^}]*align-items:\s*center/s);
     expect(css).not.toMatch(/\.public-footer \.donation-line\s*\{[^}]*flex:\s*1 1 100%/s);
     expect(css).toMatch(/\.public-footer\s*\{[^}]*padding:\s*12px 18px 14px/s);
     vi.unstubAllGlobals();
@@ -370,9 +372,12 @@ describe("public chrome", () => {
     const brandP = css.match(/\.brand p\s*\{[^}]+\}/);
     expect(brandH1?.[0]).toMatch(/font-size:\s*22px/);
     expect(brandP?.[0]).toMatch(/font-size:\s*12px/);
+    expect(brandP?.[0]).toMatch(/text-transform:\s*uppercase/);
     expect(css).not.toMatch(/\.public-topbar \.brand h1\s*\{[^}]*font-size:/s);
     expect(css).not.toMatch(/\.public-topbar \.brand p\s*\{[^}]*font-size:\s*11px/s);
+    expect(css).not.toMatch(/\.public-topbar \.brand p\s*\{[^}]*text-transform:\s*none/s);
     expect(css).not.toMatch(/\.admin-topbar \.brand h1\s*\{[^}]*font-size:/s);
+    expect(css).not.toMatch(/\.brand p\s*\{[^}]*display:\s*none/s);
   });
 
   it("puts Sign out in the admin burger and the timer in the center", () => {

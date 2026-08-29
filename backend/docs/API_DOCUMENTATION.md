@@ -4,7 +4,7 @@ Wire JSON is **snake_case**. The browser talks only to this API.
 
 Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no `Bearer ` prefix.
 API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
-Public routes (`/health`, `/config`, `/slogans`, `/leaderboard`, `/farms/{farm_id}`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`) have no authorizer.
+Public routes (`/health`, `/config`, `/slogans`, `/leaderboard`, `/farms/{farm_id}`, `/farms/{farm_id}/memberships`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`) have no authorizer.
 
 Errors:
 
@@ -369,6 +369,31 @@ produce a username (new farms can lag 2–7 days).
 
 `400` if `farm_id` is missing or not numeric. `404` if sfl.world has no
 username for that farm.
+
+### `GET /farms/{farm_id}/memberships`
+
+Pending and enrolled join rows for that farm. Rejected requests are
+deleted and do not appear. Empty list when the farm has never joined.
+The public Join button uses this so a pending request stays hidden after
+a reload or on another browser.
+
+```json
+{
+  "memberships": [
+    {
+      "farm_id": "3666918801844311",
+      "name": "rmr",
+      "tournament_id": "20260814T120000Z_7d",
+      "status": "pending",
+      "submitted_at": "2026-08-14T13:00:00+00:00",
+      "approved_at": null
+    }
+  ],
+  "count": 1
+}
+```
+
+`400` if `farm_id` is missing or not numeric.
 
 ### `POST /submissions`
 

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  fetchFarmMemberships,
   fetchTournament,
   listTournaments,
   submitFarm,
@@ -306,6 +307,7 @@ function CatalogWindow({
 
 function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const { identity } = useFarmSession();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
   const back = tournamentBackTarget(from);
@@ -315,6 +317,11 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
     queryKey: ["tournament", tournamentId],
     queryFn: () => fetchTournament(tournamentId),
   });
+  const memberships = useQuery({
+    queryKey: ["memberships", identity?.farm_id],
+    queryFn: () => fetchFarmMemberships(identity!.farm_id),
+    enabled: Boolean(identity?.farm_id),
+  });
   const join = useMutation({
     mutationFn: () => {
       if (!identity) throw new Error("Connect your farm first");
@@ -322,6 +329,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
     },
     onSuccess: (result) => {
       if (identity) addRequestedTournamentId(identity.farm_id, tournamentId);
+      void queryClient.invalidateQueries({ queryKey: ["memberships", identity?.farm_id] });
       const enrolled = result.submissions.some((item) => item.status === "enrolled");
       setNotice(
         enrolled
@@ -329,7 +337,12 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
           : "Join request sent. An admin will approve it.",
       );
     },
-    onError: (error: Error) => setNotice(error.message),
+    onError: (error: Error) => {
+      if (/already pending or enrolled/i.test(error.message) && identity) {
+        addRequestedTournamentId(identity.farm_id, tournamentId);
+      }
+      setNotice(error.message);
+    },
   });
   const data = query.data;
   const joinable = Boolean(data?.accepts_joins);
@@ -345,8 +358,22 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const alreadyRequested = Boolean(
     identity && hasRequestedTournament(identity.farm_id, tournamentId),
   );
+  const alreadyMember = Boolean(
+    identity &&
+      memberships.data?.memberships.some(
+        (row) =>
+          row.tournament_id === tournamentId &&
+          (row.status === "pending" || row.status === "enrolled"),
+      ),
+  );
   const showJoinCta =
-    joinable && Boolean(identity) && !alreadyEnrolled && !alreadyRequested && !join.isSuccess;
+    joinable &&
+    Boolean(identity) &&
+    !alreadyEnrolled &&
+    !alreadyRequested &&
+    !alreadyMember &&
+    !join.isSuccess &&
+    !memberships.isLoading;
   return (
     <section className="page-inner tournament-detail" data-testid="tournament-detail">
       <div className="detail-chrome">

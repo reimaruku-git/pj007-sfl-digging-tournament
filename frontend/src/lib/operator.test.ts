@@ -21,10 +21,10 @@ describe("operator chrome helpers", () => {
     expect(OPERATOR_X_URL).toBe("https://x.com/reimaruku");
   });
 
-  it("shortens the donation wallet to first 3 and last 3", () => {
-    expect(truncatedDonationWallet(DONATION_WALLET)).toBe("0xa...f2c");
+  it("shortens the donation wallet to 0xad8...f2c", () => {
+    expect(truncatedDonationWallet(DONATION_WALLET)).toBe("0xad8...f2c");
     expect(truncatedDonationWallet(DONATION_WALLET)).not.toBe(DONATION_WALLET);
-    expect(truncatedDonationWallet(DONATION_WALLET).startsWith(DONATION_WALLET.slice(0, 3))).toBe(
+    expect(truncatedDonationWallet(DONATION_WALLET).startsWith(DONATION_WALLET.slice(0, 5))).toBe(
       true,
     );
     expect(truncatedDonationWallet(DONATION_WALLET).endsWith(DONATION_WALLET.slice(-3))).toBe(true);

@@ -51,6 +51,21 @@ def public_member(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+ACTIVE_MEMBER_STATUSES = {STATUS_PENDING, STATUS_ENROLLED}
+
+
+def public_farm_memberships(store: Store, farm_id: str) -> list[dict[str, Any]]:
+    """Pending and enrolled rows for one farm. Rejected joins are deleted."""
+    wanted = str(farm_id or "").strip()
+    if not wanted:
+        return []
+    return [
+        public_member(item)
+        for item in store.list_members(farm_id=wanted)
+        if item.get("status") in ACTIVE_MEMBER_STATUSES
+    ]
+
+
 def parse_tournament_ids(body: dict[str, Any]) -> list[str]:
     raw = body.get("tournament_ids")
     if raw is None:

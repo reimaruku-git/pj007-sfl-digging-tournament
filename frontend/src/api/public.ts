@@ -142,6 +142,21 @@ export async function fetchFarm(farmId: string): Promise<LeaderboardEntry> {
   return data.farm;
 }
 
+export type FarmMembership = Submission;
+
+export type FarmMembershipList = {
+  memberships: FarmMembership[];
+  count: number;
+};
+
+export async function fetchFarmMemberships(farmId: string): Promise<FarmMembershipList> {
+  const { response, data } = await requestJson<FarmMembershipList>(
+    `farms/${encodeURIComponent(farmId)}/memberships`,
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load memberships"));
+  return data;
+}
+
 export async function fetchTournamentFarm(
   tournamentId: string,
   farmId: string,

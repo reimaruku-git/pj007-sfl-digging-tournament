@@ -250,7 +250,8 @@ def test_first_day_join_cutoff_is_2230_utc_on_start_date():
     assert is_joinable(scheduled, now=datetime(2026, 8, 18, 23, 0, tzinfo=timezone.utc)) is True
 
 
-def test_submit_rejects_active_event_at_first_day_2230(aws_env, monkeypatch):
+def test_submit_rejects_active_event_at_first_day_2230(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-17T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
@@ -361,6 +362,8 @@ def test_already_enrolled_farm_stays_after_join_closes(aws_env, monkeypatch, liv
 
 
 def test_public_tournament_hides_joins_after_first_day_2230(aws_env, monkeypatch):
+    freeze = datetime(2026, 8, 17, 16, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr("tournament.catalog._clock", lambda now=None: now or freeze)
     app = _load_app(aws_env, monkeypatch)
     live = _create_joinable(
         app,
@@ -448,6 +451,78 @@ def test_must_confirm_stays_pending_until_approve(aws_env, monkeypatch, live_joi
         )
     )
     assert roster["members"][0]["status"] == "enrolled"
+
+
+def test_get_farm_memberships_lists_pending_and_enrolled(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    confirm = _create_joinable(
+        app,
+        name="Confirm cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="confirm",
+    )
+    auto = _create_joinable(
+        app,
+        name="Auto cup",
+        start="2026-09-01T00:00:00+00:00",
+        end="2026-09-08T00:00:00+00:00",
+        join_mode="auto",
+    )
+    empty = app.lambda_handler(_event("GET", "/farms/3666918801844311/memberships"), None)
+    assert empty["statusCode"] == 200
+    assert _json(empty) == {"memberships": [], "count": 0}
+
+    pending = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": confirm["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert pending["statusCode"] == 201
+    enrolled = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": auto["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert enrolled["statusCode"] == 201
+
+    listed = app.lambda_handler(_event("GET", "/farms/3666918801844311/memberships"), None)
+    assert listed["statusCode"] == 200
+    payload = _json(listed)
+    assert payload["count"] == 2
+    by_event = {row["tournament_id"]: row for row in payload["memberships"]}
+    assert by_event[confirm["tournament_id"]]["status"] == "pending"
+    assert by_event[auto["tournament_id"]]["status"] == "enrolled"
+    assert all(row["farm_id"] == "3666918801844311" for row in payload["memberships"])
+
+    other = app.lambda_handler(_event("GET", "/farms/9999999999999999/memberships"), None)
+    assert other["statusCode"] == 200
+    assert _json(other)["count"] == 0
+
+    bad = app.lambda_handler(_event("GET", "/farms/not-a-farm/memberships"), None)
+    assert bad["statusCode"] == 400
+    assert _json(bad)["error"] == "VALIDATION_ERROR"
+
+
+def test_memberships_route_is_wired_in_sam_template():
+    text = (ROOT / "template.yaml").read_text()
+    assert "Path: /farms/{farm_id}/memberships" in text
+    assert "GetFarmMemberships:" in text
 
 
 def test_event_without_new_fields_still_creates_pending(aws_env, monkeypatch, live_join_open):

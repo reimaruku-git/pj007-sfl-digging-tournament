@@ -44,6 +44,7 @@ from tournament.membership import (
     farm_live_tournament_ids,
     parse_farm_ids,
     parse_tournament_ids,
+    public_farm_memberships,
     public_member,
     reject_join,
     remove_farm_from_tournament,
@@ -270,6 +271,16 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     if stats["score_today"] is not None:
         entry["score_today"] = stats["score_today"]
     return create_response(200, {"farm": entry})
+
+
+def handle_get_farm_memberships(event: dict[str, Any]) -> dict[str, Any]:
+    farm_id = _path_params(event).get("farm_id", "").strip()
+    if not farm_id:
+        return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+        return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
+    memberships = public_farm_memberships(_get_store(), farm_id)
+    return create_response(200, {"memberships": memberships, "count": len(memberships)})
 
 
 def _public_identity(row: dict[str, Any]) -> dict[str, Any]:
@@ -766,6 +777,11 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
         handle_get_tournament_farm,
     ),
     ("GET", re.compile(r"^/tournaments/(?P<tournament_id>[^/]+)$"), handle_get_tournament),
+    (
+        "GET",
+        re.compile(r"^/farms/(?P<farm_id>[^/]+)/memberships$"),
+        handle_get_farm_memberships,
+    ),
     ("GET", re.compile(r"^/farms/(?P<farm_id>[^/]+)$"), handle_get_farm),
     ("POST", re.compile(r"^/identify$"), handle_identify_farm),
     ("POST", re.compile(r"^/submissions$"), handle_submit_farm),

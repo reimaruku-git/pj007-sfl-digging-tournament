@@ -134,7 +134,7 @@ House Cognito mode, with a **product exception** on which routes are public.
 
 | Surface | Auth |
 |---------|------|
-| `/health`, `/config`, `/leaderboard`, `/farms/{id}`, `/tournaments`, `POST /submissions` | **None** — public tournament |
+| `/health`, `/config`, `/leaderboard`, `/farms/{id}`, `/farms/{id}/memberships`, `/tournaments`, `POST /submissions` | **None** — public tournament |
 | `/admin/*` | API Gateway JWT (`CognitoAuthorizer`) |
 
 - Admin-created users only (`AllowAdminCreateUserOnly`). **No self-signup.**

@@ -12,12 +12,14 @@ import type {
 
 const listTournaments = vi.fn();
 const fetchTournament = vi.fn();
+const fetchFarmMemberships = vi.fn();
 const submitFarm = vi.fn();
 const downloadTournamentBoardImage = vi.fn();
 
 vi.mock("../api/public", () => ({
   listTournaments: (...args: unknown[]) => listTournaments(...args),
   fetchTournament: (...args: unknown[]) => fetchTournament(...args),
+  fetchFarmMemberships: (...args: unknown[]) => fetchFarmMemberships(...args),
   submitFarm: (...args: unknown[]) => submitFarm(...args),
 }));
 
@@ -141,9 +143,11 @@ async function renderAt(path: string, state?: { from?: string }) {
 beforeEach(() => {
   listTournaments.mockReset();
   fetchTournament.mockReset();
+  fetchFarmMemberships.mockReset();
   submitFarm.mockReset();
   downloadTournamentBoardImage.mockReset();
   downloadTournamentBoardImage.mockResolvedValue(undefined);
+  fetchFarmMemberships.mockResolvedValue({ memberships: [], count: 0 });
   writeFarmIdentity({ farm_id: "3666918801844311", name: "rmr" });
 });
 
@@ -1024,6 +1028,37 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Joining as/);
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
+  });
+
+  it("hides join when the API already has a pending membership", async () => {
+    const next = summary({
+      tournament_id: "next",
+      name: "Confirm cup",
+      status: "scheduled",
+      join_mode: "confirm",
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(next, []),
+      config: { ...archive(next, []).config, join_mode: "confirm" },
+    });
+    fetchFarmMemberships.mockResolvedValue({
+      memberships: [
+        {
+          farm_id: "3666918801844311",
+          name: "rmr",
+          tournament_id: "next",
+          submitted_at: "2026-08-16T12:00:00.000Z",
+          status: "pending",
+        },
+      ],
+      count: 1,
+    });
+    const page = await renderAt("/tournaments/next");
+    expect(fetchFarmMemberships).toHaveBeenCalledWith("3666918801844311");
+    expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/Join this tournament/);
+    expect(page.textContent).not.toMatch(/Joining as/);
   });
 
   it("hides join after a pending request even if the detail remounts", async () => {

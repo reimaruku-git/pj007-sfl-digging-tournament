@@ -6,8 +6,8 @@ export const OPERATOR_X_URL = "https://x.com/reimaruku";
 export const DONATION_WALLET = "0xad89dD77d60e38B45A41028cCDDB0b173b612f2c";
 
 export function truncatedDonationWallet(address: string = DONATION_WALLET): string {
-  if (address.length <= 6) return address;
-  return `${address.slice(0, 3)}...${address.slice(-3)}`;
+  if (address.length <= 8) return address;
+  return `${address.slice(0, 5)}...${address.slice(-3)}`;
 }
 
 export async function copyText(value: string): Promise<boolean> {
