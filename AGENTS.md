@@ -91,18 +91,23 @@ stack). Do not recreate the account OIDC provider.
 
 | | |
 |---|---|
+| Site | https://dlccozs3ejl4t.cloudfront.net |
+| Admin | https://dlccozs3ejl4t.cloudfront.net/admin |
+| API | https://etg6o0f917.execute-api.ap-southeast-1.amazonaws.com/prd |
 | Stack | `sfl-pj007-prd-digging-tournament` |
 | Bucket | `pj007-prd-digging-tournament` |
 | Secrets | `pj007-prd-digging-tournament-secrets` |
+| CF dist | `E2RY7N6RM54XAP` |
+| Cognito pool | `ap-southeast-1_n7QwNJ4Oh` (`pj007-prd-digging-tournament-users`) |
+| Cognito client | `51s1tetqcr0utvrg8hoguhbuaa` |
 | OIDC role | `arn:aws:iam::498754465871:role/pj007-prd-digging-tournament-github-deploy-role` |
 | SSO profile | `rm-prd` |
-| Site / API / Cognito | set after the first successful `Deploy prd` run (stack outputs) |
 
-GitHub var required before the first `main` merge: `PRD_AWS_DEPLOY_ROLE_ARN`
-(the role ARN above). The workflow reads the rest from stack outputs.
+GitHub var `PRD_AWS_DEPLOY_ROLE_ARN` is the role ARN above. The workflow
+reads Site / API / Cognito from stack outputs.
 
-Console users (after the pool exists): Cognito → pool
-`pj007-prd-digging-tournament-users`.
+Console users:
+https://ap-southeast-1.console.aws.amazon.com/cognito/v2/idp/user-pools/ap-southeast-1_n7QwNJ4Oh/users?region=ap-southeast-1
 
 ---
 
