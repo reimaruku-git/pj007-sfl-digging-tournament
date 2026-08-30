@@ -20,6 +20,8 @@ import { pickDailySlogan, SEED_SLOGANS } from "../lib/slogans";
 import { SITE_VERSION } from "../siteVersion";
 import { Layout, useAdminHeaderActions } from "./Layout";
 
+const identifyFarm = vi.fn();
+
 vi.mock("../api/public", () => ({
   fetchSlogans: vi.fn().mockResolvedValue({
     slogans: [
@@ -34,6 +36,7 @@ vi.mock("../api/public", () => ({
     today_text: null,
     today_day: null,
   }),
+  identifyFarm: (...args: unknown[]) => identifyFarm(...args),
 }));
 
 vi.mock("../api/admin", () => ({
@@ -107,6 +110,7 @@ afterEach(() => {
   });
   container.remove();
   localStorage.clear();
+  identifyFarm.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -124,6 +128,65 @@ describe("public chrome", () => {
     expect(links).not.toContain("/admin");
     expect(el.textContent).not.toMatch(/\bAdmin\b/);
     expect(el.querySelector('button[aria-label="Menu"]')).toBeNull();
+  });
+
+  it("uses the issue 23 shovel as the public and admin brand mark and favicon", () => {
+    const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+    const publicRoot = resolve(srcRoot, "../public");
+    const shovel = readFileSync(resolve(publicRoot, "shovel.png"));
+    expect(shovel.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+    const html = readFileSync(resolve(srcRoot, "../index.html"), "utf8");
+    expect(html).toMatch(/rel="icon"[^>]*href="\/shovel\.png"/);
+    expect(html).not.toMatch(/favicon\.svg/);
+    expect(html).not.toMatch(/pebble/);
+
+    const publicPage = renderAt("/");
+    const publicBrand = publicPage.querySelector('[data-testid="public-brand"]');
+    const publicMark = publicBrand?.querySelector(".brand-mark img");
+    expect(publicMark?.getAttribute("src")).toBe("/shovel.png");
+    expect(publicBrand?.querySelectorAll(".brand-mark span").length).toBe(0);
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+
+    const adminPage = renderAt("/admin");
+    const adminBrand = adminPage.querySelector('[data-testid="admin-brand"]');
+    expect(adminBrand?.querySelector(".brand-mark img")?.getAttribute("src")).toBe("/shovel.png");
+    expect(adminBrand?.querySelectorAll(".brand-mark span").length).toBe(0);
+    expect(adminPage.querySelectorAll('button[aria-label="Menu"] span').length).toBe(3);
+  });
+
+  it("shows a small loading popup while connecting a farm and closes it when identify finishes", async () => {
+    let resolveIdentify: (value: { farm_id: string; name: string }) => void = () => undefined;
+    identifyFarm.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveIdentify = resolve;
+        }),
+    );
+    const el = renderAt("/");
+    const input = el.querySelector('[data-testid="farm-id-input"]') as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    act(() => {
+      setter?.call(input, "3666918801844311");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(el.querySelector('[data-testid="loading-popup"]')).toBeNull();
+    act(() => {
+      (el.querySelector('[data-testid="farm-id-submit"]') as HTMLButtonElement).click();
+    });
+    expect(el.querySelector('[data-testid="loading-popup"]')?.textContent).toMatch(
+      /Connecting farm/,
+    );
+    await act(async () => {
+      resolveIdentify({ farm_id: "3666918801844311", name: "rmr" });
+      await Promise.resolve();
+    });
+    expect(el.querySelector('[data-testid="loading-popup"]')).toBeNull();
+    expect(el.querySelector('[data-testid="farm-connected"]')).not.toBeNull();
   });
 
   it("names the public brand, shows a version, and disclaims unofficial status", () => {
@@ -148,7 +211,10 @@ describe("public chrome", () => {
     expect(support?.contains(el.querySelector('[data-testid="donation-wallet"]'))).toBe(true);
     expect(support?.contains(version)).toBe(true);
     const donation = support?.querySelector('[data-testid="donation-wallet"]') as HTMLElement;
-    expect(support?.contains(donation) && donation.compareDocumentPosition(version as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      support?.contains(donation) &&
+        donation.compareDocumentPosition(version as Node) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("links the operator farm top-right and shows the donation wallet", async () => {
@@ -182,7 +248,9 @@ describe("public chrome", () => {
     const label = wallet?.querySelector(".donation-label");
     expect(label?.tagName).toBe("STRONG");
     expect(label?.textContent).toBe("Support the tournaments:");
-    expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe("0xad8...f2c");
+    expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe(
+      "0xad8...f2c",
+    );
     expect(el.querySelector('[data-testid="donation-wallet-short"]')?.textContent).toBe(
       truncatedDonationWallet(),
     );
@@ -258,26 +326,26 @@ describe("public chrome", () => {
       root.render(
         <MemoryRouter initialEntries={["/"]}>
           <QueryClientProvider client={client}>
-          <FarmSessionProvider>
-            <Routes>
-              <Route
-                path="/"
-                element={
-                  <Layout>
-                    <main data-testid="home-body">home</main>
-                  </Layout>
-                }
-              />
-              <Route
-                path="/tournaments"
-                element={
-                  <Layout>
-                    <main data-testid="catalog-body">catalog</main>
-                  </Layout>
-                }
-              />
-            </Routes>
-          </FarmSessionProvider>
+            <FarmSessionProvider>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <Layout>
+                      <main data-testid="home-body">home</main>
+                    </Layout>
+                  }
+                />
+                <Route
+                  path="/tournaments"
+                  element={
+                    <Layout>
+                      <main data-testid="catalog-body">catalog</main>
+                    </Layout>
+                  }
+                />
+              </Routes>
+            </FarmSessionProvider>
           </QueryClientProvider>
         </MemoryRouter>,
       );
@@ -462,7 +530,9 @@ describe("public chrome", () => {
       (container.querySelector('button[aria-label="Menu"]') as HTMLButtonElement).click();
     });
     act(() => {
-      (container.querySelector('[data-testid="admin-menu-identities"]') as HTMLButtonElement).click();
+      (
+        container.querySelector('[data-testid="admin-menu-identities"]') as HTMLButtonElement
+      ).click();
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 40));
@@ -470,14 +540,22 @@ describe("public chrome", () => {
     const overlay = container.querySelector('[data-testid="identified-farms-overlay"]');
     expect(overlay).not.toBeNull();
     expect(overlay?.querySelector(".kicker")?.textContent).toBe("Identified farms");
-    const table = overlay?.querySelector('[data-testid="identified-farms-table"]') as HTMLTableElement;
-    expect([...table.querySelectorAll("th")].map((node) => node.textContent)).toEqual(["Name", "ID"]);
+    const table = overlay?.querySelector(
+      '[data-testid="identified-farms-table"]',
+    ) as HTMLTableElement;
+    expect([...table.querySelectorAll("th")].map((node) => node.textContent)).toEqual([
+      "Name",
+      "ID",
+    ]);
     const search = overlay?.querySelector(
       '[data-testid="identified-farms-search"]',
     ) as HTMLInputElement;
     const head = overlay?.querySelector(".identified-farms-head");
     expect(head?.contains(search)).toBe(true);
-    expect(search.compareDocumentPosition(overlay!.querySelector(".kicker") as Node) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(
+      search.compareDocumentPosition(overlay!.querySelector(".kicker") as Node) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
       setter?.call(search, "zed");
@@ -487,6 +565,17 @@ describe("public chrome", () => {
       (row) => row.querySelector(".farm-id")?.textContent,
     );
     expect(ids[0]).toBe("999");
+  });
+
+  it("styles the activity popup as a small card, not a full-page loader", () => {
+    const css = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
+      "utf8",
+    );
+    expect(css).toMatch(/\.loading-popup\s*\{[^}]*pointer-events:\s*none/s);
+    expect(css).toMatch(/\.loading-popup-card\s*\{[^}]*font-size:\s*14px/s);
+    expect(css).not.toMatch(/\.loading-popup\s*\{[^}]*background:\s*rgba\(/s);
+    expect(css).not.toMatch(/#e8b923/);
   });
 
   it("keeps the dusk palette and Live badge green", () => {

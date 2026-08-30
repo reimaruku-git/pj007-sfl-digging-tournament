@@ -463,6 +463,38 @@ events stay joinable. `400` `VALIDATION_ERROR` if the farm's stored island is be
 digging streak is below `min_digging_streak`, if `vip_required` is true
 and the farm is not VIP, if a set gate cannot be read from the stored
 FarmSync snapshot, or if enrolled players already equal `max_players`.
+Every unmet island/streak/VIP gate is listed in `message` (required value
+and the farm's stored value when the snapshot has it). Unreadable
+snapshot fields name which gate could not be read. Optional `details`
+repeats those gates:
+
+```json
+{
+  "error": "VALIDATION_ERROR",
+  "message": "farm does not meet the join requirements: minimum bumpkin island desert (farm is spring); minimum digging streak 3 (farm is 1); VIP required (farm is not VIP)",
+  "details": [
+    {
+      "gate": "min_bumpkin_island",
+      "required": "desert",
+      "farm": "spring",
+      "readable": true
+    },
+    {
+      "gate": "min_digging_streak",
+      "required": 3,
+      "farm": 1,
+      "readable": true
+    },
+    {
+      "gate": "vip_required",
+      "required": true,
+      "farm": false,
+      "readable": true
+    }
+  ]
+}
+```
+
 Pending joins do not occupy a cap slot. Admin force-add and approve are
 not blocked by the public cap or island/streak/VIP gates. `409` if that
 `(farm_id, tournament_id)` pair is already pending or enrolled.

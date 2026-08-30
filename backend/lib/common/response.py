@@ -7,7 +7,6 @@ import json
 import os
 from typing import Any
 
-
 ALLOWED_ORIGIN_ENV_VAR = "ALLOWED_ORIGIN"
 ALLOWED_ORIGINS_ENV_VAR = "ALLOWED_ORIGINS"
 _current_request_origin = ""
@@ -58,6 +57,10 @@ def create_error_response(
     status_code: int,
     message: str,
     code: str = "ERROR",
+    details: Any | None = None,
 ) -> dict[str, Any]:
-    """Build a standard error response: {error, message}."""
-    return create_response(status_code, {"error": code, "message": message})
+    """Build a standard error response: {error, message} and optional details."""
+    body: dict[str, Any] = {"error": code, "message": message}
+    if details is not None:
+        body["details"] = details
+    return create_response(status_code, body)

@@ -151,24 +151,21 @@ textarea {
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: var(--gold-dim);
+  background: #11100e;
   border: 1px solid var(--gold);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.brand-mark span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--gold);
-  box-shadow: inset 0 -1px 0 #4a3a22;
-}
-
-.brand-mark span:nth-child(2) {
-  transform: translateY(2px);
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  image-rendering: pixelated;
 }
 
 .brand h1 {
@@ -1516,6 +1513,28 @@ a.live-board-open:focus-visible .kicker {
 
 .admin-sync-toolbar {
   margin-top: 28px;
+}
+
+.loading-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+  pointer-events: none;
+}
+
+.loading-popup-card {
+  background: var(--panel);
+  color: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
 }
 
 .confirm-overlay,

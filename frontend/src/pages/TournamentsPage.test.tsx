@@ -31,7 +31,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
-import { clearFarmIdentity, writeFarmIdentity } from "../lib/followFarm";
+import { addRequestedTournamentId, clearFarmIdentity, writeFarmIdentity } from "../lib/followFarm";
 import {
   displayPrizePlaces,
   isLongRewardText,
@@ -277,9 +277,9 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="tourney-participants-soon"]')?.textContent).toMatch(
       /Joined\s*6/,
     );
-    expect(page.querySelector('[data-testid="tourney-participants-soon"]')?.textContent).not.toMatch(
-      /None/,
-    );
+    expect(
+      page.querySelector('[data-testid="tourney-participants-soon"]')?.textContent,
+    ).not.toMatch(/None/);
     expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(/6/);
     expect(ended?.textContent).toMatch(/30 Flower/);
     expect(ongoing?.textContent).not.toMatch(/Old cup/);
@@ -352,7 +352,9 @@ describe("TournamentsPage", () => {
 
   it("gives catalog windows a lighter cream hairline than the dim --line token", () => {
     const css = shippedCss();
-    const token = css.match(/--window-line:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0\.\d+)\s*\)/);
+    const token = css.match(
+      /--window-line:\s*rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(0\.\d+)\s*\)/,
+    );
     expect(token).not.toBeNull();
     expect(Number(token![4])).toBeGreaterThanOrEqual(0.3);
     expect(Number(token![4])).toBeLessThanOrEqual(0.5);
@@ -1029,6 +1031,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
     expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
   });
 
   it("hides join when the API already has a pending membership", async () => {
@@ -1063,6 +1066,7 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="join-waiting"]')?.textContent).toMatch(
       /waiting for admin approval/i,
     );
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
   });
 
   it("hides join after a pending request even if the detail remounts", async () => {
@@ -1186,6 +1190,8 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Joining as/);
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
+    expect(page.querySelector('[data-testid="join-notice"]')?.textContent).toMatch(/You're in/);
   });
 
   it("does not offer join submit until a farm is connected", async () => {
@@ -1266,5 +1272,121 @@ describe("TournamentsPage", () => {
     fetchTournament.mockResolvedValue(archive(past, []));
     const page = await renderAt("/tournaments/past");
     expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
+  });
+
+  it("shows accepted when membership is enrolled even if the farm is not on the board", async () => {
+    const next = summary({
+      tournament_id: "next",
+      name: "Confirm cup",
+      status: "scheduled",
+      join_mode: "confirm",
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(next, []),
+      config: { ...archive(next, []).config, join_mode: "confirm" },
+    });
+    addRequestedTournamentId("3666918801844311", "next");
+    fetchFarmMemberships.mockResolvedValue({
+      memberships: [
+        {
+          farm_id: "3666918801844311",
+          name: "rmr",
+          tournament_id: "next",
+          submitted_at: "2026-08-16T12:00:00.000Z",
+          status: "enrolled",
+        },
+      ],
+      count: 1,
+    });
+    const page = await renderAt("/tournaments/next");
+    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
+    expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
+    expect(page.textContent).not.toMatch(/waiting for admin approval/i);
+  });
+
+  it("lists each unmet join gate with required vs farm values", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Gated cup",
+      status: "active",
+      join_mode: "auto",
+      min_bumpkin_island: "desert",
+      min_digging_streak: 3,
+      vip_required: true,
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    submitFarm.mockRejectedValue(
+      new Error(
+        "farm does not meet the join requirements: minimum bumpkin island desert (farm is spring); minimum digging streak 3 (farm is 1); VIP required (farm is not VIP)",
+      ),
+    );
+    const page = await renderAt("/tournaments/live");
+    act(() => {
+      (page.querySelector('[data-testid="join-tournament"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    const unmet = page.querySelector('[data-testid="join-unmet"]')?.textContent ?? "";
+    expect(unmet).toMatch(/minimum bumpkin island desert \(farm is spring\)/);
+    expect(unmet).toMatch(/minimum digging streak 3 \(farm is 1\)/);
+    expect(unmet).toMatch(/VIP required \(farm is not VIP\)/);
+    expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
+  });
+
+  it("shows a small loading popup while tournament detail is loading", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Open cup",
+      status: "active",
+      join_mode: "auto",
+    });
+    fetchTournament.mockImplementation(() => new Promise(() => undefined));
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="loading-popup"]')?.textContent).toMatch(
+      /Loading tournament/,
+    );
+  });
+
+  it("shows a small loading popup while join is pending and closes it when join finishes", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "Open cup",
+      status: "active",
+      join_mode: "auto",
+    });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const result = {
+      submissions: [
+        {
+          farm_id: "3666918801844311",
+          name: "rmr",
+          tournament_id: "live",
+          status: "enrolled",
+        },
+      ],
+      count: 1,
+    };
+    let resolveJoin: (value: typeof result) => void = () => undefined;
+    const joinPromise = new Promise<typeof result>((resolve) => {
+      resolveJoin = resolve;
+    });
+    submitFarm.mockImplementation(() => joinPromise);
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="loading-popup"]')).toBeNull();
+    act(() => {
+      (page.querySelector('[data-testid="join-tournament"]') as HTMLButtonElement).click();
+    });
+    expect(page.querySelector('[data-testid="loading-popup"]')?.textContent).toMatch(
+      /Joining tournament/,
+    );
+    await act(async () => {
+      resolveJoin(result);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(page.querySelector('[data-testid="loading-popup"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
   });
 });

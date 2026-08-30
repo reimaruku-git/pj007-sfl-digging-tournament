@@ -61,7 +61,9 @@ function AdminHeaderActionsProvider({ children }: { children: ReactNode }) {
   }, []);
   const value = useMemo(() => ({ actions, setActions }), [actions, setActions]);
   return (
-    <AdminHeaderActionsContext.Provider value={value}>{children}</AdminHeaderActionsContext.Provider>
+    <AdminHeaderActionsContext.Provider value={value}>
+      {children}
+    </AdminHeaderActionsContext.Provider>
   );
 }
 
@@ -92,9 +94,7 @@ function SiteBrand({ testId }: { testId: string }) {
   return (
     <Link to="/" className="brand" data-testid={testId}>
       <div className="brand-mark" aria-hidden>
-        <span />
-        <span />
-        <span />
+        <img src="/shovel.png" alt="" />
       </div>
       <div>
         <h1>Bumpkin Clash: Digging</h1>
@@ -428,7 +428,9 @@ function AdminHeader() {
           )}
         </div>
       </div>
-      {onSignOut ? <AdminSlogansPanel open={slogansOpen} onClose={() => setSlogansOpen(false)} /> : null}
+      {onSignOut ? (
+        <AdminSlogansPanel open={slogansOpen} onClose={() => setSlogansOpen(false)} />
+      ) : null}
       {onSignOut ? (
         <IdentifiedFarmsPanel open={identitiesOpen} onClose={() => setIdentitiesOpen(false)} />
       ) : null}

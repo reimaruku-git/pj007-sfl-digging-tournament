@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,6 +11,7 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { DownloadBoardButton } from "../components/DownloadBoardButton";
+import { useActivity } from "../components/LoadingPopup";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
@@ -307,6 +308,7 @@ function CatalogWindow({
 
 function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   const { identity } = useFarmSession();
+  const { setLabel } = useActivity();
   const queryClient = useQueryClient();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from;
@@ -360,35 +362,45 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   );
   const alreadyMember = Boolean(
     identity &&
-      memberships.data?.memberships.some(
-        (row) =>
-          row.tournament_id === tournamentId &&
-          (row.status === "pending" || row.status === "enrolled"),
-      ),
+    memberships.data?.memberships.some(
+      (row) =>
+        row.tournament_id === tournamentId &&
+        (row.status === "pending" || row.status === "enrolled"),
+    ),
   );
   const pendingMembership = Boolean(
     identity &&
-      memberships.data?.memberships.some(
-        (row) => row.tournament_id === tournamentId && row.status === "pending",
-      ),
+    memberships.data?.memberships.some(
+      (row) => row.tournament_id === tournamentId && row.status === "pending",
+    ),
   );
-  const joinEnrolled = Boolean(
-    join.data?.submissions.some((item) => item.status === "enrolled"),
+  const enrolledMembership = Boolean(
+    identity &&
+    memberships.data?.memberships.some(
+      (row) => row.tournament_id === tournamentId && row.status === "enrolled",
+    ),
   );
+  const joinEnrolled = Boolean(join.data?.submissions.some((item) => item.status === "enrolled"));
+  const accepted = Boolean(alreadyEnrolled || joinEnrolled || enrolledMembership);
   const waitingApproval = Boolean(
     identity &&
-      !alreadyEnrolled &&
-      !joinEnrolled &&
-      (pendingMembership || alreadyRequested || (join.isSuccess && !joinEnrolled)),
+    !accepted &&
+    (pendingMembership || alreadyRequested || (join.isSuccess && !joinEnrolled)),
   );
   const showJoinCta =
     joinable &&
     Boolean(identity) &&
-    !alreadyEnrolled &&
+    !accepted &&
     !alreadyRequested &&
     !alreadyMember &&
     !join.isSuccess &&
     !memberships.isLoading;
+  useEffect(() => {
+    if (join.isPending) setLabel("Joining tournament…");
+    else if (query.isLoading || memberships.isLoading) setLabel("Loading tournament…");
+    else setLabel(null);
+    return () => setLabel(null);
+  }, [join.isPending, query.isLoading, memberships.isLoading, setLabel]);
   return (
     <section className="page-inner tournament-detail" data-testid="tournament-detail">
       <div className="detail-chrome">
@@ -545,7 +557,17 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             </div>
           ) : null}
           {joinable && identity && notice ? (
-            <div className={`flash ${join.isSuccess ? "ok" : "err"}`}>{notice}</div>
+            <div
+              className={`flash ${join.isSuccess ? "ok" : "err"}`}
+              data-testid={join.isSuccess ? "join-notice" : "join-unmet"}
+            >
+              {notice}
+            </div>
+          ) : null}
+          {accepted ? (
+            <p className="meta join-hint" data-testid="join-accepted">
+              You've been accepted into this tournament.
+            </p>
           ) : null}
           {waitingApproval ? (
             <p className="meta join-hint" data-testid="join-waiting">

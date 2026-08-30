@@ -23,21 +23,22 @@ JOINABLE_STATUSES = {STATUS_SCHEDULED, STATUS_ACTIVE}
 FIRST_DAY_JOIN_CLOSE_HOUR_UTC = 22
 FIRST_DAY_JOIN_CLOSE_MINUTE_UTC = 30
 JOIN_CLOSED_MESSAGE = "join closed after 22:30 UTC on the first day"
-ISLAND_TOO_LOW_MESSAGE = "farm does not meet the minimum bumpkin island"
-ISLAND_UNREADABLE_MESSAGE = "bumpkin island could not be read"
-STREAK_TOO_LOW_MESSAGE = "farm does not meet the minimum digging streak"
-STREAK_UNREADABLE_MESSAGE = "digging streak could not be read"
-VIP_REQUIRED_MESSAGE = "farm does not have VIP"
-VIP_UNREADABLE_MESSAGE = "VIP status could not be read"
 TOURNAMENT_FULL_MESSAGE = "tournament is full"
 
 
 class MembershipError(Exception):
-    def __init__(self, message: str, code: str = "VALIDATION_ERROR", status: int = 400):
+    def __init__(
+        self,
+        message: str,
+        code: str = "VALIDATION_ERROR",
+        status: int = 400,
+        details: Any | None = None,
+    ):
         super().__init__(message)
         self.message = message
         self.code = code
         self.status = status
+        self.details = details
 
 
 def public_member(row: dict[str, Any]) -> dict[str, Any]:
@@ -201,6 +202,21 @@ def stored_farm_snapshot(store: Store, farm_id: str) -> dict[str, Any] | None:
     return snapshot if isinstance(snapshot, dict) else None
 
 
+def _join_gate_line(label: str, required: Any, farm: Any, *, readable: bool) -> str:
+    if not readable:
+        return f"{label} {required} (could not be read)"
+    return f"{label} {required} (farm is {farm})"
+
+
+def _raise_join_gate_failures(lines: list[str], details: list[dict[str, Any]]) -> None:
+    if not lines:
+        return
+    raise MembershipError(
+        "farm does not meet the join requirements: " + "; ".join(lines),
+        details=details,
+    )
+
+
 def enforce_public_join_gates(store: Store, farm_id: str, settings: dict[str, Any]) -> None:
     min_island = settings.get("min_bumpkin_island")
     min_streak = settings.get("min_digging_streak")
@@ -208,32 +224,90 @@ def enforce_public_join_gates(store: Store, farm_id: str, settings: dict[str, An
     if min_island is None and min_streak is None and not vip_required:
         return
     snapshot = stored_farm_snapshot(store, farm_id)
+    lines: list[str] = []
+    details: list[dict[str, Any]] = []
+
+    def add(gate: str, required: Any, farm: Any, *, readable: bool, label: str) -> None:
+        farm_text = farm if readable else None
+        details.append(
+            {"gate": gate, "required": required, "farm": farm_text, "readable": readable}
+        )
+        if gate == "vip_required":
+            if not readable:
+                lines.append("VIP required (could not be read)")
+            else:
+                lines.append("VIP required (farm is not VIP)")
+            return
+        lines.append(_join_gate_line(label, required, farm, readable=readable))
+
     if snapshot is None:
         if min_island is not None:
-            raise MembershipError(ISLAND_UNREADABLE_MESSAGE)
+            add(
+                "min_bumpkin_island",
+                min_island,
+                None,
+                readable=False,
+                label="minimum bumpkin island",
+            )
         if min_streak is not None:
-            raise MembershipError(STREAK_UNREADABLE_MESSAGE)
-        raise MembershipError(VIP_UNREADABLE_MESSAGE)
+            add(
+                "min_digging_streak",
+                min_streak,
+                None,
+                readable=False,
+                label="minimum digging streak",
+            )
+        if vip_required:
+            add("vip_required", True, None, readable=False, label="VIP required")
+        _raise_join_gate_failures(lines, details)
+        return
 
     if min_island is not None:
         island = snapshot.get("island")
         if island in (None, ""):
-            raise MembershipError(ISLAND_UNREADABLE_MESSAGE)
-        if not island_meets_minimum(island, min_island):
-            raise MembershipError(ISLAND_TOO_LOW_MESSAGE)
+            add(
+                "min_bumpkin_island",
+                min_island,
+                None,
+                readable=False,
+                label="minimum bumpkin island",
+            )
+        elif not island_meets_minimum(island, min_island):
+            add(
+                "min_bumpkin_island",
+                min_island,
+                island,
+                readable=True,
+                label="minimum bumpkin island",
+            )
 
     if min_streak is not None:
         if "digging_streak" not in snapshot and "streak" not in snapshot:
-            raise MembershipError(STREAK_UNREADABLE_MESSAGE)
-        streak = extract_streak(snapshot)["count"]
-        if streak < int(min_streak):
-            raise MembershipError(STREAK_TOO_LOW_MESSAGE)
+            add(
+                "min_digging_streak",
+                min_streak,
+                None,
+                readable=False,
+                label="minimum digging streak",
+            )
+        else:
+            streak = extract_streak(snapshot)["count"]
+            if streak < int(min_streak):
+                add(
+                    "min_digging_streak",
+                    min_streak,
+                    streak,
+                    readable=True,
+                    label="minimum digging streak",
+                )
 
     if vip_required:
         if "vip" not in snapshot:
-            raise MembershipError(VIP_UNREADABLE_MESSAGE)
-        if not snapshot.get("vip"):
-            raise MembershipError(VIP_REQUIRED_MESSAGE)
+            add("vip_required", True, None, readable=False, label="VIP required")
+        elif not snapshot.get("vip"):
+            add("vip_required", True, False, readable=True, label="VIP required")
+
+    _raise_join_gate_failures(lines, details)
 
 
 def enroll_member(

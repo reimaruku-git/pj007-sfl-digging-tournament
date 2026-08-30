@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { ActivityProvider } from "../components/LoadingPopup";
 import {
   clearFarmIdentity,
   readFarmIdentity,
@@ -32,7 +33,11 @@ export function FarmSessionProvider({ children }: { children: React.ReactNode })
     [identity, setIdentity, disconnect],
   );
 
-  return <FarmSessionContext.Provider value={value}>{children}</FarmSessionContext.Provider>;
+  return (
+    <FarmSessionContext.Provider value={value}>
+      <ActivityProvider>{children}</ActivityProvider>
+    </FarmSessionContext.Provider>
+  );
 }
 
 export function useFarmSession(): FarmSessionValue {

@@ -425,7 +425,7 @@ def _catalog_error(exc: CatalogError) -> dict[str, Any]:
 
 
 def _membership_error(exc: MembershipError) -> dict[str, Any]:
-    return create_error_response(exc.status, exc.message, exc.code)
+    return create_error_response(exc.status, exc.message, exc.code, details=exc.details)
 
 
 def handle_admin_list_tournaments(_event: dict[str, Any]) -> dict[str, Any]:

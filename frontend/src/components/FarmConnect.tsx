@@ -1,9 +1,11 @@
 import { FormEvent, useState } from "react";
 import { identifyFarm } from "../api/public";
 import { useFarmSession } from "../lib/farmSession";
+import { useActivity } from "./LoadingPopup";
 
 export function FarmConnect() {
   const { identity, setIdentity } = useFarmSession();
+  const { setLabel } = useActivity();
   const [farmId, setFarmId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -14,6 +16,7 @@ export function FarmConnect() {
     event.preventDefault();
     setError(null);
     setBusy(true);
+    setLabel("Connecting farm…");
     try {
       const next = await identifyFarm(farmId.trim());
       setIdentity({ farm_id: next.farm_id, name: next.name });
@@ -22,6 +25,7 @@ export function FarmConnect() {
       setError((err as Error).message);
     } finally {
       setBusy(false);
+      setLabel(null);
     }
   }
 

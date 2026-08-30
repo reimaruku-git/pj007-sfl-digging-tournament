@@ -675,6 +675,51 @@ def test_island_streak_vip_gates_on_public_join(aws_env, monkeypatch, live_join_
     assert _json(ok)["submissions"][0]["status"] == "pending"
 
 
+def test_join_lists_every_unmet_island_streak_and_vip_gate(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Gated cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        min_bumpkin_island="desert",
+        min_digging_streak=3,
+        vip_required=True,
+    )
+    _write_profile(app, "5555555555555555", island="basic", vip=False, digging_streak=1)
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "5555555555555555",
+                "name": "low",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert response["statusCode"] == 400
+    body = _json(response)
+    assert body["error"] == "VALIDATION_ERROR"
+    message = body["message"]
+    assert "minimum bumpkin island desert (farm is basic)" in message
+    assert "minimum digging streak 3 (farm is 1)" in message
+    assert "VIP required (farm is not VIP)" in message
+    gates = {item["gate"]: item for item in body["details"]}
+    assert gates["min_bumpkin_island"] == {
+        "gate": "min_bumpkin_island",
+        "required": "desert",
+        "farm": "basic",
+        "readable": True,
+    }
+    assert gates["min_digging_streak"]["required"] == 3
+    assert gates["min_digging_streak"]["farm"] == 1
+    assert gates["vip_required"]["required"] is True
+    assert gates["vip_required"]["farm"] is False
+
+
 def test_join_gates_fail_closed_when_snapshot_unread(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
@@ -703,6 +748,15 @@ def test_join_gates_fail_closed_when_snapshot_unread(aws_env, monkeypatch, live_
     body = _json(missing)
     assert body["error"] == "VALIDATION_ERROR"
     assert "could not be read" in body["message"]
+    assert "minimum bumpkin island basic (could not be read)" in body["message"]
+    assert "minimum digging streak 1 (could not be read)" in body["message"]
+    assert "VIP required (could not be read)" in body["message"]
+    assert {item["gate"] for item in body["details"]} == {
+        "min_bumpkin_island",
+        "min_digging_streak",
+        "vip_required",
+    }
+    assert all(item["readable"] is False for item in body["details"])
 
 
 def test_admin_force_add_ignores_public_cap_and_level(aws_env, monkeypatch, live_join_open):
