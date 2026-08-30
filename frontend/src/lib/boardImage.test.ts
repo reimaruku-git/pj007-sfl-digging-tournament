@@ -116,6 +116,20 @@ describe("buildBoardImageModel", () => {
     expect(model.filename).toBe("creators-digging-tournament-top-10.png");
   });
 
+  it("keeps a text prize pool without a Flower suffix on the board image", () => {
+    const model = buildBoardImageModel({
+      name: "NFT pack cup",
+      start_at: "2026-08-17T00:00:00.000Z",
+      end_at: "2026-08-24T00:00:00.000Z",
+      duration_days: 7,
+      prize_amount: "3x Rare Key",
+      entries: [entry({ farm_id: "1", rank: 1, score: 10, name: "Ada" })],
+    });
+    expect(model.subtitle).toMatch(/3x Rare Key/);
+    expect(model.subtitle).not.toMatch(/3x Rare Key Flower/);
+    expect(model.subtitle).not.toMatch(/\$Flower/);
+  });
+
   it("falls back for missing names, scores, and pebbles", () => {
     const model = buildBoardImageModel({
       name: "",

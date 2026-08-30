@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   addRequestedTournamentId,
   clearFarmIdentity,
+  clearRequestedTournamentId,
   hasRequestedTournament,
   readFarmIdentity,
   readFollowedFarm,
@@ -41,6 +42,9 @@ describe("followFarm", () => {
     expect(hasRequestedTournament("99", "next")).toBe(false);
     addRequestedTournamentId("99", "other");
     expect(readRequestedTournamentIds("3666918801844311")).toEqual(["next"]);
+    expect(hasRequestedTournament("99", "other")).toBe(true);
+    clearRequestedTournamentId("3666918801844311", "next");
+    expect(hasRequestedTournament("3666918801844311", "next")).toBe(false);
     expect(hasRequestedTournament("99", "other")).toBe(true);
   });
 });

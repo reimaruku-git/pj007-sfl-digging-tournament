@@ -1,5 +1,5 @@
 import type { LeaderboardEntry } from "../api/public";
-import { formatDateRangeUtc, formatScore } from "./format";
+import { formatDateRangeUtc, formatPrizeAmount, formatScore } from "./format";
 
 export const BOARD_IMAGE_LIMIT = 10;
 export const BOARD_IMAGE_WIDTH = 1200;
@@ -69,7 +69,7 @@ export function boardImageSize(rowCount: number): { width: number; height: numbe
 export function buildBoardImageModel(input: BoardImageInput): BoardImageModel {
   const title = input.name.trim() || "Tournament";
   const window = formatDateRangeUtc(input.start_at, input.end_at, input.duration_days);
-  const prize = input.prize_amount ? `${input.prize_amount} Flower` : "";
+  const prize = formatPrizeAmount(input.prize_amount, { unit: "flower" }) || "";
   const ranked = [...input.entries].sort((a, b) => (a.rank ?? 9999) - (b.rank ?? 9999));
   const rows = ranked.slice(0, BOARD_IMAGE_LIMIT).map((row) => ({
     rank: row.rank == null ? "—" : String(row.rank),

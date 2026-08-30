@@ -585,3 +585,34 @@ def test_http_create_inclusive_window_and_event_settings(aws_env, monkeypatch):
     )
     assert bad["statusCode"] == 400
     assert json.loads(bad["body"])["error"] == "VALIDATION_ERROR"
+
+
+def test_nft_giveaway_accepts_a_text_prize_pool(aws_env, monkeypatch):
+    clock = datetime(2026, 8, 23, 12, tzinfo=timezone.utc)
+    monkeypatch.setattr("tournament.catalog._clock", lambda now=None: now or clock)
+    app = _load_http(aws_env, monkeypatch)
+    created = app.lambda_handler(
+        _http(
+            "POST",
+            "/admin/tournaments",
+            {
+                "name": "NFT pack cup",
+                "start_at": "2026-09-01T00:00:00+00:00",
+                "duration_days": 7,
+                "prize_amount": "3x Rare Key",
+                "nft_giveaway": True,
+            },
+        ),
+        None,
+    )
+    assert created["statusCode"] == 201, created
+    row = json.loads(created["body"])["tournament"]
+    assert row["prize_amount"] == "3x Rare Key"
+    assert row["nft_giveaway"] is True
+    listed = app.lambda_handler(_http("GET", "/tournaments"), None)
+    found = next(
+        item
+        for item in json.loads(listed["body"])["tournaments"]
+        if item["tournament_id"] == row["tournament_id"]
+    )
+    assert found["prize_amount"] == "3x Rare Key"

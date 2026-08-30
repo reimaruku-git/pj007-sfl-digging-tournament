@@ -17,9 +17,11 @@ import {
 import {
   formatDateRangeUtc,
   formatDetailDateRangeUtc,
+  formatPrizeAmount,
   inclusiveCalendarDays,
   inclusiveFinalDayIso,
   isoToDateInput,
+  isNumericPrizeAmount,
   joinedCountLabel,
 } from "../lib/format";
 
@@ -181,6 +183,10 @@ export function AdminTournaments({
       return row;
     });
     if (!draft.nft_giveaway && prizePlaces.length > 0) {
+      if (!isNumericPrizeAmount(prizeAmount)) {
+        setError("Winner Flower prizes must sum to a numeric prize pool.");
+        return;
+      }
       const sum = prizePlaces.reduce((total, item) => total + Number(item.amount || 0), 0);
       if (sum !== Number(prizeAmount)) {
         setError("Winner Flower prizes must sum to the prize pool.");
@@ -523,6 +529,7 @@ export function AdminTournaments({
                   data-testid="prize-pool"
                   value={draft.prize_amount}
                   onChange={(event) => setDraft({ ...draft, prize_amount: event.target.value })}
+                  placeholder={draft.nft_giveaway ? "Flower amount or text" : "30"}
                 />
               </label>
               <label className="nft-toggle">
@@ -738,6 +745,8 @@ function AdminTourneyCard({
   onDelete?: (row: TournamentSummary) => void | Promise<void>;
   onFeature?: (id: string | null) => Promise<void>;
 }) {
+  const poolLabel =
+    formatPrizeAmount(row.prize_amount, { unit: "flower" }) || row.prize_amount.trim();
   return (
     <article
       className={selectedId === row.tournament_id ? "tourney-card is-open" : "tourney-card"}
@@ -751,8 +760,8 @@ function AdminTourneyCard({
       >
         <div className="tourney-card-name">{row.name || "Untitled tournament"}</div>
         <div className="tourney-card-meta">
-          {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)} · {row.prize_amount}{" "}
-          Flower
+          {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
+          {poolLabel ? ` · ${poolLabel}` : ""}
           {row.min_bumpkin_island ? ` · ${islandLabel(row.min_bumpkin_island)}` : ""}
           {row.max_players ? ` · max ${row.max_players}` : ""}
           {` · ${row.join_mode === "auto" ? "Auto join" : "Must confirm"}`}
@@ -761,8 +770,11 @@ function AdminTourneyCard({
         {row.description ? <p className="tourney-card-desc">{row.description}</p> : null}
         {row.prize_places && row.prize_places.length > 0 ? (
           <p className="tourney-card-desc" data-testid={`admin-prizes-${row.tournament_id}`}>
-            {row.prize_places.map((item) => `${placeLabel(item.place)} ${item.amount}`).join(" · ")}{" "}
-            Flower
+            {row.prize_places.map((item) => {
+              const flower = formatPrizeAmount(item.amount, { unit: "flower" });
+              const nft = item.nft_name?.trim();
+              return [placeLabel(item.place), flower, nft].filter(Boolean).join(" ");
+            }).join(" · ")}
           </p>
         ) : null}
       </button>
@@ -982,12 +994,15 @@ function PendingJoinReview({
     tournament?.prize_places && tournament.prize_places.length > 0
       ? tournament.prize_places
           .map((item) => {
-            const flower = `${placeLabel(item.place)} ${item.amount} Flower`;
-            return item.nft_name ? `${flower} · ${item.nft_name}` : flower;
+            const flower = formatPrizeAmount(item.amount, { unit: "flower" });
+            const nft = item.nft_name?.trim();
+            const head = [placeLabel(item.place), flower].filter(Boolean).join(" ");
+            return nft ? `${head} · ${nft}` : head;
           })
           .join(" · ")
       : tournament
-        ? `${tournament.prize_amount} Flower`
+        ? formatPrizeAmount(tournament.prize_amount, { unit: "flower" }) ||
+          tournament.prize_amount
         : "";
 
   return (

@@ -15,6 +15,7 @@ import {
   inclusiveFinalDayIso,
   isoToDateInput,
   isZeroFlowerAmount,
+  formatPrizeAmount,
   opensLabel,
   remainingLabel,
   utcCalendarDaysUntil,
@@ -115,6 +116,19 @@ describe("isZeroFlowerAmount", () => {
     expect(isZeroFlowerAmount("30")).toBe(false);
     expect(isZeroFlowerAmount("0.1")).toBe(false);
     expect(isZeroFlowerAmount("")).toBe(false);
+    expect(isZeroFlowerAmount("Rare Key")).toBe(false);
+  });
+});
+
+describe("formatPrizeAmount", () => {
+  it("appends Flower only for numeric amounts", () => {
+    expect(formatPrizeAmount("30")).toBe("30 $Flower");
+    expect(formatPrizeAmount("100", { unit: "flower" })).toBe("100 Flower");
+    expect(formatPrizeAmount("0")).toBeNull();
+    expect(formatPrizeAmount("0", { omitZero: false })).toBe("0 $Flower");
+    expect(formatPrizeAmount("Rare Key pack")).toBe("Rare Key pack");
+    expect(formatPrizeAmount("3x Golden Shovel", { unit: "flower" })).toBe("3x Golden Shovel");
+    expect(formatPrizeAmount("")).toBeNull();
   });
 });
 
@@ -198,6 +212,10 @@ describe("formatTopPrize", () => {
         { place: 1, amount: "50", nft_name: "Golden Shovel" },
       ]),
     ).toBe("50 $Flower · Golden Shovel");
+    expect(formatTopPrize("Rare Key pack")).toBe("Rare Key pack");
+    expect(
+      formatTopPrize("NFT drop", [{ place: 1, amount: "0", nft_name: "Rare Key" }]),
+    ).toBe("Rare Key");
   });
 });
 

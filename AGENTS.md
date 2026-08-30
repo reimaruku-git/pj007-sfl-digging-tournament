@@ -18,6 +18,11 @@ waiting to be asked. House commit rules still apply (message, stage by
 path, no secrets). Do not push mid-task, `temp/`, or `.env`. This file
 wins over the commit skill’s “do not push unless asked.”
 
+**Merge to main** (prd deploy): when the user says **merge to main** /
+**do merge to main**, after testing on `dev`, open a PR from `dev` to
+`main` and merge it so GitHub Actions deploys prd. Do not skip the PR
+or laptop-deploy prd.
+
 ---
 
 ## What this is
@@ -266,7 +271,9 @@ Canonical: `backend/lib/tournament/scoring.py` +
   once from SFL (Main Lambda, secrets-bucket keys) so a farm that is not
   yet enrolled still has a live profile. Already-enrolled farms and
   stored day scores stay.
-- Default prize is `"30"` Flower (JSON **string**). Min period **1 day**.
+- Default prize is `"30"` (JSON **string**). A numeric string is Flower
+  (UI appends `$Flower`); non-numeric text is shown as-is, which is
+  how NFT giveaway pools are labeled. Min period **1 day**.
   Admin creates named tournaments (`POST /admin/tournaments`) with from/to
   or start + `duration_days`. Empty catalog is valid — do not invent a
   default Active window. Admin can create, edit (including live duration),
@@ -314,7 +321,7 @@ Rules that bite here:
 - `create_response` / `create_error_response` only. No hand-built API GW dicts.
 - Errors: `{ "error": "SCREAMING_SNAKE", "message": "…" }`.
 - Lists: named collection + `count` (`farms`, `entries`, `submissions`).
-- Money (`prize_amount`) is a JSON **string**.
+- Money (`prize_amount`) is a JSON **string** (Flower number or free text).
 - Time is ISO-8601 UTC.
 - `VITE_API_BASE` is required. **No hardcoded production fallback.**
 - Paths to `requestJson` have **no** leading slash (`leaderboard`, not `/leaderboard`).
@@ -503,7 +510,8 @@ and our API — it must not POST `/submissions` or call SFL.
 2. HTTP changes → `backend/docs/API_DOCUMENTATION.md` in the same diff.
 3. Scoring changes → `scoring.py` + unit tests together.
 4. Deploy → push `dev` when the change is done. Do not wait to be asked.
-   Do not improvise a second pipeline.
+   Do not improvise a second pipeline. **Merge to main** means: after
+   testing on `dev`, PR `dev` → `main` and merge so prd deploys.
 5. Auth → Cognito ID token on `/admin/*` only. Public stays public.
 6. After a change: run the tests that belong with it and glance at the
    diff. Launch `/workflow pj007-review` or `pj007-live-check` only if
