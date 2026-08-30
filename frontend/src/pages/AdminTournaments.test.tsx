@@ -857,4 +857,59 @@ describe("AdminTournaments", () => {
     expect(css).toMatch(/\.admin-tourney-home\s+\.tourney-group\s*\{[^}]*flex:\s*none/s);
     expect(css).toMatch(/\.admin-tourney-home\s+\.tourney-empty\s*\{[^}]*padding:/s);
   });
+
+  it("saves a text prize pool when NFTs are given away", async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const { container } = render([], { onCreate });
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    const setValue = (selector: string, value: string) => {
+      const input = container.querySelector(selector) as HTMLInputElement;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+      setter?.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    setValue('input[placeholder="Late August Otter Cup"]', "NFT pack cup");
+    setValue('[data-testid="start-date"]', "2026-08-23");
+    setValue('[data-testid="end-date"]', "2026-08-30");
+    act(() => {
+      const nft = container.querySelector('[data-testid="nft-giveaway"]') as HTMLInputElement;
+      nft.click();
+    });
+    setValue('[data-testid="prize-pool"]', "3x Rare Key");
+    await act(async () => {
+      const save = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Create tournament",
+      );
+      save?.click();
+    });
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "NFT pack cup",
+        prize_amount: "3x Rare Key",
+        nft_giveaway: true,
+      }),
+    );
+  });
+
+  it("does not suffix Flower on a text prize pool", () => {
+    const { container } = render([
+      row({
+        tournament_id: "live",
+        name: "NFT pack cup",
+        status: "active",
+        prize_amount: "3x Rare Key",
+        nft_giveaway: true,
+      }),
+    ]);
+    const meta =
+      container.querySelector('[data-testid="admin-card-live"]')?.textContent ?? "";
+    expect(meta).toMatch(/3x Rare Key/);
+    expect(meta).not.toMatch(/3x Rare Key Flower/);
+  });
 });

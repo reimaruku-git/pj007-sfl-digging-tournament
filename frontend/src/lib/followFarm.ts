@@ -111,6 +111,21 @@ export function addRequestedTournamentId(farmId: string, tournamentId: string): 
   }
 }
 
+export function clearRequestedTournamentId(farmId: string, tournamentId: string): void {
+  const id = farmId.trim();
+  const tid = tournamentId.trim();
+  if (!id || !tid) return;
+  try {
+    const map = readRequestedMap();
+    const current = (map[id] ?? []).filter((item) => item !== tid);
+    if (current.length) map[id] = current;
+    else delete map[id];
+    localStorage.setItem(REQUESTED_KEY, JSON.stringify(map));
+  } catch {
+    /* private mode */
+  }
+}
+
 export function hasRequestedTournament(farmId: string, tournamentId: string): boolean {
   return readRequestedTournamentIds(farmId).includes(tournamentId.trim());
 }

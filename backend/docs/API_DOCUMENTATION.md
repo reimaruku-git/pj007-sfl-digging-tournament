@@ -504,6 +504,9 @@ not be read. Optional `details` repeats those gates:
 Pending joins do not occupy a cap slot. Admin force-add and approve are
 not blocked by the public cap or island/streak/VIP gates. `409` if that
 `(farm_id, tournament_id)` pair is already pending or enrolled.
+Admin unenroll deletes that membership, so the farm may join again
+while the event still accepts public registration (auto enrolls;
+must-confirm goes pending until approve).
 Approving tournament A does not enroll the farm in tournament B.
 Already-enrolled farms are not dropped when the join window closes.
 
@@ -754,7 +757,8 @@ still matches a row. An empty list is allowed.
 
 Minimum duration is 1 day. Prefer `duration_days` (1, 7, or 30 are the
 usual lengths); `end_at` is derived as `start_at + duration_days`.
-`end_at` is still accepted. `prize_amount` is a JSON string.
+`end_at` is still accepted. `prize_amount` is a JSON string: a numeric
+Flower amount (UI shows `$Flower`) or free-text prize label.
 
 Changing start/length archives the previous event to S3 first. After a
 successful write the handler re-scores farms that have snapshots.
@@ -827,10 +831,11 @@ Omitted extras keep today's defaults: `min_bumpkin_island` /
 `min_digging_streak` / `max_players` null (no gate), `vip_required`
 false, `join_mode` `"confirm"` (pending until admin approve), empty
 `description`, empty `prize_places`, `nft_giveaway` false. `prize_amount`
-is the prize-pool Flower string. Flower-only `prize_places` amounts
-must sum to `prize_amount` (`400` otherwise). When `nft_giveaway` is
-true, each place may include `nft_name` and Flower amounts need not
-sum. `join_mode` is `auto` or `confirm`. `min_bumpkin_island` is
+is a JSON string: a Flower number (`"80"`) or free text (`"3x Rare Key"`)
+when the pool is not Flower. Flower-only `prize_places` amounts
+must sum to a numeric `prize_amount` (`400` otherwise). When `nft_giveaway` is
+true, each place may include `nft_name`, Flower amounts need not
+sum, and `prize_amount` may be non-numeric text. `join_mode` is `auto` or `confirm`. `min_bumpkin_island` is
 `basic`, `spring`, `desert`, or `volcano+`.
 
 ```json
@@ -928,7 +933,9 @@ Multi-add existing tracked players onto that tournament.
 
 ### `DELETE /admin/tournaments/{tournament_id}/farms/{farm_id}`
 
-Unenroll from that tournament only. The global player row stays.
+Unenroll from that tournament only. The global player row stays. The
+farm may join again while the event still accepts public registration
+(auto enrolls immediately; must-confirm goes pending until approve).
 
 ```json
 { "ok": true }

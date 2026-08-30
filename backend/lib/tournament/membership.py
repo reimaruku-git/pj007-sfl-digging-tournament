@@ -537,6 +537,7 @@ def remove_farm_from_tournament(store: Store, *, tournament_id: str, farm_id: st
             "farm is not enrolled in that tournament", code="NOT_FOUND", status=404
         )
     store.delete_member(tournament_id, farm_id)
+    store.delete_event_score(tournament_id, farm_id)
 
 
 def drop_tournament_members(store: Store, tournament_id: str) -> int:

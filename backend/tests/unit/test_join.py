@@ -423,6 +423,103 @@ def test_auto_join_enrolls_immediately(aws_env, monkeypatch, live_join_open):
     assert roster["members"][0]["farm_id"] == "3666918801844311"
 
 
+def test_admin_removed_farm_can_auto_rejoin_while_open(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Auto cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="auto",
+    )
+    joined = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert joined["statusCode"] == 201
+    removed = app.lambda_handler(
+        _event("DELETE", f"/admin/tournaments/{live['tournament_id']}/farms/3666918801844311"),
+        None,
+    )
+    assert removed["statusCode"] == 200
+    listed = _json(app.lambda_handler(_event("GET", "/farms/3666918801844311/memberships"), None))
+    assert listed["count"] == 0
+    again = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert again["statusCode"] == 201, again
+    assert _json(again)["submissions"][0]["status"] == "enrolled"
+
+
+def test_admin_removed_farm_rejoins_confirm_as_pending(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Confirm cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        join_mode="confirm",
+    )
+    app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    approved = app.lambda_handler(
+        _event(
+            "POST",
+            f"/admin/submissions/3666918801844311/{live['tournament_id']}/approve",
+        ),
+        None,
+    )
+    assert approved["statusCode"] == 200
+    removed = app.lambda_handler(
+        _event("DELETE", f"/admin/tournaments/{live['tournament_id']}/farms/3666918801844311"),
+        None,
+    )
+    assert removed["statusCode"] == 200
+    again = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert again["statusCode"] == 201, again
+    assert _json(again)["submissions"][0]["status"] == "pending"
+
+
 def test_must_confirm_stays_pending_until_approve(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)

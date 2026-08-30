@@ -169,12 +169,35 @@ export function formatDetailDateRangeUtc(
   return `${longMonthDay(from, true, from.year)} - ${longMonthDay(to, true, to.year)}`;
 }
 
+/** True when a prize string is a finite number (Flower), not a label. */
+export function isNumericPrizeAmount(amount: string | null | undefined): boolean {
+  const raw = (amount ?? "").trim();
+  if (!raw) return false;
+  return Number.isFinite(Number(raw));
+}
+
 /** True when a prize Flower amount is numeric zero ("0", "0.0", …). */
 export function isZeroFlowerAmount(amount: string | null | undefined): boolean {
   const raw = (amount ?? "").trim();
-  if (!raw) return false;
-  const n = Number(raw);
-  return Number.isFinite(n) && n === 0;
+  if (!raw || !isNumericPrizeAmount(raw)) return false;
+  return Number(raw) === 0;
+}
+
+export type PrizeAmountUnit = "flower" | "$flower";
+
+/**
+ * Numeric pool/place → `{n} $Flower` (or `Flower`). Non-numeric text is shown
+ * as-is, with no Flower suffix. Zero Flower is omitted unless `omitZero` is false.
+ */
+export function formatPrizeAmount(
+  amount: string | null | undefined,
+  options?: { unit?: PrizeAmountUnit; omitZero?: boolean },
+): string | null {
+  const raw = (amount ?? "").trim();
+  if (!raw) return null;
+  if (!isNumericPrizeAmount(raw)) return raw;
+  if ((options?.omitZero ?? true) && Number(raw) === 0) return null;
+  return (options?.unit ?? "$flower") === "flower" ? `${raw} Flower` : `${raw} $Flower`;
 }
 
 export function formatWhenUtc(value: string | null | undefined): string {
@@ -274,7 +297,7 @@ export function formatTopPrize(
   const first = places.find((row) => row.place === 1);
   const amount = (first?.amount ?? prizeAmount ?? "").trim();
   const nft = (first?.nft_name ?? "").trim();
-  const flower = amount && !isZeroFlowerAmount(amount) ? `${amount} $Flower` : null;
+  const flower = formatPrizeAmount(amount);
   return [flower, nft || null].filter(Boolean).join(" · ") || "—";
 }
 

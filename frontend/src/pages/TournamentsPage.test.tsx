@@ -31,7 +31,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
-import { addRequestedTournamentId, clearFarmIdentity, writeFarmIdentity } from "../lib/followFarm";
+import { addRequestedTournamentId, clearFarmIdentity, hasRequestedTournament, writeFarmIdentity } from "../lib/followFarm";
 import {
   displayPrizePlaces,
   isLongRewardText,
@@ -1080,17 +1080,16 @@ describe("TournamentsPage", () => {
       ...archive(next, []),
       config: { ...archive(next, []).config, join_mode: "confirm" },
     });
-    submitFarm.mockResolvedValue({
-      submissions: [
-        {
-          farm_id: "3666918801844311",
-          name: "rmr",
-          tournament_id: "next",
-          submitted_at: "2026-08-16T12:00:00.000Z",
-          status: "pending",
-        },
-      ],
-      count: 1,
+    submitFarm.mockImplementation(async () => {
+      const pending = {
+        farm_id: "3666918801844311",
+        name: "rmr",
+        tournament_id: "next",
+        submitted_at: "2026-08-16T12:00:00.000Z",
+        status: "pending",
+      };
+      fetchFarmMemberships.mockResolvedValue({ memberships: [pending], count: 1 });
+      return { submissions: [pending], count: 1 };
     });
     const page = await renderAt("/tournaments/next");
     expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
@@ -1114,6 +1113,26 @@ describe("TournamentsPage", () => {
       /waiting for admin approval/i,
     );
     expect(submitFarm).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers join again after admin removal even if a prior request was stored", async () => {
+    addRequestedTournamentId("3666918801844311", "live");
+    const live = summary({
+      tournament_id: "live",
+      name: "Open cup",
+      status: "active",
+      join_mode: "confirm",
+    });
+    fetchTournament.mockResolvedValue({
+      ...archive(live, []),
+      config: { ...archive(live, []).config, join_mode: "confirm" },
+    });
+    fetchFarmMemberships.mockResolvedValue({ memberships: [], count: 0 });
+    const page = await renderAt("/tournaments/live");
+    expect(page.querySelector('[data-testid="join-tournament"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
+    expect(hasRequestedTournament("3666918801844311", "live")).toBe(false);
   });
 
   it("matches join helper copy color to Back to tournaments", () => {
@@ -1261,6 +1280,33 @@ describe("TournamentsPage", () => {
     expect(fourth).toMatch(/Otter Pin/);
     expect(fourth).not.toMatch(/0 \$Flower/);
     expect(fourth).not.toMatch(/0 Flower/);
+  });
+
+  it("shows a text prize pool without a Flower suffix", async () => {
+    const live = summary({
+      tournament_id: "live",
+      name: "NFT pack cup",
+      status: "active",
+      nft_giveaway: true,
+      prize_amount: "3x Rare Key",
+      prize_places: [],
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const list = await renderAt("/tournaments");
+    const listed = list.querySelector('[data-testid="tourney-prizes-live"]')?.textContent ?? "";
+    expect(listed).toMatch(/3x Rare Key/);
+    expect(listed).not.toMatch(/3x Rare Key Flower/);
+    expect(listed).not.toMatch(/\$Flower/);
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    const page = await renderAt("/tournaments/live");
+    const pool = page.querySelector('[data-testid="tournament-prize"]')?.textContent ?? "";
+    expect(pool).toBe("3x Rare Key");
+    expect(pool).not.toMatch(/\$Flower/);
+    expect(pool).not.toMatch(/Flower/);
   });
 
   it("does not offer join on an ended tournament", async () => {

@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import type { TournamentSummary } from "../api/public";
 import { pastTournaments } from "../lib/board";
-import { catalogStatusLabel, formatDateRangeUtc } from "../lib/format";
+import { catalogStatusLabel, formatDateRangeUtc, formatPrizeAmount } from "../lib/format";
 
 export const PAST_CARD_CLASS =
   "past-card flex items-start justify-between gap-4 rounded-2xl border border-[rgba(196,184,164,0.14)] bg-dusk-panel p-5 text-inherit no-underline shadow-[0_10px_28px_rgba(0,0,0,0.28)] transition-colors hover:border-[rgba(184,154,86,0.35)]";
@@ -34,7 +34,8 @@ export function PastTournamentList({ items }: { items: TournamentSummary[] }) {
               <div className="past-card-meta mt-1 text-sm text-dusk-mute">
                 {formatDateRangeUtc(row.start_at, row.end_at, row.duration_days)}
                 {" · "}
-                {row.prize_amount} Flower · {row.count} farm{row.count === 1 ? "" : "s"}
+                {formatPrizeAmount(row.prize_amount, { unit: "flower" }) || row.prize_amount} ·{" "}
+                {row.count} farm{row.count === 1 ? "" : "s"}
               </div>
             </div>
             <span className={PAST_BADGE_ENDED} data-testid="past-badge-ended">

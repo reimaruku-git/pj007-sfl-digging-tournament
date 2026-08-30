@@ -820,6 +820,20 @@ describe("LeaderboardPage home", () => {
     );
   });
 
+  it("shows a text prize pool as Top Prize without $Flower", async () => {
+    const live = summary({
+      tournament_id: "text",
+      name: "NFT pack cup",
+      status: "active",
+      prize_amount: "3x Rare Key",
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+    const page = await renderHome();
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).toBe("3x Rare Key");
+    expect(page.querySelector('[data-testid="hero-prize"]')?.textContent).not.toMatch(/\$Flower/);
+  });
+
   it("falls back to the soonest live board when nothing is featured", async () => {
     const soon = summary({
       tournament_id: "soon",

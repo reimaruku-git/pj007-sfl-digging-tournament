@@ -17,14 +17,18 @@ import { Podium } from "../components/Podium";
 import { tournamentBackTarget } from "../lib/backTarget";
 import { liveTournamentsSoonestFirst, pastTournaments, upcomingTournaments } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
-import { addRequestedTournamentId, hasRequestedTournament } from "../lib/followFarm";
+import {
+  addRequestedTournamentId,
+  clearRequestedTournamentId,
+  hasRequestedTournament,
+} from "../lib/followFarm";
 import {
   formatDateUtc,
   formatDetailDateRangeUtc,
   formatDurationDays,
+  formatPrizeAmount,
   formatScore,
   inclusiveFinalDayIso,
-  isZeroFlowerAmount,
   joinedCountLabel,
   opensLabel,
   remainingLabel,
@@ -75,14 +79,14 @@ function placeSuffix(place: number): string {
 }
 
 function formatPrizePlace(item: PrizePlace): string {
-  const flower = `${item.place}${placeSuffix(item.place)} ${item.amount} Flower`;
-  return item.nft_name ? `${flower} · ${item.nft_name}` : flower;
+  const flower = formatPrizeAmount(item.amount, { unit: "flower" });
+  const head = [`${item.place}${placeSuffix(item.place)}`, flower].filter(Boolean).join(" ");
+  const nft = item.nft_name?.trim();
+  return nft ? `${head} · ${nft}` : head;
 }
 
 function flowerReward(amount: string | null | undefined): string | null {
-  const raw = (amount ?? "").trim();
-  if (!raw || isZeroFlowerAmount(raw)) return null;
-  return `${raw} $Flower`;
+  return formatPrizeAmount(amount);
 }
 
 function medalTone(place: number): string {
@@ -299,7 +303,7 @@ function CatalogWindow({
         </p>
       ) : (
         <p className="window-card-prizes" data-testid={`tourney-prizes-${row.tournament_id}`}>
-          {row.prize_amount} Flower
+          {formatPrizeAmount(row.prize_amount, { unit: "flower" }) || row.prize_amount}
         </p>
       )}
     </Link>
@@ -380,21 +384,28 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
       (row) => row.tournament_id === tournamentId && row.status === "enrolled",
     ),
   );
+  const membershipsReady = Boolean(!identity) || memberships.isFetched;
   const joinEnrolled = Boolean(join.data?.submissions.some((item) => item.status === "enrolled"));
   const accepted = Boolean(alreadyEnrolled || joinEnrolled || enrolledMembership);
   const waitingApproval = Boolean(
     identity &&
     !accepted &&
-    (pendingMembership || alreadyRequested || (join.isSuccess && !joinEnrolled)),
+    (pendingMembership ||
+      (join.isSuccess && !joinEnrolled) ||
+      (alreadyRequested && !membershipsReady)),
   );
   const showJoinCta =
     joinable &&
     Boolean(identity) &&
     !accepted &&
-    !alreadyRequested &&
     !alreadyMember &&
     !join.isSuccess &&
-    !memberships.isLoading;
+    !memberships.isLoading &&
+    !(alreadyRequested && !membershipsReady);
+  useEffect(() => {
+    if (!identity || !membershipsReady || alreadyMember) return;
+    clearRequestedTournamentId(identity.farm_id, tournamentId);
+  }, [identity, membershipsReady, alreadyMember, tournamentId]);
   useEffect(() => {
     if (join.isPending) setLabel("Joining tournament…");
     else if (query.isLoading || memberships.isLoading) setLabel("Loading tournament…");
@@ -451,7 +462,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                       Prizes
                     </span>
                     <span className="pool" data-testid="tournament-prize">
-                      {data.config.prize_amount} $Flower
+                      {formatPrizeAmount(data.config.prize_amount) || data.config.prize_amount}
                     </span>
                   </div>
                   {places.length > 0 ? (

@@ -1,0 +1,16 @@
+---
+description: When the user says merge to main, PR from dev then merge so prd deploys
+alwaysApply: true
+---
+
+# Merge to main
+
+When the user says **merge to main**, **do merge to main**, or **merge it
+to main**:
+
+1. Confirm the change is on `dev` and the tests that belong with it pass.
+2. Open a PR from `dev` to `main` (`gh pr create --base main --head dev`).
+3. Merge that PR so `.github/workflows/deploy-prd.yml` runs.
+
+Do not skip the PR. Do not laptop-deploy prd. Pushing `dev` only updates
+the dev account.
