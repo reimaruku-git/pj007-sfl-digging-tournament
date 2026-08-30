@@ -30,6 +30,8 @@ def _load_app(aws_env, monkeypatch):
     module.SCORES_TABLE = aws_env["scores_table"]
     module.SUBMISSIONS_TABLE = aws_env["submissions_table"]
     module.FARM_SYNC_FUNCTION = ""
+    module.SECRETS_BUCKET = ""
+    module.SFL_KEYS_OBJECT = "sfl-api-keys.json"
     module._store = None
     module._registry = None
     module._lambda = None

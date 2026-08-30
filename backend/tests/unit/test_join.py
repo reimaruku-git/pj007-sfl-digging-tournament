@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from tournament.membership import first_day_join_cutoff, is_joinable
+from tournament.sfl_client import SFLApiError
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lambda_functions" / "main_function"))
@@ -28,6 +29,8 @@ def _load_app(aws_env, monkeypatch):
     module.SCORES_TABLE = aws_env["scores_table"]
     module.SUBMISSIONS_TABLE = aws_env["submissions_table"]
     module.FARM_SYNC_FUNCTION = ""
+    module.SECRETS_BUCKET = ""
+    module.SFL_KEYS_OBJECT = "sfl-api-keys.json"
     module._store = None
     module._registry = None
     module._lambda = None
@@ -631,6 +634,36 @@ def _write_profile(app, farm_id, *, island="desert", vip=True, digging_streak=5)
     )
 
 
+class _FakeJoinClient:
+    def __init__(self, payload=None, error=None):
+        self.payload = payload or {}
+        self.error = error
+        self.called: list[str] = []
+
+    def fetch_farm(self, farm_id: str):
+        self.called.append(farm_id)
+        if self.error is not None:
+            raise self.error
+        return self.payload
+
+
+def _community_profile(*, island="desert", vip=True, streak=4, lifetime=False):
+    later = int(datetime(2026, 8, 20, tzinfo=timezone.utc).timestamp() * 1000)
+    farm = {
+        "island": {"type": island},
+        "desert": {"digging": {"grid": [], "streak": {"count": streak}}},
+        "inventory": {},
+    }
+    if lifetime:
+        farm["inventory"] = {"Lifetime Farmer Banner": 1}
+        farm["vip"] = {}
+    elif vip:
+        farm["vip"] = {"expiresAt": later}
+    else:
+        farm["vip"] = {"expiresAt": 1}
+    return {"farm": farm}
+
+
 def test_island_streak_vip_gates_on_public_join(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-10T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
@@ -757,6 +790,161 @@ def test_join_gates_fail_closed_when_snapshot_unread(aws_env, monkeypatch, live_
         "vip_required",
     }
     assert all(item["readable"] is False for item in body["details"])
+
+
+def test_gated_join_fetches_live_sfl_profile_when_snapshot_missing(
+    aws_env, monkeypatch, live_join_open
+):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Gated cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        min_bumpkin_island="desert",
+        min_digging_streak=3,
+        vip_required=True,
+    )
+    client = _FakeJoinClient(_community_profile(island="desert", vip=True, streak=9))
+    app._join_sfl_client = lambda: client
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert response["statusCode"] == 201, response
+    assert client.called == ["3666918801844311"]
+    snapshot = app._get_store().read_snapshot("3666918801844311")
+    assert snapshot["vip"] is True
+    assert snapshot["island"] == "desert"
+    assert snapshot["digging_streak"] == 9
+    assert app._get_store().get_score("3666918801844311") is None
+
+
+def test_gated_join_uses_live_sfl_profile_over_stale_snapshot(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Gated cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        min_bumpkin_island="desert",
+        min_digging_streak=3,
+        vip_required=True,
+    )
+    _write_profile(app, "3666918801844311", island="basic", vip=False, digging_streak=0)
+    client = _FakeJoinClient(_community_profile(island="volcano", vip=True, streak=12))
+    app._join_sfl_client = lambda: client
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert response["statusCode"] == 201, response
+    snapshot = app._get_store().read_snapshot("3666918801844311")
+    assert snapshot["vip"] is True
+    assert snapshot["island"] == "volcano"
+    assert snapshot["digging_streak"] == 12
+
+
+def test_gated_join_accepts_lifetime_farmer_banner(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="VIP cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        vip_required=True,
+    )
+    client = _FakeJoinClient(_community_profile(vip=False, lifetime=True, streak=1))
+    app._join_sfl_client = lambda: client
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert response["statusCode"] == 201, response
+    assert app._get_store().read_snapshot("3666918801844311")["vip"] is True
+
+
+def test_gated_join_keeps_fail_closed_when_sfl_fetch_fails(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Gated cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+        vip_required=True,
+    )
+    client = _FakeJoinClient(error=SFLApiError("SFL HTTP 500", status_code=500))
+    app._join_sfl_client = lambda: client
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3333333333333333",
+                "name": "ghost",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert response["statusCode"] == 400
+    assert "could not be read" in _json(response)["message"]
+    assert client.called == ["3333333333333333"]
+
+
+def test_ungated_join_does_not_fetch_sfl(aws_env, monkeypatch, live_join_open):
+    live_join_open("2026-08-10T00:00:00+00:00")
+    app = _load_app(aws_env, monkeypatch)
+    live = _create_joinable(
+        app,
+        name="Open cup",
+        start="2026-08-10T00:00:00+00:00",
+        end="2026-08-20T00:00:00+00:00",
+    )
+    client = _FakeJoinClient(_community_profile())
+    app._join_sfl_client = lambda: client
+    response = app.lambda_handler(
+        _event(
+            "POST",
+            "/submissions",
+            {
+                "farm_id": "3666918801844311",
+                "name": "rmr",
+                "tournament_id": live["tournament_id"],
+            },
+        ),
+        None,
+    )
+    assert response["statusCode"] == 201, response
+    assert client.called == []
 
 
 def test_admin_force_add_ignores_public_cap_and_level(aws_env, monkeypatch, live_join_open):

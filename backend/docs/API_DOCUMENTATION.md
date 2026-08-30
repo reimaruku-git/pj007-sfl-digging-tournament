@@ -460,15 +460,19 @@ Must-confirm (`join_mode: "confirm"`, the default when omitted) creates
 `400` if no joinable `tournament_id` is sent, or if the event is
 **active** and the clock is 22:30 UTC or later on that event's first
 UTC day (`join closed after 22:30 UTC on the first day`). Scheduled
-events stay joinable. `400` `VALIDATION_ERROR` if the farm's stored island is below
-`min_bumpkin_island` (`basic` < `spring` < `desert` < `volcano+`), if
-digging streak is below `min_digging_streak`, if `vip_required` is true
-and the farm is not VIP, if a set gate cannot be read from the stored
-FarmSync snapshot, or if enrolled players already equal `max_players`.
-Every unmet island/streak/VIP gate is listed in `message` (required value
-and the farm's stored value when the snapshot has it). Unreadable
-snapshot fields name which gate could not be read. Optional `details`
-repeats those gates:
+events stay joinable. When island, streak, or VIP gates are set, the
+API fetches that one farm from the SFL Community API (server-side) and
+writes island / digging streak / VIP onto the stored snapshot before
+checking. That fetch does not score the farm. `400` `VALIDATION_ERROR`
+if the farm's island is below `min_bumpkin_island` (`basic` < `spring`
+< `desert` < `volcano+`), if digging streak is below
+`min_digging_streak`, if `vip_required` is true and the farm is not
+VIP (paid pass, unexpired `expiresAt`, 7-day trial, or Lifetime Farmer
+Banner), if a set gate cannot be read after that fetch, or if enrolled
+players already equal `max_players`. Every unmet island/streak/VIP gate
+is listed in `message` (required value and the farm's stored value when
+the snapshot has it). Unreadable snapshot fields name which gate could
+not be read. Optional `details` repeats those gates:
 
 ```json
 {

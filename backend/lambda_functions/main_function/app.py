@@ -59,6 +59,7 @@ from tournament.slogans import (
     slogans_document,
 )
 from tournament.stats import player_detail, player_list_row
+from tournament.sfl_client import build_sfl_client, load_sfl_keys
 from tournament.sfl_world import SflWorldError, lookup_farm_name
 from tournament.store import Store
 from tournament.sync import (
@@ -79,6 +80,8 @@ CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
 SUBMISSIONS_TABLE = os.environ.get("SUBMISSIONS_TABLE", "")
 FARM_SYNC_FUNCTION = os.environ.get("FARM_SYNC_FUNCTION", "")
+SECRETS_BUCKET = os.environ.get("SECRETS_BUCKET", "")
+SFL_KEYS_OBJECT = os.environ.get("SFL_KEYS_OBJECT", "sfl-api-keys.json")
 
 _store: Store | None = None
 _registry: FarmRegistry | None = None
@@ -109,6 +112,14 @@ def _lambda_client():
     if _lambda is None:
         _lambda = boto3.client("lambda")
     return _lambda
+
+
+def _join_sfl_client():
+    """One-farm Community API client for gated public joins. None if no keys."""
+    keys = load_sfl_keys(SECRETS_BUCKET, SFL_KEYS_OBJECT)
+    if not keys:
+        return None
+    return build_sfl_client(keys)
 
 
 def _headers(event: dict[str, Any]) -> dict[str, str]:
@@ -335,6 +346,7 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
             name=name,
             tournament_ids=tournament_ids,
             registry=_get_registry(),
+            sfl_client=_join_sfl_client(),
         )
     except MembershipError as exc:
         return _membership_error(exc)

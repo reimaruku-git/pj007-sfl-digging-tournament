@@ -30,9 +30,7 @@ from tournament.membership import (
 )
 from tournament.scoring import (
     extract_grid,
-    extract_island,
-    extract_streak,
-    extract_vip,
+    farm_profile_fields,
     is_finalize_clock,
     score_grid,
     scoring_window_end,
@@ -441,7 +439,6 @@ def sync_one_farm(
     try:
         payload = client.fetch_farm(farm_id)
         grid = extract_grid(payload)
-        streak = extract_streak(payload)
         computed = score_grid(
             grid,
             now=clock,
@@ -454,10 +451,7 @@ def sync_one_farm(
                 "farm_id": farm_id,
                 "fetched_at": utc_now_iso(),
                 "grid": grid,
-                "streak": streak,
-                "digging_streak": streak["count"],
-                "island": extract_island(payload),
-                "vip": extract_vip(payload, now=clock),
+                **farm_profile_fields(payload, now=clock),
                 "score": computed.to_dict(),
             },
         )
