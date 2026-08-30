@@ -19,7 +19,13 @@ Globals:
             - ","
             - - http://localhost:5173
               - !Ref AllowedOrigin
-          - !Ref AllowedOrigin
+          - !If
+            - HasWwwOrigin
+            - !Join
+              - ","
+              - - !Ref AllowedOrigin
+                - !Ref WwwOrigin
+            - !Ref AllowedOrigin
         DATA_BUCKET: !Ref AppBucket
         CONFIG_TABLE: !Ref TournamentConfigTable
         SCORES_TABLE: !Ref DigScoresTable
@@ -43,7 +49,35 @@ Parameters:
   AllowedOrigin:
     Type: String
     Default: "*"
-    Description: Allowed CORS origin (CloudFront URL)
+    Description: Allowed CORS origin (site URL)
+  WwwOrigin:
+    Type: String
+    Default: ""
+    Description: Extra CORS origin for www (https://www.…). Empty skips it.
+  SiteDomainName:
+    Type: String
+    Default: ""
+    Description: Optional public site hostname (CloudFront alias). Empty keeps the default *.cloudfront.net URL.
+  WwwDomainName:
+    Type: String
+    Default: ""
+    Description: Optional www hostname on the same CloudFront distribution.
+  CloudFrontCertificateArn:
+    Type: String
+    Default: ""
+    Description: ACM certificate in us-east-1 covering SiteDomainName and WwwDomainName.
+  ApiDomainName:
+    Type: String
+    Default: ""
+    Description: Optional API hostname (HTTP API custom domain). Empty keeps the execute-api URL.
+  ApiCertificateArn:
+    Type: String
+    Default: ""
+    Description: ACM certificate in this region covering ApiDomainName.
+  HostedZoneId:
+    Type: String
+    Default: ""
+    Description: Route 53 hosted zone for the site and API hostnames.
   DiscordWebhookUrl:
     Type: String
     NoEcho: true
@@ -68,6 +102,18 @@ Parameters:
 
 Conditions:
   IsDev: !Equals [!Ref Environment, dev]
+  HasWwwOrigin: !Not [!Equals [!Ref WwwOrigin, ""]]
+  HasSiteDomain: !And
+    - !Not [!Equals [!Ref SiteDomainName, ""]]
+    - !Not [!Equals [!Ref CloudFrontCertificateArn, ""]]
+    - !Not [!Equals [!Ref HostedZoneId, ""]]
+  HasWwwDomain: !And
+    - !Condition HasSiteDomain
+    - !Not [!Equals [!Ref WwwDomainName, ""]]
+  HasApiDomain: !And
+    - !Not [!Equals [!Ref ApiDomainName, ""]]
+    - !Not [!Equals [!Ref ApiCertificateArn, ""]]
+    - !Not [!Equals [!Ref HostedZoneId, ""]]
 
 Resources:
   CommonLayer:
@@ -274,39 +320,36 @@ Resources:
               issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}"
               audience:
                 - !Ref CognitoUserPoolClient
-      CorsConfiguration: !If
-        - IsDev
-        - AllowOrigins:
-            - http://localhost:5173
-            - !Ref AllowedOrigin
-          AllowHeaders:
-            - Content-Type
-            - Authorization
-            - X-Amz-Date
-            - X-Api-Key
-            - X-Amz-Security-Token
-            - X-Amz-User-Agent
-          AllowMethods:
-            - GET
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
-        - AllowOrigins:
-            - !Ref AllowedOrigin
-          AllowHeaders:
-            - Content-Type
-            - Authorization
-            - X-Amz-Date
-            - X-Api-Key
-            - X-Amz-Security-Token
-            - X-Amz-User-Agent
-          AllowMethods:
-            - GET
-            - POST
-            - PUT
-            - DELETE
-            - OPTIONS
+      CorsConfiguration:
+        AllowOrigins: !Split
+          - ","
+          - !If
+            - IsDev
+            - !Join
+              - ","
+              - - http://localhost:5173
+                - !Ref AllowedOrigin
+            - !If
+              - HasWwwOrigin
+              - !Join
+                - ","
+                - - !Ref AllowedOrigin
+                  - !Ref WwwOrigin
+              - !Ref AllowedOrigin
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+          - X-Amz-Security-Token
+          - X-Amz-User-Agent
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        MaxAge: 600
 
   MainFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1059,6 +1102,20 @@ Resources:
         Enabled: true
         HttpVersion: http2and3
         PriceClass: PriceClass_200
+        Aliases: !If
+          - HasSiteDomain
+          - !If
+            - HasWwwDomain
+            - - !Ref SiteDomainName
+              - !Ref WwwDomainName
+            - - !Ref SiteDomainName
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - HasSiteDomain
+          - AcmCertificateArn: !Ref CloudFrontCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
         Origins:
           - Id: FrontendBucketOrigin
             DomainName: !GetAtt AppBucket.RegionalDomainName
@@ -1085,6 +1142,96 @@ Resources:
         - Key: ProjectNo
           Value: !Ref ProjectNo
 
+  SiteDnsA:
+    Type: AWS::Route53::RecordSet
+    Condition: HasSiteDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref SiteDomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt FrontendDistribution.DomainName
+        EvaluateTargetHealth: false
+
+  SiteDnsAaaa:
+    Type: AWS::Route53::RecordSet
+    Condition: HasSiteDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref SiteDomainName
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt FrontendDistribution.DomainName
+        EvaluateTargetHealth: false
+
+  WwwDnsA:
+    Type: AWS::Route53::RecordSet
+    Condition: HasWwwDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WwwDomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt FrontendDistribution.DomainName
+        EvaluateTargetHealth: false
+
+  WwwDnsAaaa:
+    Type: AWS::Route53::RecordSet
+    Condition: HasWwwDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WwwDomainName
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt FrontendDistribution.DomainName
+        EvaluateTargetHealth: false
+
+  ApiCustomDomain:
+    Type: AWS::ApiGatewayV2::DomainName
+    Condition: HasApiDomain
+    Properties:
+      DomainName: !Ref ApiDomainName
+      DomainNameConfigurations:
+        - CertificateArn: !Ref ApiCertificateArn
+          EndpointType: REGIONAL
+          SecurityPolicy: TLS_1_2
+
+  ApiCustomDomainMapping:
+    Type: AWS::ApiGatewayV2::ApiMapping
+    Condition: HasApiDomain
+    Properties:
+      DomainName: !Ref ApiCustomDomain
+      ApiId: !Ref HttpApi
+      Stage: !Ref Environment
+
+  ApiDnsA:
+    Type: AWS::Route53::RecordSet
+    Condition: HasApiDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref ApiDomainName
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt ApiCustomDomain.RegionalHostedZoneId
+        DNSName: !GetAtt ApiCustomDomain.RegionalDomainName
+        EvaluateTargetHealth: false
+
+  ApiDnsAaaa:
+    Type: AWS::Route53::RecordSet
+    Condition: HasApiDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref ApiDomainName
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: !GetAtt ApiCustomDomain.RegionalHostedZoneId
+        DNSName: !GetAtt ApiCustomDomain.RegionalDomainName
+        EvaluateTargetHealth: false
+
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -1104,10 +1251,28 @@ Resources:
 
 Outputs:
   ApiUrl:
-    Description: "API Gateway endpoint URL"
+    Description: "API Gateway execute-api URL (fallback; browser uses BrowserApiUrl)"
     Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
     Export:
       Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-api-url"
+
+  BrowserApiUrl:
+    Description: "API URL the frontend should call (custom domain when set)"
+    Value: !If
+      - HasApiDomain
+      - !Sub "https://${ApiDomainName}"
+      - !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-browser-api-url"
+
+  SiteUrl:
+    Description: "Public site URL (custom domain when set)"
+    Value: !If
+      - HasSiteDomain
+      - !Sub "https://${SiteDomainName}"
+      - !Sub "https://${FrontendDistribution.DomainName}"
+    Export:
+      Name: !Sub "${ProjectNo}-${Environment}-${ProjectName}-site-url"
 
   AppBucketName:
     Description: "S3 bucket (frontend/ + config/tracked-farms.json)"

@@ -129,6 +129,17 @@ After the first run, upload SFL keys to
 `s3://pj007-prd-digging-tournament-secrets/sfl-api-keys.json` and create the
 Cognito `Admin` user in pool `pj007-prd-digging-tournament-users`.
 
+Public prd URLs (Route 53 domain `bumpkinclash.com` in the **prd** account):
+
+| | |
+|---|---|
+| Site | https://bumpkinclash.com |
+| Admin | https://bumpkinclash.com/admin |
+| API | https://api.bumpkinclash.com |
+
+`www.bumpkinclash.com` is the same CloudFront distribution. CORS allows both
+origins. Dev stays on the CloudFront / execute-api URLs.
+
 ## 4. Environment variables (Lambda)
 
 | Name | Purpose |

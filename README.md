@@ -40,7 +40,10 @@ npm test
 npm run dev      # http://localhost:5173
 ```
 
-Live dev site: https://d1balcacprl09z.cloudfront.net  
+Live **prd** site: https://bumpkinclash.com  
+API: https://api.bumpkinclash.com
+
+Live **dev** site: https://d1balcacprl09z.cloudfront.net  
 API: https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev
 
 ## Deploy

@@ -54,6 +54,35 @@ jobs:
           if [ -z "$ORIGIN" ]; then
             ORIGIN="*"
           fi
+          DOMAIN_OVERRIDES=()
+          SITE="${{ vars.PRD_SITE_DOMAIN }}"
+          if [ -n "$SITE" ]; then
+            CF_CERT="$(aws acm list-certificates --region us-east-1 \
+              --query "CertificateSummaryList[?DomainName=='${SITE}' && Status=='ISSUED'].CertificateArn" \
+              --output text | awk '{print $1}')"
+            API_DOMAIN="${{ vars.PRD_API_DOMAIN }}"
+            API_CERT=""
+            if [ -n "$API_DOMAIN" ]; then
+              API_CERT="$(aws acm list-certificates --region ap-southeast-1 \
+                --query "CertificateSummaryList[?DomainName=='${API_DOMAIN}' && Status=='ISSUED'].CertificateArn" \
+                --output text | awk '{print $1}')"
+            fi
+            if [ -n "$CF_CERT" ] && [ "$CF_CERT" != "None" ]; then
+              DOMAIN_OVERRIDES+=(
+                "SiteDomainName=${SITE}"
+                "WwwDomainName=${{ vars.PRD_WWW_DOMAIN }}"
+                "CloudFrontCertificateArn=${CF_CERT}"
+                "HostedZoneId=${{ vars.PRD_HOSTED_ZONE_ID }}"
+                "WwwOrigin=${{ vars.PRD_WWW_ORIGIN }}"
+              )
+              if [ -n "$API_CERT" ] && [ "$API_CERT" != "None" ]; then
+                DOMAIN_OVERRIDES+=(
+                  "ApiDomainName=${API_DOMAIN}"
+                  "ApiCertificateArn=${API_CERT}"
+                )
+              fi
+            fi
+          fi
           sam deploy \
             --config-env prd \
             --s3-bucket aws-sam-cli-managed-default-samclisourcebucket-hu85e30oy0ul \
@@ -67,7 +96,8 @@ jobs:
               "AllowedOrigin=${ORIGIN}" \
               "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
               "GitHubOidcClassicSubject=repo:reimaruku-git/pj007-sfl-digging-tournament:ref:refs/heads/main" \
-              "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:ref:refs/heads/main"
+              "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:ref:refs/heads/main" \
+              "${DOMAIN_OVERRIDES[@]}"
 
       - name: Capture stack outputs
         id: stack
@@ -79,7 +109,10 @@ jobs:
               --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" \
               --output text
           }
-          API_URL="$(get ApiUrl)"
+          API_URL="$(get BrowserApiUrl)"
+          if [ -z "$API_URL" ] || [ "$API_URL" = "None" ]; then
+            API_URL="$(get ApiUrl)"
+          fi
           BUCKET="$(get AppBucketName)"
           CF_ID="$(get CloudFrontDistributionId)"
           CF_DOMAIN="$(get CloudFrontDomainName)"
@@ -96,7 +129,8 @@ jobs:
         run: |
           ORIGIN="${{ vars.PRD_ALLOWED_ORIGIN }}"
           CF_DOMAIN="${{ steps.stack.outputs.cf_domain }}"
-          if [ -z "$ORIGIN" ] && [ -n "$CF_DOMAIN" ]; then
+          SITE="${{ vars.PRD_SITE_DOMAIN }}"
+          if [ -z "$ORIGIN" ] && [ -z "$SITE" ] && [ -n "$CF_DOMAIN" ]; then
             sam deploy \
               --config-env prd \
               --s3-bucket aws-sam-cli-managed-default-samclisourcebucket-hu85e30oy0ul \

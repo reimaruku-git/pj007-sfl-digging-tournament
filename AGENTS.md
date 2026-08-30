@@ -91,9 +91,9 @@ stack). Do not recreate the account OIDC provider.
 
 | | |
 |---|---|
-| Site | https://dlccozs3ejl4t.cloudfront.net |
-| Admin | https://dlccozs3ejl4t.cloudfront.net/admin |
-| API | https://etg6o0f917.execute-api.ap-southeast-1.amazonaws.com/prd |
+| Site | https://bumpkinclash.com (`www` too; CloudFront `dlccozs3ejl4t.cloudfront.net` still works) |
+| Admin | https://bumpkinclash.com/admin |
+| API | https://api.bumpkinclash.com (execute-api `/prd` URL still works) |
 | Stack | `sfl-pj007-prd-digging-tournament` |
 | Bucket | `pj007-prd-digging-tournament` |
 | Secrets | `pj007-prd-digging-tournament-secrets` |
@@ -103,8 +103,12 @@ stack). Do not recreate the account OIDC provider.
 | OIDC role | `arn:aws:iam::498754465871:role/pj007-prd-digging-tournament-github-deploy-role` |
 | SSO profile | `rm-prd` |
 
-GitHub var `PRD_AWS_DEPLOY_ROLE_ARN` is the role ARN above. The workflow
-reads Site / API / Cognito from stack outputs.
+GitHub var `PRD_AWS_DEPLOY_ROLE_ARN` is the role ARN above. Custom domain
+vars (`PRD_SITE_DOMAIN`, `PRD_API_DOMAIN`, `PRD_HOSTED_ZONE_ID`, ACM ARNs)
+are used once the certs are **Issued**. The workflow then attaches
+CloudFront + HTTP API custom domains and builds the frontend with
+`BrowserApiUrl` (`https://api.bumpkinclash.com`). Cognito ids still come
+from stack outputs.
 
 Console users:
 https://ap-southeast-1.console.aws.amazon.com/cognito/v2/idp/user-pools/ap-southeast-1_n7QwNJ4Oh/users?region=ap-southeast-1
@@ -407,9 +411,10 @@ Vars: `AWS_REGION`, `DEV_VITE_API_BASE`, `DEV_AWS_DEPLOY_ROLE_ARN`,
 `DEV_S3_BUCKET`, `DEV_CF_DISTRIBUTION_ID`, `DEV_ALLOWED_ORIGIN`,
 `DEV_VITE_COGNITO_USER_POOL_ID`, `DEV_VITE_COGNITO_USER_POOL_CLIENT_ID`.
 Prd: `PRD_AWS_DEPLOY_ROLE_ARN` (required before the first `main` merge).
-Optional `PRD_ALLOWED_ORIGIN`; if unset, the workflow locks CORS to the
-new CloudFront URL after the stack exists. Other prd frontend values come
-from stack outputs, not GitHub vars.
+`PRD_ALLOWED_ORIGIN` is `https://bumpkinclash.com`. Site/API hostnames and
+the hosted-zone id are GitHub vars; ACM certs are looked up at deploy if
+Issued. Other prd frontend values (Cognito, bucket, distribution id) come
+from stack outputs.
 
 Secrets: `SFL_API_KEY` and optional `SFL_API_KEY_2` (operator source for
 the secrets-bucket JSON; not injected into Lambda env). Optional
