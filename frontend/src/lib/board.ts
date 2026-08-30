@@ -145,7 +145,10 @@ export function featuredHomeTournament(
   const wanted = (featuredId || "").trim();
   if (wanted) {
     const match = items.find((row) => row.tournament_id === wanted);
-    if (match && (match.status === "active" || match.status === "ended")) {
+    if (
+      match &&
+      (match.status === "scheduled" || match.status === "active" || match.status === "ended")
+    ) {
       return match;
     }
   }

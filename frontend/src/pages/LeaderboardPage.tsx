@@ -24,6 +24,7 @@ import {
   formatTopPrize,
   formatWindowRange,
   inclusiveFinalDayIso,
+  opensLabel,
   remainingLabel,
   statusLabel,
 } from "../lib/format";
@@ -159,7 +160,13 @@ function Hero({
       )
     : "";
   const eyebrow = featured
-    ? `${featured.status === "ended" ? "Past tournament" : "Live tournament"} · ${windowCopy}`
+    ? `${
+        featured.status === "ended"
+          ? "Past tournament"
+          : featured.status === "scheduled"
+            ? "Upcoming tournament"
+            : "Live tournament"
+      } · ${windowCopy}`
     : "Live tournament";
   return (
     <section className="live-hero" data-testid="home-hero">
@@ -202,13 +209,16 @@ function Hero({
 
 function NowDigging({ featured }: { featured: TournamentSummary }) {
   const lastDay = inclusiveFinalDayIso(featured.start_at, featured.duration_days);
-  const remaining = remainingLabel(lastDay, new Date(), featured.status);
+  const remaining =
+    featured.status === "scheduled"
+      ? opensLabel(featured.start_at)
+      : remainingLabel(lastDay, new Date(), featured.status);
   const windowCopy = formatWindowRange(featured.start_at, lastDay);
   return (
     <div className="now-digging" data-testid="now-digging">
       <ColorCanvas tone="thumb" className="now-digging-art" />
       <div className="now-digging-copy">
-        <div className="kicker">Now digging</div>
+        <div className="kicker">{featured.status === "scheduled" ? "Up next" : "Now digging"}</div>
         <div className="now-digging-name">{featured.name}</div>
         <p className="meta">
           {windowCopy}
@@ -217,7 +227,7 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
       </div>
       <dl className="now-digging-stats">
         <div>
-          <dt>Remaining</dt>
+          <dt>{featured.status === "scheduled" ? "Opens" : "Remaining"}</dt>
           <dd data-testid="hero-remaining">{remaining}</dd>
         </div>
         <div>

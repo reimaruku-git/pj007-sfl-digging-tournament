@@ -51,9 +51,10 @@ is `scheduled`.
 
 `tournament_id` is the soonest-ending **live** scoring window. FarmSync
 follows that window. `featured_tournament_id` is the admin-chosen home
-showcase (`active` or `ended`). It is `null` when none is set. It is
-not the scoring pointer — featuring an ended event does not stop live
-sync.
+showcase (`scheduled`, `active`, or `ended`). Featuring an upcoming
+event keeps that id when it goes live. It is `null` when none is set.
+It is not the scoring pointer — featuring a scheduled or ended event
+does not stop live sync.
 
 ### `GET /slogans`
 
@@ -282,7 +283,8 @@ Scheduled, live, and ended events. Ended standings are frozen to S3
 ```
 
 `featured_tournament_id` is the admin-chosen home showcase, or `null`.
-Scheduled events cannot be featured.
+Scheduled, live, and ended events can be featured. The same id stays
+when a scheduled event becomes live.
 
 ### `GET /tournaments/{tournament_id}`
 
@@ -769,11 +771,12 @@ Same list shape as `GET /tournaments`, including `featured_tournament_id`.
 
 ### `PUT /admin/featured`
 
-Set the public home showcase to a live (`active`) or ended tournament.
-`tournament_id: null` (or omitted / empty) clears it. Scheduled ids
-return `400` `VALIDATION_ERROR`. Missing ids return `404`.
+Set the public home showcase to a scheduled, live (`active`), or ended
+tournament. `tournament_id: null` (or omitted / empty) clears it.
+Missing ids return `404`.
 
-Does **not** change `current_tournament_id` or FarmSync.
+Featuring a scheduled event keeps that showcase id when the window
+becomes live. Does **not** change `current_tournament_id` or FarmSync.
 
 ```json
 { "tournament_id": "20260814T120000Z_7d" }

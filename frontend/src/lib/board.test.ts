@@ -328,10 +328,10 @@ describe("featuredHomeTournament", () => {
     expect(featuredHomeTournament(items, null)?.tournament_id).toBe("soon");
   });
 
-  it("returns an admin-featured live or ended event and ignores scheduled", () => {
+  it("returns an admin-featured scheduled, live, or ended event", () => {
     expect(featuredHomeTournament(items, "later")?.tournament_id).toBe("later");
     expect(featuredHomeTournament(items, "past-cup")?.tournament_id).toBe("past-cup");
-    expect(featuredHomeTournament(items, "next")?.tournament_id).toBe("soon");
+    expect(featuredHomeTournament(items, "next")?.tournament_id).toBe("next");
   });
 });
 
