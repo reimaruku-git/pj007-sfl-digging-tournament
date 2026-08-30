@@ -126,7 +126,10 @@ Browser  ──public──►  HTTP API  ──►  Main Lambda (router)
 
 EventBridge (14/16/18/20/23 UTC) ──► FarmSync Lambda (live enrollments only)
 Admin POST /admin/sync and /admin/farms/{id}/refresh ──► async invoke FarmSync
-HTTP never calls the SFL Community API.
+Gated POST /submissions ──► Main fetches that one farm from SFL, writes
+island/streak/VIP onto the snapshot, then checks gates. That fetch does
+not score. Scoring sweeps still go through FarmSync only. The browser
+never calls SFL.
 
 FarmSync timeout is 15 minutes (Lambda max). Keys are a JSON list in
 `s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json`. After a
@@ -166,7 +169,7 @@ pj007-dev-digging-tournament/
 
 | Function | Path | Role |
 |----------|------|------|
-| `pj007-dev-digging-tournament-main-function` | `backend/lambda_functions/main_function/app.py` | HTTP router |
+| `pj007-dev-digging-tournament-main-function` | `backend/lambda_functions/main_function/app.py` | HTTP router; gated join fetches one farm from SFL |
 | `pj007-dev-digging-tournament-farm-sync` | `backend/lambda_functions/farm_sync/app.py` | Scheduled sweep or one-farm refresh; self-invokes to continue a long roster |
 
 Shared code is a Lambda layer from `backend/lib/`.
@@ -259,7 +262,10 @@ Canonical: `backend/lib/tournament/scoring.py` +
 - Public join on an **active** event closes at **22:30 UTC on that
   event's first UTC day** (30 minutes before the 23:00 recording).
   `POST /submissions` rejects after that instant. Scheduled events stay
-  joinable. Already-enrolled farms and stored day scores stay.
+  joinable. Island / streak / VIP gates on public join fetch that farm
+  once from SFL (Main Lambda, secrets-bucket keys) so a farm that is not
+  yet enrolled still has a live profile. Already-enrolled farms and
+  stored day scores stay.
 - Default prize is `"30"` Flower (JSON **string**). Min period **1 day**.
   Admin creates named tournaments (`POST /admin/tournaments`) with from/to
   or start + `duration_days`. Empty catalog is valid — do not invent a

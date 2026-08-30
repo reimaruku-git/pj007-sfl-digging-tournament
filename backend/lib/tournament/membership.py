@@ -6,14 +6,18 @@ The S3 registry stays the global player directory; membership is separate.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from tournament.event_settings import JOIN_MODE_AUTO, island_meets_minimum, public_event_settings
 from tournament.farms import FarmRegistry, utc_now_iso
-from tournament.scoring import extract_streak
+from tournament.scoring import extract_grid, extract_streak, farm_profile_fields
+from tournament.sfl_client import SFLApiError
 from tournament.store import Store
 from tournament.window import parse_iso
+
+logger = logging.getLogger(__name__)
 
 STATUS_PENDING = "pending"
 STATUS_ENROLLED = "enrolled"
@@ -202,6 +206,48 @@ def stored_farm_snapshot(store: Store, farm_id: str) -> dict[str, Any] | None:
     return snapshot if isinstance(snapshot, dict) else None
 
 
+def settings_need_join_profile(settings: dict[str, Any]) -> bool:
+    return bool(
+        settings.get("min_bumpkin_island")
+        or settings.get("min_digging_streak") is not None
+        or settings.get("vip_required")
+    )
+
+
+def refresh_join_profile(
+    store: Store,
+    farm_id: str,
+    *,
+    client: Any | None,
+    now: datetime | None = None,
+) -> dict[str, Any] | None:
+    """Fetch one farm from SFL so join gates see live island/streak/VIP.
+
+    Does not score or enroll. FarmSync still owns scheduled scoring sweeps.
+    A failed fetch keeps the stored snapshot (fail closed if none exists).
+    """
+    if client is None:
+        return stored_farm_snapshot(store, farm_id)
+    try:
+        payload = client.fetch_farm(farm_id)
+    except SFLApiError as exc:
+        logger.warning("join profile fetch failed for %s: %s", farm_id, exc)
+        return stored_farm_snapshot(store, farm_id)
+    clock = utc_clock(now)
+    prior = stored_farm_snapshot(store, farm_id) or {}
+    live_grid = extract_grid(payload)
+    snapshot = {
+        "farm_id": farm_id,
+        "fetched_at": utc_now_iso(),
+        "grid": live_grid if live_grid else (prior.get("grid") or []),
+        **farm_profile_fields(payload, now=clock),
+    }
+    if "score" in prior:
+        snapshot["score"] = prior["score"]
+    store.write_snapshot(farm_id, snapshot)
+    return snapshot
+
+
 def _join_gate_line(label: str, required: Any, farm: Any, *, readable: bool) -> str:
     if not readable:
         return f"{label} {required} (could not be read)"
@@ -355,9 +401,11 @@ def request_joins(
     tournament_ids: list[str],
     now: datetime | None = None,
     registry: FarmRegistry | None = None,
+    sfl_client: Any | None = None,
 ) -> list[dict[str, Any]]:
     clock = utc_clock(now)
-    rows: list[tuple[str, dict[str, Any]]] = []
+    pending: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    needs_profile = False
     for tid in tournament_ids:
         row = store.get_tournament(tid)
         if not is_joinable(row, now=clock):
@@ -372,15 +420,18 @@ def request_joins(
                 status=409,
             )
         settings = public_event_settings(row or {})
+        if settings_need_join_profile(settings):
+            needs_profile = True
+        pending.append((tid, row or {}, settings))
+    if needs_profile:
+        refresh_join_profile(store, farm_id, client=sfl_client, now=clock)
+    created: list[dict[str, Any]] = []
+    submitted_at = utc_now_iso()
+    for tid, row, settings in pending:
         enforce_public_join_gates(store, farm_id, settings)
         max_players = settings.get("max_players")
         if max_players is not None and len(enrolled_farm_ids(store, tid)) >= int(max_players):
             raise MembershipError(TOURNAMENT_FULL_MESSAGE)
-        rows.append((tid, row or {}))
-    created: list[dict[str, Any]] = []
-    submitted_at = utc_now_iso()
-    for tid, row in rows:
-        settings = public_event_settings(row)
         auto = settings.get("join_mode") == JOIN_MODE_AUTO and registry is not None
         if auto:
             member, _farm = enroll_member(

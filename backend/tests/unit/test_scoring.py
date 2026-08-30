@@ -362,6 +362,36 @@ def test_extract_island_and_vip_from_community_payload():
     assert extract_vip({"farm": {"vip": {"expiresAt": expired}}}, now=NOW) is False
     assert extract_vip({"vip": True}) is True
     assert extract_vip({}) is False
+    assert (
+        extract_vip(
+            {"farm": {"inventory": {"Lifetime Farmer Banner": 1}}},
+            now=NOW,
+        )
+        is True
+    )
+    assert (
+        extract_vip(
+            {"farm": {"inventory": {"Lifetime Farmer Banner": "0"}}},
+            now=NOW,
+        )
+        is False
+    )
+    trial_start = int((NOW.timestamp() - 2 * 86_400) * 1000)
+    assert (
+        extract_vip(
+            {"farm": {"vip": {"trialStartedAt": trial_start}}},
+            now=NOW,
+        )
+        is True
+    )
+    stale_trial = int((NOW.timestamp() - 8 * 86_400) * 1000)
+    assert (
+        extract_vip(
+            {"farm": {"vip": {"trialStartedAt": stale_trial}}},
+            now=NOW,
+        )
+        is False
+    )
 
 
 def _ms(year, month, day, hour, minute=0, second=0):

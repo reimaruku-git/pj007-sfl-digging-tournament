@@ -303,13 +303,18 @@ def test_sam_and_deploy_wire_keys_from_secrets_bucket():
     template = (root / "template.yaml").read_text()
     workflow = (root.parent / ".github" / "workflows" / "deploy-dev.yml").read_text()
     farm_sync = (root / "lambda_functions" / "farm_sync" / "app.py").read_text()
+    main = (root / "lambda_functions" / "main_function" / "app.py").read_text()
+    main_block = template.split("MainFunction:", 1)[1].split("FarmSyncFunction:", 1)[0]
     assert "SecretsBucket:" in template
     assert "sfl-api-keys.json" in template
     assert "SECRETS_BUCKET:" in template
+    assert "SECRETS_BUCKET:" in main_block
     assert "SFLApiKey:" not in template
     assert "SFL_API_KEY:" not in template
     assert "SFLApiKey=" not in workflow
     assert "SFL_API_KEY" not in farm_sync
+    assert "SFL_API_KEY" not in main
     assert "load_sfl_keys" in farm_sync
+    assert "load_sfl_keys" in main
     assert "sfl." not in template
     assert "sfl." not in workflow

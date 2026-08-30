@@ -27,7 +27,7 @@ Rules
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 OTTER_PEBBLE = "Otter Pebble"
@@ -475,8 +475,63 @@ def extract_island(farm_payload: Any) -> str | None:
     return None
 
 
+LIFETIME_FARMER_BANNER = "Lifetime Farmer Banner"
+VIP_TRIAL_PERIOD = timedelta(days=7)
+
+
+def _utc_clock(now: datetime | None) -> datetime:
+    clock = now or datetime.now(timezone.utc)
+    if clock.tzinfo is None:
+        return clock.replace(tzinfo=timezone.utc)
+    return clock.astimezone(timezone.utc)
+
+
+def _item_count(raw: Any) -> float:
+    if raw is None or raw is False:
+        return 0.0
+    if raw is True:
+        return 1.0
+    if isinstance(raw, dict):
+        raw = raw.get("value", raw.get("amount", raw.get("toNumber", 0)))
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _inventory_map(source: Any) -> dict[str, Any]:
+    if not isinstance(source, dict):
+        return {}
+    inventory = source.get("inventory")
+    return inventory if isinstance(inventory, dict) else {}
+
+
+def _has_lifetime_farmer_banner(farm_payload: Any) -> bool:
+    farm = _farm_section(farm_payload)
+    for source in (farm, farm_payload):
+        if _item_count(_inventory_map(source).get(LIFETIME_FARMER_BANNER)) > 0:
+            return True
+    return False
+
+
+def _stamp_to_utc(raw: Any) -> datetime | None:
+    try:
+        stamp = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if stamp > 1e12:
+        return datetime.fromtimestamp(stamp / 1000, tz=timezone.utc)
+    return datetime.fromtimestamp(stamp, tz=timezone.utc)
+
+
 def extract_vip(farm_payload: Any, *, now: datetime | None = None) -> bool:
-    """True when stored/community VIP is present and unexpired."""
+    """True when the farm has unexpired VIP, an active trial, or a lifetime banner.
+
+    Matches SFL ``hasVipAccess``: ``vip.expiresAt``, a 7-day ``trialStartedAt``,
+    or inventory ``Lifetime Farmer Banner``.
+    """
+    if _has_lifetime_farmer_banner(farm_payload):
+        return True
     farm = _farm_section(farm_payload)
     raw = None
     if isinstance(farm, dict) and "vip" in farm:
@@ -485,27 +540,35 @@ def extract_vip(farm_payload: Any, *, now: datetime | None = None) -> bool:
         raw = farm_payload.get("vip")
     if isinstance(raw, bool):
         return raw
+    clock = _utc_clock(now)
     if isinstance(raw, dict):
+        trial = raw.get("trialStartedAt", raw.get("trial_started_at"))
+        started = _stamp_to_utc(trial) if trial is not None else None
+        if started is not None and started <= clock < started + VIP_TRIAL_PERIOD:
+            return True
         expires = raw.get("expiresAt", raw.get("expires_at"))
         if expires is None:
             return False
-        try:
-            stamp = float(expires)
-        except (TypeError, ValueError):
+        expires_at = _stamp_to_utc(expires)
+        if expires_at is None:
             return False
-        clock = now or datetime.now(timezone.utc)
-        if clock.tzinfo is None:
-            clock = clock.replace(tzinfo=timezone.utc)
-        if stamp > 1e12:
-            expires_at = datetime.fromtimestamp(stamp / 1000, tz=timezone.utc)
-        else:
-            expires_at = datetime.fromtimestamp(stamp, tz=timezone.utc)
         return expires_at > clock
     if isinstance(farm, dict):
         for key in ("isVIP", "is_vip"):
             if key in farm:
                 return bool(farm.get(key))
     return False
+
+
+def farm_profile_fields(farm_payload: Any, *, now: datetime | None = None) -> dict[str, Any]:
+    """Island, VIP, and digging streak used by join gates and FarmSync snapshots."""
+    streak = extract_streak(farm_payload)
+    return {
+        "streak": streak,
+        "digging_streak": streak["count"],
+        "island": extract_island(farm_payload),
+        "vip": extract_vip(farm_payload, now=now),
+    }
 
 
 def iter_raw_tiles(grid: Any) -> Iterable[dict[str, Any]]:

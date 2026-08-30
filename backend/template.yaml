@@ -441,6 +441,15 @@ Resources:
                 Action:
                   - lambda:InvokeFunction
                 Resource: !GetAtt FarmSyncFunction.Arn
+        - PolicyName: MainSecrets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub ${SecretsBucket.Arn}/sfl-api-keys.json
       Tags:
         - Key: BillingTag
           Value: !Ref BillingTag
@@ -547,6 +556,8 @@ Resources:
       Environment:
         Variables:
           FARM_SYNC_FUNCTION: !Ref FarmSyncFunction
+          SECRETS_BUCKET: !Ref SecretsBucket
+          SFL_KEYS_OBJECT: sfl-api-keys.json
       Tags:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo
