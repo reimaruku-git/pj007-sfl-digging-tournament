@@ -32,7 +32,9 @@ deploy-dev: build
 	  "Environment=dev" \
 	  "BillingTag=pj007" \
 	  "AllowedOrigin=$${ALLOWED_ORIGIN:-*}" \
-	  "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament"
+	  "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
+	  "GitHubOidcClassicSubject=repo:reimaruku-git/pj007-sfl-digging-tournament:*" \
+	  "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*"
 
 clean:
 	rm -rf .aws-sam/

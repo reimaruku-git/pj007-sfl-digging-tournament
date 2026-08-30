@@ -30,7 +30,7 @@ config, scores, and force-refresh.
 |-------|--------|
 | Backend `backend/` | Python 3.13 / Lambda / SAM / HTTP API / DynamoDB / S3 / Cognito |
 | Frontend `frontend/` | React + TypeScript / Vite / Amplify v6 / CloudFront+S3 |
-| CI | One repo. Push `dev` → GitHub Actions OIDC → SAM then S3/CloudFront |
+| CI | One repo. Push `dev` → GitHub Actions OIDC → SAM then S3/CloudFront. Push `main` → the same in the **prd** account. |
 
 One git remote. Not two-repo like the SFL tracker.
 
@@ -38,12 +38,14 @@ One git remote. Not two-repo like the SFL tracker.
 
 ## Hard constraints (do not violate)
 
-1. **One AWS account:** `917147260700`, region `ap-southeast-1`.
-2. **This stack only:** `sfl-pj007-dev-digging-tournament`. Never touch
-   other stacks, buckets, tables, roles, or accounts.
-3. **Do not recreate** the account GitHub OIDC provider
-   (`token.actions.githubusercontent.com`). It already exists. This stack
-   only owns the *role* that trusts this repo.
+1. **Two AWS accounts**, region `ap-southeast-1`:
+   **dev** `917147260700` (SSO `rm-dev`), **prd** `498754465871` (SSO `rm-prd`).
+2. **These stacks only:** `sfl-pj007-dev-digging-tournament` and
+   `sfl-pj007-prd-digging-tournament`. Never touch other stacks, buckets,
+   tables, roles, or products.
+3. **Do not recreate** either account’s GitHub OIDC provider
+   (`token.actions.githubusercontent.com`). Both already exist. Each stack
+   (or the prd out-of-band role) only owns the *role* that trusts this repo.
 4. The browser talks **only to our API**. SFL Community API keys live in
    a **private secrets bucket** JSON list (`sfl-api-keys.json`), not
    Lambda env. FarmSync reads them at invoke. Never call
@@ -79,6 +81,28 @@ One git remote. Not two-repo like the SFL tracker.
 
 Console users:
 https://ap-southeast-1.console.aws.amazon.com/cognito/v2/idp/user-pools/ap-southeast-1_PGeUz81zg/users?region=ap-southeast-1
+
+## Live (prd)
+
+Created on merge to `main` (`.github/workflows/deploy-prd.yml`). The GitHub
+OIDC **role** is created out of band in account `498754465871` (the SAM
+template does not create it in prd, so the first Actions run can create the
+stack). Do not recreate the account OIDC provider.
+
+| | |
+|---|---|
+| Stack | `sfl-pj007-prd-digging-tournament` |
+| Bucket | `pj007-prd-digging-tournament` |
+| Secrets | `pj007-prd-digging-tournament-secrets` |
+| OIDC role | `arn:aws:iam::498754465871:role/pj007-prd-digging-tournament-github-deploy-role` |
+| SSO profile | `rm-prd` |
+| Site / API / Cognito | set after the first successful `Deploy prd` run (stack outputs) |
+
+GitHub var required before the first `main` merge: `PRD_AWS_DEPLOY_ROLE_ARN`
+(the role ARN above). The workflow reads the rest from stack outputs.
+
+Console users (after the pool exists): Cognito → pool
+`pj007-prd-digging-tournament-users`.
 
 ---
 
@@ -351,17 +375,24 @@ git push origin dev
 4. Sync `frontend/dist` → `s3://…/frontend/` + CloudFront `/*`
 
 Never pass both `--resolve-s3` and `--s3-bucket`. Use `--s3-bucket`
-`aws-sam-cli-managed-default-samclisourcebucket-mfrfb3arh90t`.
+`aws-sam-cli-managed-default-samclisourcebucket-mfrfb3arh90t` (dev) or
+`aws-sam-cli-managed-default-samclisourcebucket-hu85e30oy0ul` (prd).
 
 Local `make deploy-dev` defaults `AllowedOrigin` from `backend/.env`. If
 that file still has `ALLOWED_ORIGIN=*`, a laptop deploy will reopen CORS.
 Prefer Actions, or set `ALLOWED_ORIGIN` to the CloudFront URL.
 
+Push `main` → `.github/workflows/deploy-prd.yml` (prd account). That
+workflow assumes `pj007-prd-digging-tournament-github-deploy-role` (created
+manually; not by the prd stack). Do not laptop-deploy prd unless the user
+asks.
+
 New GitHub repos emit an **immutable** OIDC `sub`:
 `repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:ref:refs/heads/dev`.
-This stack trusts that form **and** the classic
-`repo:reimaruku-git/pj007-sfl-digging-tournament:*`. Do not “fix” the
-trust policy down to one form.
+Dev trusts that form with `:*` **and** the classic
+`repo:reimaruku-git/pj007-sfl-digging-tournament:*`. Prd trusts **main only**
+(`ref:refs/heads/main`) in both forms. Do not “fix” either policy down to
+one form.
 
 ---
 
@@ -370,6 +401,10 @@ trust policy down to one form.
 Vars: `AWS_REGION`, `DEV_VITE_API_BASE`, `DEV_AWS_DEPLOY_ROLE_ARN`,
 `DEV_S3_BUCKET`, `DEV_CF_DISTRIBUTION_ID`, `DEV_ALLOWED_ORIGIN`,
 `DEV_VITE_COGNITO_USER_POOL_ID`, `DEV_VITE_COGNITO_USER_POOL_CLIENT_ID`.
+Prd: `PRD_AWS_DEPLOY_ROLE_ARN` (required before the first `main` merge).
+Optional `PRD_ALLOWED_ORIGIN`; if unset, the workflow locks CORS to the
+new CloudFront URL after the stack exists. Other prd frontend values come
+from stack outputs, not GitHub vars.
 
 Secrets: `SFL_API_KEY` and optional `SFL_API_KEY_2` (operator source for
 the secrets-bucket JSON; not injected into Lambda env). Optional
@@ -429,8 +464,9 @@ and our API — it must not POST `/submissions` or call SFL.
 
 | Habit | Why |
 |-------|-----|
-| Recreate the account OIDC provider | Already exists; account-wide |
-| Touch any stack that is not `sfl-pj007-dev-digging-tournament` | One-account, this product only |
+| Recreate either account OIDC provider | Already exists; account-wide |
+| Touch any stack that is not this product’s `sfl-pj007-{dev,prd}-digging-tournament` | This product only |
+| Laptop-deploy prd after the OIDC role exists | Push/merge `main`; Actions owns prd |
 | Call SFL from the browser | Key + rate limit live on Lambda |
 | Restore HMAC / `POST /admin/login` | Replaced by Cognito |
 | `Authorization: Bearer …` | Breaks the JWT authorizer |

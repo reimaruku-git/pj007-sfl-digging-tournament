@@ -19,7 +19,7 @@ Players compete to collect **all 3 Otter Pebbles** in the fewest digs.
 ```
 backend/     SAM Python 3.13 — HTTP API + scheduled farm sync
 frontend/    Vite + React — public leaderboard + master admin
-.github/     OIDC deploy on push to `dev`
+.github/     OIDC deploy: push `dev` → dev account; push `main` → prd account
 ```
 
 ## Local
@@ -45,7 +45,12 @@ API: https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev
 
 ## Deploy
 
-First deploy is local (creates the GitHub OIDC **role** for this repo; the account OIDC provider already exists). After that, `git push origin dev` deploys backend + frontend.
+First **dev** deploy is local (creates the GitHub OIDC **role** for this repo;
+the account OIDC provider already exists). After that, `git push origin dev`
+deploys backend + frontend.
+
+**prd:** create the GitHub OIDC role in account `498754465871` (do not recreate
+the provider), set GitHub var `PRD_AWS_DEPLOY_ROLE_ARN`, then merge to `main`.
 
 See [SETUP_CHECKLIST.md](SETUP_CHECKLIST.md).
 

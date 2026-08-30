@@ -1,7 +1,11 @@
 # Setup — SFL Digging Tournament (pj007)
 
-One AWS account (`917147260700`, `ap-southeast-1`). This stack only:
-`sfl-pj007-dev-digging-tournament`.
+Two AWS accounts, region `ap-southeast-1`:
+
+| Env | Account | Stack | SSO |
+|---|---|---|---|
+| dev | `917147260700` | `sfl-pj007-dev-digging-tournament` | `rm-dev` |
+| prd | `498754465871` | `sfl-pj007-prd-digging-tournament` | `rm-prd` |
 
 Live (dev):
 
@@ -15,7 +19,7 @@ Live (dev):
 Admin login is **Amazon Cognito** (this stack’s user pool). Create the `Admin`
 user in the console after the pool exists — there is no shared website password.
 
-Do **not** recreate the GitHub OIDC provider. It already exists:
+Do **not** recreate the GitHub OIDC provider in **either** account. Dev:
 
 `arn:aws:iam::917147260700:oidc-provider/token.actions.githubusercontent.com`
 
@@ -104,8 +108,26 @@ Repo secrets:
 | `DISCORD_WEBHOOK_URL` | optional |
 
 The OIDC role trusts this repo only. New GitHub repos emit an immutable
-`sub` (`repo:owner@id/name@id:…`). This stack allows both that form and the
+`sub` (`repo:owner@id/name@id:…`). Dev allows both that form and the
 classic `repo:reimaruku-git/pj007-sfl-digging-tournament:*` form.
+
+## 3b. Prd / `main` (GitHub Actions)
+
+Account `498754465871`, SSO `rm-prd`. Do **not** recreate the GitHub OIDC
+provider; it already exists:
+
+`arn:aws:iam::498754465871:oidc-provider/token.actions.githubusercontent.com`
+
+1. Create IAM role `pj007-prd-digging-tournament-github-deploy-role` in that
+   account (OIDC trust for `main` only; the SAM prd stack does **not** create
+   this role).
+2. Set GitHub var `PRD_AWS_DEPLOY_ROLE_ARN` to that role’s ARN.
+3. Merge to `main`. `.github/workflows/deploy-prd.yml` creates the stack and
+   deploys the frontend from stack outputs.
+
+After the first run, upload SFL keys to
+`s3://pj007-prd-digging-tournament-secrets/sfl-api-keys.json` and create the
+Cognito `Admin` user in pool `pj007-prd-digging-tournament-users`.
 
 ## 4. Environment variables (Lambda)
 

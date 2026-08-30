@@ -53,6 +53,7 @@ jobs:
               "BillingTag=pj007" \
               "AllowedOrigin=${{ vars.DEV_ALLOWED_ORIGIN }}" \
               "GitHubRepo=reimaruku-git/pj007-sfl-digging-tournament" \
+              "GitHubOidcClassicSubject=repo:reimaruku-git/pj007-sfl-digging-tournament:*" \
               "GitHubOidcSubject=repo:reimaruku-git@248281558/pj007-sfl-digging-tournament@1334189130:*"
 
   deploy-frontend:
