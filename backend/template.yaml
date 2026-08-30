@@ -25,7 +25,11 @@ Globals:
               - ","
               - - !Ref AllowedOrigin
                 - !Ref WwwOrigin
-            - !Ref AllowedOrigin
+                - !Sub "https://${FrontendDistribution.DomainName}"
+            - !Join
+              - ","
+              - - !Ref AllowedOrigin
+                - !Sub "https://${FrontendDistribution.DomainName}"
         DATA_BUCKET: !Ref AppBucket
         CONFIG_TABLE: !Ref TournamentConfigTable
         SCORES_TABLE: !Ref DigScoresTable
@@ -335,7 +339,11 @@ Resources:
                 - ","
                 - - !Ref AllowedOrigin
                   - !Ref WwwOrigin
-              - !Ref AllowedOrigin
+                  - !Sub "https://${FrontendDistribution.DomainName}"
+              - !Join
+                - ","
+                - - !Ref AllowedOrigin
+                  - !Sub "https://${FrontendDistribution.DomainName}"
         AllowHeaders:
           - Content-Type
           - Authorization

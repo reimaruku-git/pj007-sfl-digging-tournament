@@ -62,10 +62,11 @@ export function AdminPage() {
   });
 
   useEffect(() => {
-    if (authed && session.data === false) {
+    if (authed && session.isFetched && session.data === false) {
+      setLoginError("Cognito accepted the password, but the admin API rejected the session.");
       void signOut().finally(() => setAuthed(false));
     }
-  }, [authed, session.data]);
+  }, [authed, session.data, session.isFetched]);
 
   const onSignOut = useCallback(() => {
     void signOut().finally(() => setAuthed(false));
@@ -78,6 +79,12 @@ export function AdminPage() {
     try {
       if (needNewPassword) {
         await confirmSignIn({ challengeResponse: newPassword });
+        const token = (await getAuthToken()) ?? (await getAuthToken(true));
+        if (!token) {
+          setLoginError("Password saved but no session token yet. Sign in again.");
+          setNeedNewPassword(false);
+          return;
+        }
         setAuthed(true);
         setNeedNewPassword(false);
         setPassword("");
@@ -89,10 +96,23 @@ export function AdminPage() {
       } catch {
         /* no existing session */
       }
-      const result = await signIn({ username: username.trim(), password });
+      const result = await signIn({
+        username: username.trim(),
+        password,
+        options: { authFlowType: "USER_SRP_AUTH" },
+      });
       if (result.nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
         setNeedNewPassword(true);
         setPassword("");
+        return;
+      }
+      if (!result.isSignedIn) {
+        setLoginError(`Sign-in incomplete (${result.nextStep.signInStep}).`);
+        return;
+      }
+      const token = (await getAuthToken()) ?? (await getAuthToken(true));
+      if (!token) {
+        setLoginError("Signed in but no session token yet. Try once more.");
         return;
       }
       setAuthed(true);
