@@ -556,7 +556,7 @@ def test_get_farm_exposes_recorded_average_across_history_days(aws_env, monkeypa
     assert farm["score_today"] is None
 
 
-def test_admin_put_featured_live_and_ended_not_scheduled(aws_env, monkeypatch):
+def test_admin_put_featured_live_ended_and_scheduled(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     store = app._get_store()
     now = datetime.now(timezone.utc).replace(microsecond=0)
@@ -675,14 +675,23 @@ def test_admin_put_featured_live_and_ended_not_scheduled(aws_env, monkeypatch):
     scheduled_set = app.lambda_handler(
         _event("PUT", "/admin/featured", {"tournament_id": scheduled_id}), None
     )
-    assert scheduled_set["statusCode"] == 400
-    body = _json(scheduled_set)
-    assert body["error"] == "VALIDATION_ERROR"
+    assert scheduled_set["statusCode"] == 200
+    assert _json(scheduled_set)["featured_tournament_id"] == scheduled_id
     catalog = _json(app.lambda_handler(_event("GET", "/tournaments"), None))
-    assert catalog["featured_tournament_id"] == ended_id
+    assert catalog["featured_tournament_id"] == scheduled_id
+    config = _json(app.lambda_handler(_event("GET", "/config"), None))
+    assert config["featured_tournament_id"] == scheduled_id
+    assert store.get_config()["current_tournament_id"] == scoring_before
     admin_list = _json(app.lambda_handler(_event("GET", "/admin/tournaments"), None))
-    assert admin_list["featured_tournament_id"] == ended_id
+    assert admin_list["featured_tournament_id"] == scheduled_id
     assert later_id in {row["tournament_id"] for row in catalog["tournaments"]}
+
+    going_live = store.get_tournament(scheduled_id)
+    going_live["status"] = "active"
+    store.put_tournament(going_live)
+    catalog = _json(app.lambda_handler(_event("GET", "/tournaments"), None))
+    assert catalog["featured_tournament_id"] == scheduled_id
+    assert store.get_config()["current_tournament_id"] == scoring_before
 
 
 def test_unknown_route(aws_env, monkeypatch):

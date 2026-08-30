@@ -116,13 +116,13 @@ def showcase_featured_id(store: Store) -> str | None:
     row = store.get_tournament(tid)
     if not row:
         return None
-    if row.get("status") not in {STATUS_ACTIVE, STATUS_ENDED}:
+    if row.get("status") not in {STATUS_SCHEDULED, STATUS_ACTIVE, STATUS_ENDED}:
         return None
     return tid
 
 
 def set_featured_tournament(store: Store, tournament_id_value: str | None) -> str | None:
-    """Persist a live or ended showcase id. Scheduled ids are rejected. None clears."""
+    """Persist a showcase id (scheduled, live, or ended). None clears."""
     seed_catalog(store)
     current = store.get_config()
     tid = str(tournament_id_value or "").strip()
@@ -134,13 +134,9 @@ def set_featured_tournament(store: Store, tournament_id_value: str | None) -> st
     if not row:
         raise CatalogError("tournament not found", code="NOT_FOUND", status=404)
     status = row.get("status")
-    if status == STATUS_SCHEDULED:
+    if status not in {STATUS_SCHEDULED, STATUS_ACTIVE, STATUS_ENDED}:
         raise CatalogError(
-            "scheduled tournaments cannot be featured", code="VALIDATION_ERROR", status=400
-        )
-    if status not in {STATUS_ACTIVE, STATUS_ENDED}:
-        raise CatalogError(
-            "only live or ended tournaments can be featured",
+            "only scheduled, live, or ended tournaments can be featured",
             code="VALIDATION_ERROR",
             status=400,
         )

@@ -102,7 +102,7 @@ describe("AdminTournaments", () => {
     );
   });
 
-  it("lets admin feature a live or past tournament, not upcoming", async () => {
+  it("lets admin feature a live, upcoming, or past tournament", async () => {
     const onFeature = vi.fn().mockResolvedValue(undefined);
     const { container } = render(
       [
@@ -137,7 +137,13 @@ describe("AdminTournaments", () => {
     expect(container.querySelector('[data-testid="admin-feature-past-cup"]')?.textContent).toMatch(
       /^Feature$/,
     );
-    expect(container.querySelector('[data-testid="admin-feature-next"]')).toBeNull();
+    expect(container.querySelector('[data-testid="admin-feature-next"]')?.textContent).toMatch(
+      /^Feature$/,
+    );
+    await act(async () => {
+      (container.querySelector('[data-testid="admin-feature-next"]') as HTMLButtonElement).click();
+    });
+    expect(onFeature).toHaveBeenCalledWith("next");
     await act(async () => {
       (container.querySelector('[data-testid="admin-feature-past-cup"]') as HTMLButtonElement).click();
     });

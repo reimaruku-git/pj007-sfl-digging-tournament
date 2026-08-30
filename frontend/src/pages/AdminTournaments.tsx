@@ -248,9 +248,12 @@ export function AdminTournaments({
             empty="No upcoming tournaments."
             items={adminBucketPreview(upcoming, ADMIN_LIVE_PREVIEW)}
             selectedId={selectedId}
+            featuredId={featuredId}
+            canFeature
             onOpen={openPendingReview}
             onEdit={openEdit}
             onDelete={requestDelete}
+            onFeature={onFeature}
           />
           {adminLiveNeedsOverflow(live.length, upcoming.length) ? (
             <button
@@ -879,9 +882,12 @@ function AdminOverflow({
                   key={row.tournament_id}
                   row={row}
                   selectedId={selectedId}
+                  featuredId={featuredId}
+                  canFeature
                   onOpen={onOpenUpcoming}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onFeature={onFeature}
                 />
               ))}
             </div>

@@ -702,6 +702,44 @@ describe("LeaderboardPage home", () => {
     expect(fetched).toEqual(["past-cup"]);
   });
 
+  it("shows an admin-featured upcoming event on home until it goes live", async () => {
+    const live = summary({
+      tournament_id: "soon",
+      name: "Ends first",
+      status: "active",
+      end_at: "2026-08-25T00:00:00.000Z",
+    });
+    const next = summary({
+      tournament_id: "next",
+      name: "September cup",
+      status: "scheduled",
+      start_at: "2026-09-01T00:00:00.000Z",
+      end_at: "2026-09-08T00:00:00.000Z",
+      duration_days: 7,
+      count: 2,
+    });
+    listTournaments.mockResolvedValue({
+      tournaments: [live, next],
+      count: 2,
+      featured_tournament_id: "next",
+    });
+    fetchTournament.mockImplementation(async (id: string) => {
+      if (id === "next") return archive(next, []);
+      return archive(live, []);
+    });
+
+    const page = await renderHome();
+    expect(page.querySelector('[data-testid="featured-title"]')?.textContent).toBe("September cup");
+    expect(page.querySelector('[data-testid="home-hero"]')?.textContent).toMatch(
+      /Upcoming tournament/,
+    );
+    expect(page.querySelector('[data-testid="now-digging"]')?.textContent).toMatch(/Up next/);
+    expect(page.querySelector('[data-testid="featured-now-link"]')?.getAttribute("href")).toBe(
+      "/tournaments/next",
+    );
+    expect(fetchTournament.mock.calls.map((call) => call[0])).toEqual(["next"]);
+  });
+
   it("shows the inclusive last playable day, not exclusive end_at", async () => {
     const live = summary({
       tournament_id: "week",
