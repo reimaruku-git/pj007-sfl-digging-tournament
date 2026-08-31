@@ -955,6 +955,7 @@ Resources:
                   - cloudformation:ListStackResources
                   - cloudformation:CreateStack
                   - cloudformation:UpdateStack
+                  - cloudformation:ContinueUpdateRollback
                   - cloudformation:ValidateTemplate
                 Resource:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*
