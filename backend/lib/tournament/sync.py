@@ -10,6 +10,7 @@ from typing import Any
 from urllib import error, request
 
 from tournament.event_settings import public_event_settings
+from tournament.images import public_media_fields
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.history import (
     recover_daily_history,
@@ -91,6 +92,7 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
             or None,
         }
         payload.update(extras)
+        payload.update(public_media_fields(config))
         return payload
     days = int(config.get("duration_days") or 0) or duration_days(start, end)
     tid = str(config.get("current_tournament_id") or config.get("tournament_id") or "").strip()
@@ -116,6 +118,7 @@ def public_config(config: dict[str, Any]) -> dict[str, Any]:
         "featured_tournament_id": str(config.get("featured_tournament_id") or "").strip() or None,
     }
     payload.update(extras)
+    payload.update(public_media_fields(config))
     return payload
 
 

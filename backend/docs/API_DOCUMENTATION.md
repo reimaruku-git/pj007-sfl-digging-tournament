@@ -870,13 +870,43 @@ already live. A future start is `scheduled`. `GET /config` and
 `GET /leaderboard` follow the soonest-ending live event. Each live
 event has its own board at `GET /tournaments/{id}`.
 
+Optional home-page images: `image_1_url` (small card art) and
+`image_2_url` (wide hero canvas). Public tournament list/detail
+responses include them when set. URLs live under
+`/media/tournaments/{tournament_id}/…` on the site origin.
+
+### `POST /admin/tournaments/{tournament_id}/images/presign`
+
+Mint a presigned S3 PUT URL for a tournament image. Admin JWT required.
+
+```json
+{ "slot": "image_1", "content_type": "image/webp" }
+```
+
+`slot` is `image_1` (small) or `image_2` (wide). Allowed
+`content_type`: `image/jpeg`, `image/png`, `image/webp`, `image/gif`.
+
+```json
+{
+  "slot": "image_1",
+  "key": "media/tournaments/20260823T000000Z_8d/image_1.webp",
+  "upload_url": "https://…",
+  "public_url": "https://d1balcacprl09z.cloudfront.net/media/tournaments/20260823T000000Z_8d/image_1.webp",
+  "expires_in": 900
+}
+```
+
+Upload with `PUT upload_url` and the same `Content-Type`, then save
+`public_url` on the tournament via `PUT /admin/tournaments/{id}`.
+
 ### `PUT /admin/tournaments/{tournament_id}`
 
 Scheduled or live: name, `start_at`, `duration_days` (or inclusive
 `end_at`), prize, and the same extra settings as create
 (`min_bumpkin_island`, `min_digging_streak`, `vip_required`,
 `max_players`, `join_mode`, `description`, `nft_giveaway`,
-`prize_places`). Omitted keys keep the stored values; send `null` /
+`prize_places`, `image_1_url`, `image_2_url`). Omitted keys keep the
+stored values; send `null` /
 `[]` to clear an optional gate, description, or prize list. Changing
 the live window re-scores farms from snapshots. Ended: `409`.
 

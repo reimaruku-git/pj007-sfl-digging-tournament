@@ -33,6 +33,8 @@ export type TournamentConfig = {
   prize_places?: PrizePlace[];
   nft_giveaway?: boolean;
   enrolled_count?: number;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
 };
 
 export type FarmDayRecord = {
@@ -190,6 +192,8 @@ export type TournamentSummary = {
   prize_places?: PrizePlace[];
   nft_giveaway?: boolean;
   enrolled_count?: number;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
 };
 
 export type TournamentArchive = {

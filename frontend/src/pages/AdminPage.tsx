@@ -264,6 +264,7 @@ function AdminDashboard({ onSignOut }: { onSignOut: () => void }) {
           const created = await createTournament(draft);
           note(`Created ${created.name} (${created.status}).`);
           invalidate();
+          return created;
         }}
         onUpdate={async (id, draft) => {
           await updateTournament(id, draft);

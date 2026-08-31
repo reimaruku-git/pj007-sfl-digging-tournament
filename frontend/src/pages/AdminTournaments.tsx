@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
+import { updateTournament } from "../api/admin";
 import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
@@ -24,6 +25,11 @@ import {
   isNumericPrizeAmount,
   joinedCountLabel,
 } from "../lib/format";
+import {
+  uploadPendingTournamentImages,
+  validateTournamentImageFile,
+  type TournamentImageSlot,
+} from "../lib/tournamentImages";
 
 export type TournamentDraft = {
   name: string;
@@ -38,6 +44,8 @@ export type TournamentDraft = {
   join_mode: JoinMode;
   nft_giveaway: boolean;
   prize_places: PrizePlace[];
+  image_1_url: string | null;
+  image_2_url: string | null;
 };
 
 export type TournamentSavePayload = TournamentDraft & {
@@ -71,7 +79,7 @@ export function AdminTournaments({
   selectedId?: string | null;
   roster?: RosterMember[];
   onSelect?: (id: string | null) => void;
-  onCreate: (draft: TournamentSavePayload) => Promise<void>;
+  onCreate: (draft: TournamentSavePayload) => Promise<{ tournament_id: string }>;
   onUpdate: (id: string, draft: TournamentSavePayload) => Promise<void>;
   onDelete: (row: TournamentSummary) => Promise<void>;
   onAddFarms?: (id: string, farmIds: string[]) => Promise<void>;
@@ -88,6 +96,14 @@ export function AdminTournaments({
   const ended = useMemo(() => pastTournaments(items), [items]);
   const [editor, setEditor] = useState<Editor>(null);
   const [draft, setDraft] = useState<TournamentDraft>(emptyDraft());
+  const [pendingImages, setPendingImages] = useState<Record<TournamentImageSlot, File | null>>({
+    image_1: null,
+    image_2: null,
+  });
+  const [imagePreview, setImagePreview] = useState<Record<TournamentImageSlot, string | null>>({
+    image_1: null,
+    image_2: null,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localReviewId, setLocalReviewId] = useState<string | null>(null);
@@ -136,8 +152,14 @@ export function AdminTournaments({
     );
   }
 
+  function resetImageDraft() {
+    setPendingImages({ image_1: null, image_2: null });
+    setImagePreview({ image_1: null, image_2: null });
+  }
+
   function openCreate() {
     setDraft(emptyDraft());
+    resetImageDraft();
     setError(null);
     setEditor({ mode: "create" });
   }
@@ -160,9 +182,28 @@ export function AdminTournaments({
         amount: item.amount,
         nft_name: item.nft_name || "",
       })),
+      image_1_url: row.image_1_url ?? null,
+      image_2_url: row.image_2_url ?? null,
     });
+    resetImageDraft();
     setError(null);
     setEditor({ mode: "edit", id: row.tournament_id });
+  }
+
+  function onPickImage(slot: TournamentImageSlot, file: File | null) {
+    if (!file) {
+      setPendingImages((current) => ({ ...current, [slot]: null }));
+      setImagePreview((current) => ({ ...current, [slot]: null }));
+      return;
+    }
+    const issue = validateTournamentImageFile(file);
+    if (issue) {
+      setError(issue);
+      return;
+    }
+    setError(null);
+    setPendingImages((current) => ({ ...current, [slot]: file }));
+    setImagePreview((current) => ({ ...current, [slot]: URL.createObjectURL(file) }));
   }
 
   async function submit(event: FormEvent) {
@@ -207,16 +248,25 @@ export function AdminTournaments({
       join_mode: draft.join_mode,
       nft_giveaway: draft.nft_giveaway,
       prize_places: prizePlaces,
+      image_1_url: draft.image_1_url,
+      image_2_url: draft.image_2_url,
     };
     setBusy(true);
     setError(null);
     try {
+      let tournamentId = editor?.mode === "edit" ? editor.id : "";
       if (editor?.mode === "edit") {
         await onUpdate(editor.id, payload);
       } else {
-        await onCreate(payload);
+        const created = await onCreate(payload);
+        tournamentId = created.tournament_id;
+      }
+      const imagePatch = await uploadPendingTournamentImages(tournamentId, pendingImages);
+      if (Object.keys(imagePatch).length > 0) {
+        await updateTournament(tournamentId, imagePatch);
       }
       setEditor(null);
+      resetImageDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -595,6 +645,50 @@ export function AdminTournaments({
                 <option value="auto">Auto join</option>
               </select>
             </label>
+            <div className="tournament-image-fields" data-testid="tournament-image-fields">
+              <p className="meta tournament-image-note">
+                Home page images only. Image 1 is the small card art; Image 2 is the wide hero
+                canvas.
+              </p>
+              <div className="form-row tournament-image-row">
+                <label>
+                  Image 1 (small)
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    data-testid="tournament-image-1"
+                    onChange={(event) => onPickImage("image_1", event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {(imagePreview.image_1 || draft.image_1_url) && (
+                  <img
+                    className="tournament-image-preview is-small"
+                    src={imagePreview.image_1 || draft.image_1_url || ""}
+                    alt="Image 1 preview"
+                    data-testid="tournament-image-1-preview"
+                  />
+                )}
+              </div>
+              <div className="form-row tournament-image-row">
+                <label>
+                  Image 2 (wide)
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    data-testid="tournament-image-2"
+                    onChange={(event) => onPickImage("image_2", event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {(imagePreview.image_2 || draft.image_2_url) && (
+                  <img
+                    className="tournament-image-preview is-wide"
+                    src={imagePreview.image_2 || draft.image_2_url || ""}
+                    alt="Image 2 preview"
+                    data-testid="tournament-image-2-preview"
+                  />
+                )}
+              </div>
+            </div>
             <div className="toolbar">
               <button
                 className="btn primary"
@@ -628,6 +722,8 @@ function emptyDraft(): TournamentDraft {
     join_mode: "confirm",
     nft_giveaway: false,
     prize_places: [],
+    image_1_url: null,
+    image_2_url: null,
   };
 }
 

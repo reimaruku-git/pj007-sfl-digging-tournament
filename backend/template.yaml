@@ -423,6 +423,7 @@ Resources:
                   - !Sub ${AppBucket.Arn}/config/*
                   - !Sub ${AppBucket.Arn}/snapshots/*
                   - !Sub ${AppBucket.Arn}/archives/*
+                  - !Sub ${AppBucket.Arn}/media/tournaments/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -433,6 +434,7 @@ Resources:
                       - config/*
                       - snapshots/*
                       - archives/*
+                      - media/tournaments/*
         - PolicyName: MainInvokeSync
           PolicyDocument:
             Version: "2012-10-17"
@@ -714,6 +716,14 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/tournaments/{tournament_id}
             Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminPresignTournamentImage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}/images/presign
+            Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
         AdminListFarms:
@@ -1142,12 +1152,24 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ""
             OriginAccessControlId: !GetAtt FrontendOAC.Id
+          - Id: MediaBucketOrigin
+            DomainName: !GetAtt AppBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+            OriginAccessControlId: !GetAtt FrontendOAC.Id
         DefaultCacheBehavior:
           TargetOriginId: FrontendBucketOrigin
           ViewerProtocolPolicy: redirect-to-https
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD]
+        CacheBehaviors:
+          - PathPattern: media/*
+            TargetOriginId: MediaBucketOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -1264,6 +1286,15 @@ Resources:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub "${AppBucket.Arn}/frontend/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
+          - Sid: AllowCloudFrontReadMedia
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${AppBucket.Arn}/media/tournaments/*"
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"

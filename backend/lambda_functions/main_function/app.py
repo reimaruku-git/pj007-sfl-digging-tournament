@@ -33,7 +33,7 @@ from tournament.catalog import (
     update_tournament,
 )
 from tournament.farms import FarmRegistry
-from tournament.history import recorded_farm_stats
+from tournament.images import MediaError, presign_tournament_image
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.membership import (
     MembershipError,
@@ -75,6 +75,7 @@ from tournament.window import configured_duration_days, tournament_id
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "")
 DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
 CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
@@ -486,6 +487,26 @@ def handle_admin_delete_tournament(event: dict[str, Any]) -> dict[str, Any]:
     return create_response(200, {"ok": True})
 
 
+def handle_admin_presign_tournament_image(event: dict[str, Any]) -> dict[str, Any]:
+    tournament = _path_params(event).get("tournament_id", "").strip()
+    if not tournament:
+        return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
+    store = _get_store()
+    if not store.get_tournament(tournament):
+        return create_error_response(404, "tournament not found", "NOT_FOUND")
+    try:
+        payload = presign_tournament_image(
+            bucket=store.data_bucket,
+            tournament_id=tournament,
+            body=_body(event),
+            site_origin=ALLOWED_ORIGIN,
+            s3_client=_get_store()._s3,
+        )
+    except MediaError as exc:
+        return create_error_response(exc.status, exc.message, exc.code)
+    return create_response(200, payload)
+
+
 def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
     body = _body(event)
     store = _get_store()
@@ -822,6 +843,11 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
         "DELETE",
         re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)$"),
         handle_admin_delete_tournament,
+    ),
+    (
+        "POST",
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)/images/presign$"),
+        handle_admin_presign_tournament_image,
     ),
     ("GET", re.compile(r"^/admin/farms$"), handle_admin_list_farms),
     ("POST", re.compile(r"^/admin/farms$"), handle_admin_add_farm),

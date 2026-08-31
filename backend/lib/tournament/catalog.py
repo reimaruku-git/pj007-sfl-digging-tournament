@@ -11,6 +11,7 @@ from tournament.event_settings import (
     parse_event_settings,
     public_event_settings,
 )
+from tournament.images import merge_media_fields, public_media_fields
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard, public_entry
 from tournament.membership import (
@@ -238,6 +239,8 @@ def seed_catalog(store: Store, *, now: datetime | None = None) -> dict[str, Any]
         tournament_id_value=tid,
         settings=public_event_settings(existing or config),
     )
+    if existing:
+        merge_media_fields(row, {}, existing=existing)
     store.put_tournament(row)
     if status != STATUS_ENDED:
         config = point_featured_config(store)
@@ -345,6 +348,7 @@ def create_tournament(
     row = tournament_record(
         start=start, end=end, days=days, name=name, prize=prize, status=status, settings=settings
     )
+    merge_media_fields(row, body)
     row["roster_seeded"] = True
     store.put_tournament(row)
     if status == STATUS_ACTIVE:
@@ -429,6 +433,7 @@ def update_tournament(
         tournament_id_value=new_id,
         settings=settings,
     )
+    merge_media_fields(updated, body, existing=existing)
     store.put_tournament(updated)
     if new_id != tournament_id_value:
         store.drop_event_scores(tournament_id_value)
@@ -546,6 +551,7 @@ def public_summary(row: dict[str, Any], *, archive: dict[str, Any] | None = None
         "leader_farm_id": payload.get("leader_farm_id") or row.get("leader_farm_id"),
     }
     summary.update(public_event_settings(row))
+    summary.update(public_media_fields(row))
     if "enrolled_count" in row:
         try:
             summary["enrolled_count"] = int(row.get("enrolled_count") or 0)

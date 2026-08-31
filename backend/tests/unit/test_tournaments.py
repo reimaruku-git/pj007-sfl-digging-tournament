@@ -74,6 +74,38 @@ def test_create_overlapping_and_two_live(aws_env):
     assert later["name"] == "September cup"
 
 
+def test_tournament_image_urls_round_trip(aws_env):
+    store = _store(aws_env)
+    clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
+    created = create_tournament(
+        store,
+        {
+            "name": "Art cup",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+            "image_1_url": "https://site/media/tournaments/x/image_1.webp",
+            "image_2_url": "https://site/media/tournaments/x/image_2.webp",
+        },
+        now=clock,
+    )
+    assert created["image_1_url"].endswith("image_1.webp")
+    assert created["image_2_url"].endswith("image_2.webp")
+    stored = store.get_tournament(created["tournament_id"])
+    assert stored.get("image_1_url") == created["image_1_url"], stored
+    listed = list_public_tournaments(store, now=clock)
+    match = next(row for row in listed if row["tournament_id"] == created["tournament_id"])
+    assert match["image_1_url"] == created["image_1_url"]
+    assert match["image_2_url"] == created["image_2_url"]
+    updated = update_tournament(
+        store,
+        created["tournament_id"],
+        {"image_1_url": None},
+        now=clock,
+    )
+    assert "image_1_url" not in updated or updated.get("image_1_url") is None
+
+
 def test_one_day_tournament_is_allowed(aws_env):
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)

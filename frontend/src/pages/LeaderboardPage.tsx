@@ -170,7 +170,16 @@ function Hero({
     : "Live tournament";
   return (
     <section className="live-hero" data-testid="home-hero">
-      <ColorCanvas tone="hero" className="live-hero-art" />
+      {featured?.image_2_url ? (
+        <img
+          src={featured.image_2_url}
+          alt=""
+          className="live-hero-art tournament-hero-image"
+          data-testid="home-hero-image"
+        />
+      ) : (
+        <ColorCanvas tone="hero" className="live-hero-art" />
+      )}
       <div className="live-hero-inner">
         <p className="hero-eyebrow">{eyebrow}</p>
         {featured ? (
@@ -216,7 +225,16 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
   const windowCopy = formatWindowRange(featured.start_at, lastDay);
   return (
     <div className="now-digging" data-testid="now-digging">
-      <ColorCanvas tone="thumb" className="now-digging-art" />
+      {featured.image_1_url ? (
+        <img
+          src={featured.image_1_url}
+          alt=""
+          className="now-digging-art tournament-thumb-image"
+          data-testid="now-digging-image"
+        />
+      ) : (
+        <ColorCanvas tone="thumb" className="now-digging-art" />
+      )}
       <div className="now-digging-copy">
         <div className="kicker">{featured.status === "scheduled" ? "Up next" : "Now digging"}</div>
         <div className="now-digging-name">{featured.name}</div>

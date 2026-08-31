@@ -228,6 +228,8 @@ export type TournamentWrite = {
   description?: string;
   prize_places?: { place: number; amount: string; nft_name?: string }[];
   nft_giveaway?: boolean;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
 };
 
 export async function listAdminTournaments(): Promise<TournamentList> {
@@ -261,6 +263,8 @@ export async function createTournament(input: {
   description?: string;
   prize_places?: { place: number; amount: string; nft_name?: string }[];
   nft_giveaway?: boolean;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
 }): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>("admin/tournaments", {
     method: "POST",
@@ -288,6 +292,8 @@ export async function updateTournament(
     description?: string;
     prize_places?: { place: number; amount: string; nft_name?: string }[];
     nft_giveaway?: boolean;
+    image_1_url?: string | null;
+    image_2_url?: string | null;
   },
 ): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>(
@@ -306,6 +312,32 @@ export async function deleteTournament(tournamentId: string): Promise<void> {
     { method: "DELETE" },
   );
   if (!response.ok) throw new Error(errorMessage(data, "failed to cancel tournament"));
+}
+
+export type TournamentImagePresign = {
+  slot: "image_1" | "image_2";
+  key: string;
+  upload_url: string;
+  public_url: string;
+  expires_in: number;
+};
+
+export async function presignTournamentImage(
+  tournamentId: string,
+  slot: "image_1" | "image_2",
+  contentType: string,
+): Promise<TournamentImagePresign> {
+  const { response, data } = await requestJson<TournamentImagePresign>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}/images/presign`,
+    {
+      method: "POST",
+      body: JSON.stringify({ slot, content_type: contentType }),
+    },
+  );
+  if (!response.ok || !data) {
+    throw new Error(errorMessage(data, "failed to prepare image upload"));
+  }
+  return data;
 }
 
 export async function saveConfig(input: {
