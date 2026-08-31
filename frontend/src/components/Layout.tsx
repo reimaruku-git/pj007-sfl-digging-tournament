@@ -201,9 +201,9 @@ function CreatorChip() {
   return (
     <div className="creator-chip" data-testid="creator-chip">
       <p className="daily-slogan" data-testid="daily-slogan">
-        <span>
-          {slogan.text}
-          {": "}
+        <span>{slogan.text}</span>
+        <span className="slogan-arrow" aria-hidden="true">
+          →
         </span>
         <a
           className="operator-farm-link"

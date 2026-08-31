@@ -1031,7 +1031,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-need-connect"]')).toBeNull();
     expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
-    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
   });
 
   it("hides join when the API already has a pending membership", async () => {
@@ -1209,7 +1209,7 @@ describe("TournamentsPage", () => {
     expect(page.textContent).not.toMatch(/Joining as/);
     expect(page.textContent).not.toMatch(/Join this tournament/);
     expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
-    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
     expect(page.querySelector('[data-testid="join-notice"]')?.textContent).toMatch(/You're in/);
   });
 
@@ -1320,7 +1320,7 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid="join-tournament"]')).toBeNull();
   });
 
-  it("shows accepted when membership is enrolled even if the farm is not on the board", async () => {
+  it("hides join when membership is enrolled even if the farm is not on the board", async () => {
     const next = summary({
       tournament_id: "next",
       name: "Confirm cup",
@@ -1345,10 +1345,11 @@ describe("TournamentsPage", () => {
       count: 1,
     });
     const page = await renderAt("/tournaments/next");
-    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
     expect(page.querySelector('[data-testid="join-waiting"]')).toBeNull();
     expect(page.querySelector('[data-testid="join-detail"]')).toBeNull();
     expect(page.textContent).not.toMatch(/waiting for admin approval/i);
+    expect(page.textContent).not.toMatch(/You've been accepted/i);
   });
 
   it("lists each unmet join gate with required vs farm values", async () => {
@@ -1433,6 +1434,6 @@ describe("TournamentsPage", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
     expect(page.querySelector('[data-testid="loading-popup"]')).toBeNull();
-    expect(page.querySelector('[data-testid="join-accepted"]')?.textContent).toMatch(/accepted/i);
+    expect(page.querySelector('[data-testid="join-accepted"]')).toBeNull();
   });
 });
