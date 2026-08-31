@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import re
 from typing import Any
 
@@ -13,7 +14,7 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp": "webp",
     "image/gif": "gif",
 }
-PRESIGN_EXPIRES_SECONDS = 900
+MAX_IMAGE_BYTES = 2 * 1024 * 1024
 
 
 class MediaError(Exception):
@@ -34,6 +35,18 @@ def media_object_key(tournament_id: str, slot: str, ext: str) -> str:
     if safe_ext not in set(ALLOWED_CONTENT_TYPES.values()):
         raise MediaError("unsupported image type")
     return f"media/tournaments/{tid}/{slot}.{safe_ext}"
+
+
+def public_api_base_from_event(event: dict[str, Any] | None) -> str:
+    """Build the public API origin from the incoming request (avoids a CF cycle)."""
+    ctx = (event or {}).get("requestContext") or {}
+    domain = str(ctx.get("domainName") or "").strip()
+    stage = str(ctx.get("stage") or "").strip()
+    if not domain:
+        raise MediaError("request host is missing", code="CONFIG_ERROR", status=500)
+    if "execute-api" in domain and stage and stage != "$default":
+        return f"https://{domain}/{stage}"
+    return f"https://{domain}"
 
 
 def public_media_url(api_base: str, key: str) -> str:
@@ -87,7 +100,7 @@ def public_media_fields(row: dict[str, Any] | None) -> dict[str, str]:
     return payload
 
 
-def presign_tournament_image(
+def store_tournament_image(
     *,
     bucket: str,
     tournament_id: str,
@@ -102,19 +115,25 @@ def presign_tournament_image(
     ext = ALLOWED_CONTENT_TYPES.get(content_type)
     if not ext:
         raise MediaError("content_type must be image/jpeg, image/png, image/webp, or image/gif")
+    raw = str(body.get("data") or "").strip()
+    if not raw:
+        raise MediaError("data is required")
+    if raw.startswith("data:") and "," in raw:
+        raw = raw.split(",", 1)[1]
+    try:
+        payload = base64.b64decode(raw)
+    except Exception as exc:
+        raise MediaError("data must be base64 image bytes") from exc
+    if not payload:
+        raise MediaError("data is required")
+    if len(payload) > MAX_IMAGE_BYTES:
+        raise MediaError("image must be 2 MB or smaller")
     key = media_object_key(tournament_id, slot, ext)
-    upload_url = s3_client.generate_presigned_url(
-        "put_object",
-        Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
-        ExpiresIn=PRESIGN_EXPIRES_SECONDS,
-    )
-    public_url = public_media_url(api_base, key)
+    s3_client.put_object(Bucket=bucket, Key=key, Body=payload, ContentType=content_type)
     return {
         "slot": slot,
         "key": key,
-        "upload_url": upload_url,
-        "public_url": public_url,
-        "expires_in": PRESIGN_EXPIRES_SECONDS,
+        "public_url": public_media_url(api_base, key),
     }
 
 

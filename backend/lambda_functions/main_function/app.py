@@ -33,7 +33,13 @@ from tournament.catalog import (
     update_tournament,
 )
 from tournament.farms import FarmRegistry
-from tournament.images import CONTENT_TYPE_BY_EXT, MediaError, media_key_from_path, presign_tournament_image
+from tournament.images import (
+    CONTENT_TYPE_BY_EXT,
+    MediaError,
+    media_key_from_path,
+    store_tournament_image,
+    public_api_base_from_event,
+)
 from tournament.leaderboard import official_score, public_entry, rank_scores
 from tournament.membership import (
     MembershipError,
@@ -76,7 +82,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "")
-PUBLIC_API_BASE = os.environ.get("PUBLIC_API_BASE", "")
 DATA_BUCKET = os.environ.get("DATA_BUCKET", "")
 CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
@@ -505,7 +510,7 @@ def handle_get_tournament_media(event: dict[str, Any]) -> dict[str, Any]:
     return create_binary_response(200, payload, content_type)
 
 
-def handle_admin_presign_tournament_image(event: dict[str, Any]) -> dict[str, Any]:
+def handle_admin_put_tournament_image(event: dict[str, Any]) -> dict[str, Any]:
     tournament = _path_params(event).get("tournament_id", "").strip()
     if not tournament:
         return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
@@ -513,11 +518,11 @@ def handle_admin_presign_tournament_image(event: dict[str, Any]) -> dict[str, An
     if not store.get_tournament(tournament):
         return create_error_response(404, "tournament not found", "NOT_FOUND")
     try:
-        payload = presign_tournament_image(
+        payload = store_tournament_image(
             bucket=store.data_bucket,
             tournament_id=tournament,
             body=_body(event),
-            api_base=PUBLIC_API_BASE,
+            api_base=public_api_base_from_event(event),
             s3_client=_get_store()._s3,
         )
     except MediaError as exc:
@@ -869,8 +874,8 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ),
     (
         "POST",
-        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)/images/presign$"),
-        handle_admin_presign_tournament_image,
+        re.compile(r"^/admin/tournaments/(?P<tournament_id>[^/]+)/images$"),
+        handle_admin_put_tournament_image,
     ),
     ("GET", re.compile(r"^/admin/farms$"), handle_admin_list_farms),
     ("POST", re.compile(r"^/admin/farms$"), handle_admin_add_farm),

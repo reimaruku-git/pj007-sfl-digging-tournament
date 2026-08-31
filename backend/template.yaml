@@ -560,10 +560,6 @@ Resources:
           FARM_SYNC_FUNCTION: !Ref FarmSyncFunction
           SECRETS_BUCKET: !Ref SecretsBucket
           SFL_KEYS_OBJECT: sfl-api-keys.json
-          PUBLIC_API_BASE: !If
-            - HasApiDomain
-            - !Sub "https://${ApiDomainName}"
-            - !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
       Tags:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo
@@ -728,11 +724,11 @@ Resources:
             Method: DELETE
             Auth:
               Authorizer: CognitoAuthorizer
-        AdminPresignTournamentImage:
+        AdminPutTournamentImage:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /admin/tournaments/{tournament_id}/images/presign
+            Path: /admin/tournaments/{tournament_id}/images
             Method: POST
             Auth:
               Authorizer: CognitoAuthorizer

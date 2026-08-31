@@ -8,15 +8,39 @@ from tournament.images import (
     MediaError,
     media_object_key,
     merge_media_fields,
-    presign_tournament_image,
+    public_api_base_from_event,
     public_media_fields,
     public_media_url,
+    store_tournament_image,
 )
 
 
 def test_media_object_key_builds_slot_paths():
     assert media_object_key("cup-1", "image_1", "webp") == "media/tournaments/cup-1/image_1.webp"
     assert media_object_key("cup-1", "image_2", "png") == "media/tournaments/cup-1/image_2.png"
+
+
+def test_public_api_base_from_event_includes_stage_on_execute_api():
+    assert (
+        public_api_base_from_event(
+            {
+                "requestContext": {
+                    "domainName": "oacun88q99.execute-api.ap-southeast-1.amazonaws.com",
+                    "stage": "dev",
+                }
+            }
+        )
+        == "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev"
+    )
+
+
+def test_public_api_base_from_event_omits_stage_on_custom_domain():
+    assert (
+        public_api_base_from_event(
+            {"requestContext": {"domainName": "api.bumpkinclash.com", "stage": "prd"}}
+        )
+        == "https://api.bumpkinclash.com"
+    )
 
 
 def test_public_media_url_uses_api_base():
@@ -49,29 +73,30 @@ def test_public_media_fields_only_includes_set_urls():
     assert payload == {"image_1_url": "https://site/a.webp"}
 
 
-def test_presign_tournament_image_returns_upload_and_public_urls():
+def test_store_tournament_image_puts_object_and_returns_public_url():
     s3 = MagicMock()
-    s3.generate_presigned_url.return_value = "https://upload.example/put"
-    payload = presign_tournament_image(
+    payload = store_tournament_image(
         bucket="pj007-dev-digging-tournament",
         tournament_id="cup-1",
-        body={"slot": "image_2", "content_type": "image/png"},
+        body={"slot": "image_2", "content_type": "image/png", "data": "aGVsbG8="},
         api_base="https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev",
         s3_client=s3,
     )
     assert payload["slot"] == "image_2"
-    assert payload["upload_url"] == "https://upload.example/put"
     assert payload["public_url"].endswith("/media/tournaments/cup-1/image_2.png")
-    s3.generate_presigned_url.assert_called_once()
+    s3.put_object.assert_called_once()
+    kwargs = s3.put_object.call_args.kwargs
+    assert kwargs["Key"] == "media/tournaments/cup-1/image_2.png"
+    assert kwargs["Body"] == b"hello"
 
 
-def test_presign_rejects_unknown_slot():
+def test_store_rejects_unknown_slot():
     s3 = MagicMock()
     with pytest.raises(MediaError):
-        presign_tournament_image(
+        store_tournament_image(
             bucket="bucket",
             tournament_id="cup-1",
-            body={"slot": "banner", "content_type": "image/png"},
+            body={"slot": "banner", "content_type": "image/png", "data": "aGVsbG8="},
             api_base="https://site.example",
             s3_client=s3,
         )

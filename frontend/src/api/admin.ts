@@ -314,30 +314,29 @@ export async function deleteTournament(tournamentId: string): Promise<void> {
   if (!response.ok) throw new Error(errorMessage(data, "failed to cancel tournament"));
 }
 
-export type TournamentImagePresign = {
+export type TournamentImageUpload = {
   slot: "image_1" | "image_2";
   key: string;
-  upload_url: string;
   public_url: string;
-  expires_in: number;
 };
 
-export async function presignTournamentImage(
+export async function uploadAdminTournamentImage(
   tournamentId: string,
   slot: "image_1" | "image_2",
   contentType: string,
-): Promise<TournamentImagePresign> {
-  const { response, data } = await requestJson<TournamentImagePresign>(
-    `admin/tournaments/${encodeURIComponent(tournamentId)}/images/presign`,
+  data: string,
+): Promise<TournamentImageUpload> {
+  const { response, data: payload } = await requestJson<TournamentImageUpload>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}/images`,
     {
       method: "POST",
-      body: JSON.stringify({ slot, content_type: contentType }),
+      body: JSON.stringify({ slot, content_type: contentType, data }),
     },
   );
-  if (!response.ok || !data) {
-    throw new Error(errorMessage(data, "failed to prepare image upload"));
+  if (!response.ok || !payload) {
+    throw new Error(errorMessage(payload, "failed to upload tournament image"));
   }
-  return data;
+  return payload;
 }
 
 export async function saveConfig(input: {

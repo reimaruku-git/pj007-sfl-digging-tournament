@@ -32,7 +32,7 @@ function render(items: TournamentSummary[], handlers = {}) {
   root = createRoot(container);
   const props = {
     items,
-    onCreate: vi.fn().mockResolvedValue(undefined),
+    onCreate: vi.fn().mockResolvedValue({ tournament_id: "new-cup" }),
     onUpdate: vi.fn().mockResolvedValue(undefined),
     onDelete: vi.fn().mockResolvedValue(undefined),
     ...handlers,
@@ -427,7 +427,7 @@ describe("AdminTournaments", () => {
   });
 
   it("submits snake_case extra settings on create and edit", async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onCreate = vi.fn().mockResolvedValue({ tournament_id: "new-cup" });
     const onUpdate = vi.fn().mockResolvedValue(undefined);
     const { container } = render(
       [
@@ -859,7 +859,7 @@ describe("AdminTournaments", () => {
   });
 
   it("saves a text prize pool when NFTs are given away", async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onCreate = vi.fn().mockResolvedValue({ tournament_id: "new-cup" });
     const { container } = render([], { onCreate });
     act(() => {
       const button = [...container.querySelectorAll("button")].find((node) =>

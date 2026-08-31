@@ -1,4 +1,4 @@
-import { presignTournamentImage } from "../api/admin";
+import { uploadAdminTournamentImage } from "../api/admin";
 
 export type TournamentImageSlot = "image_1" | "image_2";
 
@@ -15,6 +15,19 @@ export function validateTournamentImageFile(file: File): string | null {
   return null;
 }
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      const comma = text.indexOf(",");
+      resolve(comma >= 0 ? text.slice(comma + 1) : text);
+    };
+    reader.onerror = () => reject(new Error("failed to read image"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function uploadTournamentImage(
   tournamentId: string,
   slot: TournamentImageSlot,
@@ -22,16 +35,9 @@ export async function uploadTournamentImage(
 ): Promise<string> {
   const issue = validateTournamentImageFile(file);
   if (issue) throw new Error(issue);
-  const presigned = await presignTournamentImage(tournamentId, slot, file.type);
-  const response = await fetch(presigned.upload_url, {
-    method: "PUT",
-    body: file,
-    headers: { "Content-Type": file.type },
-  });
-  if (!response.ok) {
-    throw new Error(`failed to upload ${slot}`);
-  }
-  return presigned.public_url;
+  const data = await fileToBase64(file);
+  const uploaded = await uploadAdminTournamentImage(tournamentId, slot, file.type, data);
+  return uploaded.public_url;
 }
 
 export async function uploadPendingTournamentImages(
