@@ -872,8 +872,8 @@ event has its own board at `GET /tournaments/{id}`.
 
 Optional home-page images: `image_1_url` (small card art) and
 `image_2_url` (wide hero canvas). Public tournament list/detail
-responses include them when set. URLs live under
-`/media/tournaments/{tournament_id}/…` on the site origin.
+responses include them when set. URLs are served from
+`GET /media/tournaments/{tournament_id}/{filename}` on the public API.
 
 ### `POST /admin/tournaments/{tournament_id}/images/presign`
 
@@ -891,13 +891,20 @@ Mint a presigned S3 PUT URL for a tournament image. Admin JWT required.
   "slot": "image_1",
   "key": "media/tournaments/20260823T000000Z_8d/image_1.webp",
   "upload_url": "https://…",
-  "public_url": "https://d1balcacprl09z.cloudfront.net/media/tournaments/20260823T000000Z_8d/image_1.webp",
+  "public_url": "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev/media/tournaments/20260823T000000Z_8d/image_1.webp",
   "expires_in": 900
 }
 ```
 
 Upload with `PUT upload_url` and the same `Content-Type`, then save
 `public_url` on the tournament via `PUT /admin/tournaments/{id}`.
+
+### `GET /media/tournaments/{tournament_id}/{filename}`
+
+Public binary image bytes for tournament home-page art. Example:
+`/media/tournaments/20260823T000000Z_8d/image_2.png`. No auth.
+Returns the stored object with a matching image `Content-Type` and
+`Cache-Control: public, max-age=300`.
 
 ### `PUT /admin/tournaments/{tournament_id}`
 

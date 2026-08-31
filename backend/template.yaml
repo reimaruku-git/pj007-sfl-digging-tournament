@@ -560,6 +560,10 @@ Resources:
           FARM_SYNC_FUNCTION: !Ref FarmSyncFunction
           SECRETS_BUCKET: !Ref SecretsBucket
           SFL_KEYS_OBJECT: sfl-api-keys.json
+          PUBLIC_API_BASE: !If
+            - HasApiDomain
+            - !Sub "https://${ApiDomainName}"
+            - !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
       Tags:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo
@@ -599,6 +603,12 @@ Resources:
           Properties:
             ApiId: !Ref HttpApi
             Path: /tournaments/{tournament_id}
+            Method: GET
+        GetTournamentMedia:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /media/tournaments/{tournament_id}/{filename}
             Method: GET
         GetTournamentFarm:
           Type: HttpApi
@@ -1152,24 +1162,12 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ""
             OriginAccessControlId: !GetAtt FrontendOAC.Id
-          - Id: MediaBucketOrigin
-            DomainName: !GetAtt AppBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-            OriginAccessControlId: !GetAtt FrontendOAC.Id
         DefaultCacheBehavior:
           TargetOriginId: FrontendBucketOrigin
           ViewerProtocolPolicy: redirect-to-https
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD]
-        CacheBehaviors:
-          - PathPattern: media/*
-            TargetOriginId: MediaBucketOrigin
-            ViewerProtocolPolicy: redirect-to-https
-            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-            AllowedMethods: [GET, HEAD, OPTIONS]
-            CachedMethods: [GET, HEAD]
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200
@@ -1286,15 +1284,6 @@ Resources:
               Service: cloudfront.amazonaws.com
             Action: s3:GetObject
             Resource: !Sub "${AppBucket.Arn}/frontend/*"
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"
-          - Sid: AllowCloudFrontReadMedia
-            Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
-            Action: s3:GetObject
-            Resource: !Sub "${AppBucket.Arn}/media/tournaments/*"
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}"

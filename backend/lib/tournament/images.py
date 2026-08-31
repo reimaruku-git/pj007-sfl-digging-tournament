@@ -36,10 +36,10 @@ def media_object_key(tournament_id: str, slot: str, ext: str) -> str:
     return f"media/tournaments/{tid}/{slot}.{safe_ext}"
 
 
-def public_media_url(site_origin: str, key: str) -> str:
-    base = str(site_origin or "").strip().rstrip("/")
+def public_media_url(api_base: str, key: str) -> str:
+    base = str(api_base or "").strip().rstrip("/")
     if not base:
-        raise MediaError("site origin is not configured", code="CONFIG_ERROR", status=500)
+        raise MediaError("public API base is not configured", code="CONFIG_ERROR", status=500)
     return f"{base}/{str(key).lstrip('/')}"
 
 
@@ -92,7 +92,7 @@ def presign_tournament_image(
     bucket: str,
     tournament_id: str,
     body: dict[str, Any],
-    site_origin: str,
+    api_base: str,
     s3_client,
 ) -> dict[str, Any]:
     slot = str(body.get("slot") or "").strip()
@@ -108,7 +108,7 @@ def presign_tournament_image(
         Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
         ExpiresIn=PRESIGN_EXPIRES_SECONDS,
     )
-    public_url = public_media_url(site_origin, key)
+    public_url = public_media_url(api_base, key)
     return {
         "slot": slot,
         "key": key,
@@ -128,3 +128,15 @@ _MEDIA_KEY_RE = re.compile(r"^media/tournaments/[^/]+/(image_1|image_2)\.(jpg|pn
 
 def is_managed_media_key(key: str) -> bool:
     return bool(_MEDIA_KEY_RE.match(str(key or "").strip()))
+
+
+def media_key_from_path(tournament_id: str, filename: str) -> str:
+    tid = str(tournament_id or "").strip()
+    name = str(filename or "").strip()
+    key = f"media/tournaments/{tid}/{name}"
+    if not is_managed_media_key(key):
+        raise MediaError("media object not found", code="NOT_FOUND", status=404)
+    return key
+
+
+CONTENT_TYPE_BY_EXT = {ext: f"image/{ext if ext != 'jpg' else 'jpeg'}" for ext in ALLOWED_CONTENT_TYPES.values()}

@@ -463,6 +463,16 @@ class Store:
                 return None
             raise
 
+    def read_object(self, key: str) -> tuple[bytes, str | None]:
+        try:
+            response = self._s3.get_object(Bucket=self._bucket, Key=key)
+            return response["Body"].read(), response.get("ContentType")
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in {"NoSuchKey", "NoSuchBucket", "404"}:
+                raise FileNotFoundError(key) from exc
+            raise
+
     def _put_json(self, key: str, payload: dict[str, Any]) -> str:
         body = json.dumps(payload, default=str, separators=(",", ":"))
         self._s3.put_object(

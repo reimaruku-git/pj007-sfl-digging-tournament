@@ -19,10 +19,13 @@ def test_media_object_key_builds_slot_paths():
     assert media_object_key("cup-1", "image_2", "png") == "media/tournaments/cup-1/image_2.png"
 
 
-def test_public_media_url_uses_site_origin():
+def test_public_media_url_uses_api_base():
     assert (
-        public_media_url("https://d1balcacprl09z.cloudfront.net", "media/tournaments/x/image_1.webp")
-        == "https://d1balcacprl09z.cloudfront.net/media/tournaments/x/image_1.webp"
+        public_media_url(
+            "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev",
+            "media/tournaments/x/image_1.webp",
+        )
+        == "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev/media/tournaments/x/image_1.webp"
     )
 
 
@@ -53,7 +56,7 @@ def test_presign_tournament_image_returns_upload_and_public_urls():
         bucket="pj007-dev-digging-tournament",
         tournament_id="cup-1",
         body={"slot": "image_2", "content_type": "image/png"},
-        site_origin="https://d1balcacprl09z.cloudfront.net",
+        api_base="https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev",
         s3_client=s3,
     )
     assert payload["slot"] == "image_2"
@@ -69,6 +72,6 @@ def test_presign_rejects_unknown_slot():
             bucket="bucket",
             tournament_id="cup-1",
             body={"slot": "banner", "content_type": "image/png"},
-            site_origin="https://site.example",
+            api_base="https://site.example",
             s3_client=s3,
         )
