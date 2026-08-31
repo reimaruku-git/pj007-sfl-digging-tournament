@@ -236,7 +236,8 @@ describe("public chrome", () => {
     expect(farmLink?.getAttribute("href")).not.toMatch(/sfl\.world/);
     expect(farmLink?.textContent).toBe(OPERATOR_FARM_NAME);
     expect(slogan?.textContent).toContain(picked?.text ?? "");
-    expect(slogan?.textContent).toMatch(/:\s*rmr/);
+    expect(slogan?.textContent).toMatch(/→\s*rmr/);
+    expect(slogan?.querySelector(".slogan-arrow")).not.toBeNull();
     const created = el.querySelector('[data-testid="created-by"]');
     expect(created?.textContent).toMatch(/Created by/);
     expect(created?.querySelector("strong")?.textContent).toBe(OPERATOR_FARM_NAME);

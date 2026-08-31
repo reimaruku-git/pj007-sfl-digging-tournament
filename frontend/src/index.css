@@ -1918,6 +1918,16 @@ tr.is-you,
   filter: hue-rotate(85deg) saturate(1.35);
 }
 
+.slogan-arrow {
+  display: inline-block;
+  margin: 0 0.28em 0 0.55em;
+  color: var(--cream);
+  opacity: 0.88;
+  font-weight: 400;
+  transform: scaleX(1.75);
+  transform-origin: left center;
+}
+
 .operator-farm-link {
   color: var(--gold);
   font-weight: 700;

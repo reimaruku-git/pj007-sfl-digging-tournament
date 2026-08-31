@@ -575,11 +575,6 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
               {notice}
             </div>
           ) : null}
-          {accepted ? (
-            <p className="meta join-hint" data-testid="join-accepted">
-              You've been accepted into this tournament.
-            </p>
-          ) : null}
           {waitingApproval ? (
             <p className="meta join-hint" data-testid="join-waiting">
               Your join request is waiting for admin approval.
