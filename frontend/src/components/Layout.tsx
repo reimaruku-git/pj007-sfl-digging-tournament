@@ -203,7 +203,7 @@ function CreatorChip() {
       <p className="daily-slogan" data-testid="daily-slogan">
         <span>{slogan.text}</span>
         <span className="slogan-arrow" aria-hidden="true">
-          ☞
+          ➜
         </span>
         <a
           className="operator-farm-link"
