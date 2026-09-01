@@ -371,7 +371,7 @@ describe("TournamentsPage", () => {
     expect(css).toMatch(/\.standings-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     expect(css).toMatch(/\.detail-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     expect(css).toMatch(/\.podium-card\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
-    expect(css).toMatch(/\.now-digging\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
+    expect(css).toMatch(/\.now-digging\s*\{[^}]*border:\s*1px solid color-mix\(in srgb, var\(--gold\)/s);
     expect(css).toMatch(/\.you-farm-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     expect(css).toMatch(/\.rules-grid\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     const ongoing = css.match(/\.window-card\.is-ongoing\s*\{[^}]+\}/);
