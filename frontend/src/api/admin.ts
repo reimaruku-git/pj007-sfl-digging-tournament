@@ -1,6 +1,6 @@
 import { errorMessage, requestJson } from "./client";
 import type {
-  HeroText,
+  HeroLayer,
   LeaderboardEntry,
   Slogan,
   SloganList,
@@ -231,7 +231,7 @@ export type TournamentWrite = {
   nft_giveaway?: boolean;
   image_1_url?: string | null;
   image_2_url?: string | null;
-  hero_text?: HeroText;
+  hero_layers?: HeroLayer[];
 };
 
 export async function listAdminTournaments(): Promise<TournamentList> {
@@ -267,7 +267,7 @@ export async function createTournament(input: {
   nft_giveaway?: boolean;
   image_1_url?: string | null;
   image_2_url?: string | null;
-  hero_text?: HeroText;
+  hero_layers?: HeroLayer[];
 }): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>("admin/tournaments", {
     method: "POST",
@@ -297,7 +297,7 @@ export async function updateTournament(
     nft_giveaway?: boolean;
     image_1_url?: string | null;
     image_2_url?: string | null;
-    hero_text?: HeroText;
+    hero_layers?: HeroLayer[];
   },
 ): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>(

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,6 +9,7 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { ColorCanvas, farmCanvasTone } from "../components/ColorCanvas";
+import { HeroLayerStack } from "../components/HeroLayerStack";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import {
@@ -29,7 +30,6 @@ import {
   statusLabel,
 } from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
-import { heroTextStyle } from "../lib/heroText";
 
 const RULES = [
   {
@@ -144,30 +144,37 @@ export function LeaderboardPage() {
   );
 }
 
-function HeroArt({ src }: { src?: string | null }) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    setReady(false);
-  }, [src]);
+function HeroArt({
+  src,
+  layers,
+}: {
+  src?: string | null;
+  layers?: TournamentSummary["hero_layers"];
+}) {
   return (
-    <div className="live-hero-art">
-      <ColorCanvas tone="hero" />
-      {src ? (
-        <img
-          src={src}
-          alt=""
-          className={ready ? "tournament-hero-image is-ready" : "tournament-hero-image"}
-          data-testid="home-hero-image"
-          onLoad={() => setReady(true)}
-        />
-      ) : null}
-    </div>
+    <HeroLayerStack
+      className="live-hero-art"
+      src={src}
+      layers={layers}
+      imageClassName="tournament-hero-image"
+      imageTestId="home-hero-image"
+    />
   );
 }
 
 function ThumbArt({ src }: { src?: string | null }) {
+  const imgRef = useRef<HTMLImageElement>(null);
   const [ready, setReady] = useState(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!src) {
+      setReady(false);
+      return;
+    }
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth > 0) {
+      setReady(true);
+      return;
+    }
     setReady(false);
   }, [src]);
   return (
@@ -175,6 +182,7 @@ function ThumbArt({ src }: { src?: string | null }) {
       <ColorCanvas tone="thumb" />
       {src ? (
         <img
+          ref={imgRef}
           src={src}
           alt=""
           className={ready ? "tournament-thumb-image is-ready" : "tournament-thumb-image"}
@@ -213,13 +221,9 @@ function Hero({
     : "Live tournament";
   return (
     <section className="live-hero" data-testid="home-hero">
-      <HeroArt src={featured?.image_2_url} />
+      <HeroArt src={featured?.image_2_url} layers={featured?.hero_layers} />
       <div className="live-hero-inner">
-        <div
-          className={featured ? "hero-copy is-custom" : "hero-copy"}
-          data-testid="hero-copy"
-          style={featured ? heroTextStyle(featured.hero_text) : undefined}
-        >
+        <div className="hero-copy" data-testid="hero-copy">
           <p className="hero-eyebrow">{eyebrow}</p>
           {featured ? (
             <h2 className="hero-title" data-testid="featured-title">

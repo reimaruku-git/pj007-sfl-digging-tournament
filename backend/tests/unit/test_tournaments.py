@@ -115,7 +115,7 @@ def test_tournament_image_urls_round_trip(aws_env):
     assert updated.get("image_2_url") == kept["image_2_url"]
 
 
-def test_hero_text_round_trip_on_public_summary(aws_env):
+def test_hero_layers_round_trip_on_public_summary(aws_env):
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
     created = create_tournament(
@@ -125,21 +125,27 @@ def test_hero_text_round_trip_on_public_summary(aws_env):
             "start_at": "2026-08-14T00:00:00+00:00",
             "duration_days": 7,
             "prize_amount": "30",
-            "hero_text": {"color": "#1A1815", "outline": "#E4DFD5"},
+            "hero_layers": [
+                {"kind": "dusk", "opacity": 0.6},
+                {"kind": "color", "color": "#1A1815", "opacity": 0.15},
+            ],
         },
         now=clock,
     )
-    assert created["hero_text"] == {"color": "#1a1815", "outline": "#e4dfd5"}
+    assert created["hero_layers"] == [
+        {"kind": "dusk", "opacity": 0.6},
+        {"kind": "color", "color": "#1a1815", "opacity": 0.15},
+    ]
     listed = list_public_tournaments(store, now=clock)
     match = next(row for row in listed if row["tournament_id"] == created["tournament_id"])
-    assert match["hero_text"] == created["hero_text"]
+    assert match["hero_layers"] == created["hero_layers"]
     updated = update_tournament(
         store,
         created["tournament_id"],
-        {"hero_text": {"color": "#b89a56", "outline": "#1a1815"}},
+        {"hero_layers": [{"kind": "dusk", "opacity": 0.9}]},
         now=clock,
     )
-    assert updated["hero_text"] == {"color": "#b89a56", "outline": "#1a1815"}
+    assert updated["hero_layers"] == [{"kind": "dusk", "opacity": 0.9}]
 
 
 def test_one_day_tournament_is_allowed(aws_env):
@@ -514,7 +520,7 @@ def test_http_create_inclusive_window_and_event_settings(aws_env, monkeypatch):
     assert row["join_mode"] == "auto"
     assert row["description"] == "Bring a shovel."
     assert row["nft_giveaway"] is False
-    assert row["hero_text"] == {"color": "#e4dfd5", "outline": "#1a1815"}
+    assert row["hero_layers"] == [{"kind": "dusk", "opacity": 0.78}]
     assert row["prize_places"] == [
         {"place": 1, "amount": "50"},
         {"place": 2, "amount": "20"},

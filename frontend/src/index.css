@@ -2972,12 +2972,24 @@ a.past-card:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.tournament-thumb-image {
   opacity: 0;
 }
 
-.tournament-hero-image.is-ready,
 .tournament-thumb-image.is-ready {
   opacity: 1;
+}
+
+.hero-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-layer.is-dusk .color-canvas {
+  min-height: 100%;
 }
 
 .tournament-image-fields {
@@ -3014,27 +3026,38 @@ a.past-card:hover {
   height: auto;
 }
 
-.hero-text-fields {
+.hero-layer-fields {
   display: grid;
   gap: 10px;
   margin-top: 8px;
 }
 
-.hero-text-presets {
-  display: flex;
-  flex-wrap: wrap;
+.hero-layer-list {
+  display: grid;
   gap: 8px;
 }
 
-.hero-text-presets .btn.is-active {
-  border-color: var(--gold);
-  color: var(--gold);
+.hero-layer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
-.hero-text-colors {
+.hero-layer-kind {
+  font-size: 13px;
+  color: var(--sand);
+}
+
+.hero-layer-opacity {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--mute);
+}
+
+.hero-layer-opacity input[type="range"] {
+  width: 100%;
 }
 
 .hero-text-color {
@@ -3091,12 +3114,6 @@ a.past-card:hover {
   font-size: 13px;
 }
 
-.hero-text-preview .hero-eyebrow,
-.hero-text-preview .hero-title,
-.hero-text-preview .hero-lead {
-  color: inherit;
-}
-
 .live-hero-inner {
   position: relative;
   z-index: 1;
@@ -3129,12 +3146,6 @@ a.past-card:hover {
   max-width: 38rem;
   color: var(--sand);
   margin-bottom: 22px;
-}
-
-.hero-copy.is-custom .hero-eyebrow,
-.hero-copy.is-custom .hero-title,
-.hero-copy.is-custom .hero-lead {
-  color: inherit;
 }
 
 .hero-actions {

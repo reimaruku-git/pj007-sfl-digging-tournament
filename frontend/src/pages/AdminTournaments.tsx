@@ -1,10 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
 import { updateTournament } from "../api/admin";
-import type { BumpkinIsland, HeroText, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
+import type { BumpkinIsland, HeroLayer, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
-import { ColorCanvas } from "../components/ColorCanvas";
 import { ImageCropModal } from "../components/ImageCropModal";
 import {
   ADMIN_LIVE_PREVIEW,
@@ -27,14 +26,12 @@ import {
   isNumericPrizeAmount,
   joinedCountLabel,
 } from "../lib/format";
+import { HeroLayerStack } from "../components/HeroLayerStack";
 import {
-  DEFAULT_HERO_TEXT,
-  HERO_TEXT_PRESETS,
-  heroTextStyle,
-  matchingHeroPreset,
-  normalizeHeroText,
-  type HeroTextPresetId,
-} from "../lib/heroText";
+  DEFAULT_HERO_LAYERS,
+  MAX_HERO_LAYERS,
+  normalizeHeroLayers,
+} from "../lib/heroLayers";
 import {
   uploadPendingTournamentImages,
   validateTournamentImageFile,
@@ -57,7 +54,7 @@ export type TournamentDraft = {
   prize_places: PrizePlace[];
   image_1_url?: string | null;
   image_2_url?: string | null;
-  hero_text: HeroText;
+  hero_layers: HeroLayer[];
 };
 
 export type TournamentSavePayload = TournamentDraft & {
@@ -203,7 +200,7 @@ export function AdminTournaments({
       })),
       image_1_url: row.image_1_url ?? null,
       image_2_url: row.image_2_url ?? null,
-      hero_text: normalizeHeroText(row.hero_text),
+      hero_layers: normalizeHeroLayers(row.hero_layers),
     });
     resetImageDraft();
     setError(null);
@@ -287,7 +284,7 @@ export function AdminTournaments({
       join_mode: draft.join_mode,
       nft_giveaway: draft.nft_giveaway,
       prize_places: prizePlaces,
-      hero_text: normalizeHeroText(draft.hero_text),
+      hero_layers: normalizeHeroLayers(draft.hero_layers),
     };
     if (draft.image_1_url) payload.image_1_url = draft.image_1_url;
     if (draft.image_2_url) payload.image_2_url = draft.image_2_url;
@@ -743,79 +740,112 @@ export function AdminTournaments({
                 )}
               </div>
             </div>
-            <div className="hero-text-fields" data-testid="hero-text-fields">
+            <div className="hero-layer-fields" data-testid="hero-layer-fields">
               <p className="meta tournament-image-note">
-                Featured home text sits on Image 2. Pick a setup, then tweak fill and outline.
+                Image 2 stays underneath. The original dusk canvas sits on top so the photo shows
+                through. Add, remove, or change layers; home type stays the original sand and cream.
               </p>
-              <div className="hero-text-presets">
-                {(Object.keys(HERO_TEXT_PRESETS) as HeroTextPresetId[]).map((id) => {
-                  const preset = HERO_TEXT_PRESETS[id];
-                  const active = matchingHeroPreset(draft.hero_text) === id;
-                  return (
+              <div className="hero-layer-list">
+                {draft.hero_layers.map((layer, index) => (
+                  <div className="hero-layer-row" key={`${layer.kind}-${index}`} data-testid="hero-layer-row">
+                    <span className="hero-layer-kind">
+                      {layer.kind === "dusk" ? "Dusk canvas" : "Color wash"}
+                    </span>
+                    {layer.kind === "color" ? (
+                      <label className="hero-text-color">
+                        Color
+                        <input
+                          type="color"
+                          value={layer.color || "#1a1815"}
+                          data-testid="hero-layer-color"
+                          onChange={(event) =>
+                            setDraft({
+                              ...draft,
+                              hero_layers: draft.hero_layers.map((item, itemIndex) =>
+                                itemIndex === index && item.kind === "color"
+                                  ? { ...item, color: event.target.value }
+                                  : item,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label className="hero-layer-opacity">
+                      See-through {Math.round(layer.opacity * 100)}%
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        data-testid="hero-layer-opacity"
+                        value={Math.round(layer.opacity * 100)}
+                        onChange={(event) => {
+                          const opacity = Number(event.target.value) / 100;
+                          setDraft({
+                            ...draft,
+                            hero_layers: draft.hero_layers.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, opacity } : item,
+                            ),
+                          });
+                        }}
+                      />
+                    </label>
                     <button
-                      key={id}
-                      className={active ? "btn is-active" : "btn"}
+                      className="btn"
                       type="button"
-                      data-testid={`hero-text-preset-${id}`}
+                      data-testid="hero-layer-remove"
                       onClick={() =>
                         setDraft({
                           ...draft,
-                          hero_text: { color: preset.color, outline: preset.outline },
+                          hero_layers: draft.hero_layers.filter((_, itemIndex) => itemIndex !== index),
                         })
                       }
                     >
-                      {preset.label}
+                      Remove
                     </button>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
-              <p className="meta">
-                {matchingHeroPreset(draft.hero_text)
-                  ? HERO_TEXT_PRESETS[matchingHeroPreset(draft.hero_text)!].hint
-                  : "Custom fill and outline."}
-              </p>
-              <div className="hero-text-colors">
-                <label className="hero-text-color">
-                  Text color
-                  <input
-                    type="color"
-                    data-testid="hero-text-color"
-                    value={normalizeHeroText(draft.hero_text).color}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        hero_text: { ...normalizeHeroText(draft.hero_text), color: event.target.value },
-                      })
-                    }
-                  />
-                </label>
-                <label className="hero-text-color">
-                  Outline
-                  <input
-                    type="color"
-                    data-testid="hero-text-outline"
-                    value={normalizeHeroText(draft.hero_text).outline || "#1a1815"}
-                    onChange={(event) =>
-                      setDraft({
-                        ...draft,
-                        hero_text: {
-                          ...normalizeHeroText(draft.hero_text),
-                          outline: event.target.value,
-                        },
-                      })
-                    }
-                  />
-                </label>
+              <div className="toolbar">
+                <button
+                  className="btn"
+                  type="button"
+                  data-testid="hero-layer-add-dusk"
+                  disabled={draft.hero_layers.length >= MAX_HERO_LAYERS}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      hero_layers: [...draft.hero_layers, { kind: "dusk", opacity: 0.78 }],
+                    })
+                  }
+                >
+                  Add dusk
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  data-testid="hero-layer-add-color"
+                  disabled={draft.hero_layers.length >= MAX_HERO_LAYERS}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      hero_layers: [
+                        ...draft.hero_layers,
+                        { kind: "color", color: "#1a1815", opacity: 0.2 },
+                      ],
+                    })
+                  }
+                >
+                  Add color
+                </button>
               </div>
-              <div className="hero-text-preview" data-testid="hero-text-preview">
-                <div className="hero-text-preview-art">
-                  {imagePreview.image_2 || draft.image_2_url ? (
-                    <img src={imagePreview.image_2 || draft.image_2_url || ""} alt="" />
-                  ) : (
-                    <ColorCanvas tone="hero" />
-                  )}
-                </div>
-                <div className="hero-text-preview-copy" style={heroTextStyle(draft.hero_text)}>
+              <div className="hero-text-preview" data-testid="hero-layer-preview">
+                <HeroLayerStack
+                  className="hero-text-preview-art"
+                  src={imagePreview.image_2 || draft.image_2_url}
+                  layers={draft.hero_layers}
+                />
+                <div className="hero-text-preview-copy">
                   <p className="hero-eyebrow">Live tournament · preview</p>
                   <h2 className="hero-title">{draft.name.trim() || "Tournament title"}</h2>
                   <p className="hero-lead">
@@ -863,7 +893,7 @@ function emptyDraft(): TournamentDraft {
     prize_places: [],
     image_1_url: null,
     image_2_url: null,
-    hero_text: { ...DEFAULT_HERO_TEXT },
+    hero_layers: DEFAULT_HERO_LAYERS.map((layer) => ({ ...layer })),
   };
 }
 

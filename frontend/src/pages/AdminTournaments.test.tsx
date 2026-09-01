@@ -976,7 +976,7 @@ describe("AdminTournaments", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lets admin preview featured text colors on Image 2", () => {
+  it("lets admin add and remove dusk layers over Image 2", () => {
     const { container } = render([]);
     act(() => {
       const button = [...container.querySelectorAll("button")].find((node) =>
@@ -984,19 +984,19 @@ describe("AdminTournaments", () => {
       );
       button?.click();
     });
-    expect(container.querySelector('[data-testid="hero-text-preview"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="hero-text-preset-light"]')).not.toBeNull();
-    const preview = container.querySelector('[data-testid="hero-text-preview"]') as HTMLElement;
+    expect(container.querySelector('[data-testid="hero-layer-preview"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="hero-text-preset-light"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="hero-layer-row"]').length).toBe(1);
+    act(() => {
+      (container.querySelector('[data-testid="hero-layer-add-color"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('[data-testid="hero-layer-row"]').length).toBe(2);
+    act(() => {
+      (container.querySelector('[data-testid="hero-layer-remove"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('[data-testid="hero-layer-row"]').length).toBe(1);
+    const preview = container.querySelector('[data-testid="hero-layer-preview"]') as HTMLElement;
     expect(preview.textContent).toMatch(/Tournament title/);
-    act(() => {
-      (container.querySelector('[data-testid="hero-text-preset-dark"]') as HTMLButtonElement).click();
-    });
-    const copy = preview.querySelector(".hero-text-preview-copy") as HTMLElement;
-    expect(copy.style.color.replace(/\s/g, "").toLowerCase()).toMatch(/#1a1815|rgb\(26,24,21\)/);
-    expect(copy.style.textShadow.toLowerCase()).toMatch(/#e4dfd5/);
-    act(() => {
-      (container.querySelector('[data-testid="hero-text-preset-mid"]') as HTMLButtonElement).click();
-    });
-    expect(copy.style.color.replace(/\s/g, "").toLowerCase()).toMatch(/#b89a56|rgb\(184,154,86\)/);
+    expect(preview.querySelector(".hero-text-preview-copy")?.getAttribute("style") || "").toBe("");
   });
 });
