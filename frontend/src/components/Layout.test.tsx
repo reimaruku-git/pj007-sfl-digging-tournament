@@ -236,10 +236,10 @@ describe("public chrome", () => {
     expect(farmLink?.getAttribute("href")).not.toMatch(/sfl\.world/);
     expect(farmLink?.textContent).toBe(OPERATOR_FARM_NAME);
     expect(slogan?.textContent).toContain(picked?.text ?? "");
-    expect(slogan?.textContent).toMatch(new RegExp(`${picked?.text ?? ""}\\s*rmr`));
+    expect(slogan?.textContent).toMatch(new RegExp(`${picked?.text ?? ""}\\s*☞\\s*rmr`));
     expect(slogan?.querySelector(".slogan-arrow")).not.toBeNull();
     const arrow = slogan?.querySelector(".slogan-arrow") as HTMLElement | null;
-    expect(arrow?.textContent).toBe("");
+    expect(arrow?.textContent?.trim()).toBe("☞");
     const created = el.querySelector('[data-testid="created-by"]');
     expect(created?.textContent).toMatch(/Created by/);
     expect(created?.querySelector("strong")?.textContent).toBe(OPERATOR_FARM_NAME);

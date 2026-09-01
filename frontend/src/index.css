@@ -1978,35 +1978,15 @@ tr.is-you,
 }
 
 .slogan-arrow {
-  display: inline-block;
-  width: 1.35em;
-  height: 0.55em;
-  margin: 0 0.4em 0 0.55em;
-  vertical-align: middle;
-  position: relative;
-  opacity: 0.88;
+  display: inline;
+  margin: 0 0.32em 0 0.42em;
   color: var(--cream);
-}
-
-.slogan-arrow::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0.45em;
-  top: 50%;
-  height: 1px;
-  background: currentColor;
-  transform: translateY(-50%);
-}
-
-.slogan-arrow::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 3px solid transparent;
-  border-left: 5px solid currentColor;
+  font-size: 1.05em;
+  line-height: 1;
+  vertical-align: -0.06em;
+  opacity: 0.92;
+  font-style: normal;
+  font-variant-emoji: text;
 }
 
 .operator-farm-link {

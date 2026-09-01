@@ -202,7 +202,9 @@ function CreatorChip() {
     <div className="creator-chip" data-testid="creator-chip">
       <p className="daily-slogan" data-testid="daily-slogan">
         <span>{slogan.text}</span>
-        <span className="slogan-arrow" aria-hidden="true" />
+        <span className="slogan-arrow" aria-hidden="true">
+          ☞
+        </span>
         <a
           className="operator-farm-link"
           href={OPERATOR_FARM_URL}
