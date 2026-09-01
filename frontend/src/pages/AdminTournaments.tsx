@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
-import { updateTournament } from "../api/admin";
 import type { BumpkinIsland, HeroLayer, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
@@ -114,6 +113,10 @@ export function AdminTournaments({
     image_2: null,
   });
   const [cropJob, setCropJob] = useState<{ slot: TournamentImageSlot; file: File } | null>(null);
+  const [clearedImages, setClearedImages] = useState<Record<TournamentImageSlot, boolean>>({
+    image_1: false,
+    image_2: false,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localReviewId, setLocalReviewId] = useState<string | null>(null);
@@ -164,6 +167,7 @@ export function AdminTournaments({
 
   function resetImageDraft() {
     setPendingImages({ image_1: null, image_2: null });
+    setClearedImages({ image_1: false, image_2: false });
     setImagePreview((current) => {
       for (const url of Object.values(current)) {
         if (url) URL.revokeObjectURL(url);
@@ -235,11 +239,33 @@ export function AdminTournaments({
       return;
     }
     setPendingImages((current) => ({ ...current, [slot]: file }));
+    setClearedImages((current) => ({ ...current, [slot]: false }));
     setImagePreview((current) => {
       if (current[slot]) URL.revokeObjectURL(current[slot] as string);
       return { ...current, [slot]: URL.createObjectURL(file) };
     });
     setCropJob(null);
+  }
+
+  function removeImage(slot: TournamentImageSlot) {
+    setPendingImages((current) => ({ ...current, [slot]: null }));
+    setClearedImages((current) => ({ ...current, [slot]: true }));
+    setImagePreview((current) => {
+      if (current[slot]) URL.revokeObjectURL(current[slot] as string);
+      return { ...current, [slot]: null };
+    });
+    const field = slot === "image_1" ? "image_1_url" : "image_2_url";
+    setDraft({ ...draft, [field]: null });
+  }
+
+  function nextImageUrl(
+    slot: TournamentImageSlot,
+    patch: Partial<Record<`${TournamentImageSlot}_url`, string>>,
+  ): string | null {
+    const field = slot === "image_1" ? "image_1_url" : "image_2_url";
+    if (pendingImages[slot]) return patch[field] ?? null;
+    if (clearedImages[slot]) return null;
+    return draft[field] ?? null;
   }
 
   async function submit(event: FormEvent) {
@@ -286,29 +312,21 @@ export function AdminTournaments({
       prize_places: prizePlaces,
       hero_layers: normalizeHeroLayers(draft.hero_layers),
     };
-    if (draft.image_1_url) payload.image_1_url = draft.image_1_url;
-    if (draft.image_2_url) payload.image_2_url = draft.image_2_url;
     setBusy(true);
     setError(null);
     try {
       let tournamentId = editor?.mode === "edit" ? editor.id : "";
-      if (editor?.mode === "edit") {
-        await onUpdate(editor.id, payload);
-      } else {
+      if (editor?.mode !== "edit") {
         const created = await onCreate(payload);
         tournamentId = created.tournament_id;
       }
       const imagePatch = await uploadPendingTournamentImages(tournamentId, pendingImages);
-      if (Object.keys(imagePatch).length > 0) {
-        await updateTournament(tournamentId, {
-          ...(draft.image_1_url && imagePatch.image_1_url === undefined
-            ? { image_1_url: draft.image_1_url }
-            : {}),
-          ...(draft.image_2_url && imagePatch.image_2_url === undefined
-            ? { image_2_url: draft.image_2_url }
-            : {}),
-          ...imagePatch,
-        });
+      payload.image_1_url = nextImageUrl("image_1", imagePatch);
+      payload.image_2_url = nextImageUrl("image_2", imagePatch);
+      if (editor?.mode === "edit") {
+        await onUpdate(editor.id, payload);
+      } else if (imagePatch.image_1_url || imagePatch.image_2_url) {
+        await onUpdate(tournamentId, payload);
       }
       setEditor(null);
       resetImageDraft();
@@ -709,12 +727,22 @@ export function AdminTournaments({
                   />
                 </label>
                 {(imagePreview.image_1 || draft.image_1_url) && (
-                  <img
-                    className="tournament-image-preview is-small"
-                    src={imagePreview.image_1 || draft.image_1_url || ""}
-                    alt="Image 1 preview"
-                    data-testid="tournament-image-1-preview"
-                  />
+                  <div className="tournament-image-slot">
+                    <img
+                      className="tournament-image-preview is-small"
+                      src={imagePreview.image_1 || draft.image_1_url || ""}
+                      alt="Image 1 preview"
+                      data-testid="tournament-image-1-preview"
+                    />
+                    <button
+                      className="btn"
+                      type="button"
+                      data-testid="tournament-image-1-remove"
+                      onClick={() => removeImage("image_1")}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="form-row tournament-image-row">
@@ -731,12 +759,22 @@ export function AdminTournaments({
                   />
                 </label>
                 {(imagePreview.image_2 || draft.image_2_url) && (
-                  <img
-                    className="tournament-image-preview is-wide"
-                    src={imagePreview.image_2 || draft.image_2_url || ""}
-                    alt="Image 2 preview"
-                    data-testid="tournament-image-2-preview"
-                  />
+                  <div className="tournament-image-slot">
+                    <img
+                      className="tournament-image-preview is-wide"
+                      src={imagePreview.image_2 || draft.image_2_url || ""}
+                      alt="Image 2 preview"
+                      data-testid="tournament-image-2-preview"
+                    />
+                    <button
+                      className="btn"
+                      type="button"
+                      data-testid="tournament-image-2-remove"
+                      onClick={() => removeImage("image_2")}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

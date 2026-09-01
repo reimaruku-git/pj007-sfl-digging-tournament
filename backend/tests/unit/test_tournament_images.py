@@ -94,11 +94,20 @@ def test_store_tournament_image_puts_object_and_returns_public_url():
         s3_client=s3,
     )
     assert payload["slot"] == "image_2"
-    assert payload["public_url"].endswith("/media/tournaments/cup-1/image_2.png")
-    s3.put_object.assert_called_once()
-    kwargs = s3.put_object.call_args.kwargs
-    assert kwargs["Key"] == "media/tournaments/cup-1/image_2.png"
-    assert kwargs["Body"] == b"hello"
+    assert "/media/tournaments/cup-1/image_2.png?v=" in payload["public_url"]
+    assert payload["public_url"].split("?v=")[1]
+    first_put = s3.put_object.call_args.kwargs
+    assert first_put["Key"] == "media/tournaments/cup-1/image_2.png"
+    assert first_put["Body"] == b"hello"
+    second = store_tournament_image(
+        bucket="pj007-dev-digging-tournament",
+        tournament_id="cup-1",
+        body={"slot": "image_2", "content_type": "image/png", "data": "d29ybGQ="},
+        api_base="https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev",
+        s3_client=s3,
+    )
+    assert second["public_url"] != payload["public_url"]
+    assert second["public_url"].split("?")[0] == payload["public_url"].split("?")[0]
 
 
 def test_store_rejects_unknown_slot():

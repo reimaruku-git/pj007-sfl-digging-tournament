@@ -150,7 +150,7 @@ describe("AdminTournaments", () => {
     expect(onFeature).toHaveBeenCalledWith("past-cup");
   });
 
-  it("splits current and upcoming and lets both be edited", () => {
+  it("splits current and upcoming and lets both be edited", async () => {
     const onUpdate = vi.fn().mockResolvedValue(undefined);
     const { container } = render(
       [
@@ -202,7 +202,7 @@ describe("AdminTournaments", () => {
     expect((container.querySelector('[data-testid="duration-days"]') as HTMLInputElement).value).toBe(
       "14",
     );
-    act(() => {
+    await act(async () => {
       const save = [...container.querySelectorAll("button")].find(
         (node) => node.textContent === "Save changes",
       );
@@ -998,5 +998,46 @@ describe("AdminTournaments", () => {
     const preview = container.querySelector('[data-testid="hero-layer-preview"]') as HTMLElement;
     expect(preview.textContent).toMatch(/Tournament title/);
     expect(preview.querySelector(".hero-text-preview-copy")?.getAttribute("style") || "").toBe("");
+  });
+
+  it("lets admin remove a stored Image 1 without dropping Image 2", async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "live",
+          name: "Live cup",
+          status: "active",
+          image_1_url: "https://example.test/thumb.jpg",
+          image_2_url: "https://example.test/hero.jpg",
+        }),
+      ],
+      { onUpdate },
+    );
+    act(() => {
+      const edit = [...container.querySelectorAll('[data-testid="admin-card-live"] button')].find(
+        (node) => node.textContent === "Edit",
+      );
+      (edit as HTMLButtonElement | null)?.click();
+    });
+    expect(container.querySelector('[data-testid="tournament-image-1-preview"]')).not.toBeNull();
+    act(() => {
+      (container.querySelector('[data-testid="tournament-image-1-remove"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="tournament-image-1-preview"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tournament-image-2-preview"]')).not.toBeNull();
+    await act(async () => {
+      const save = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Save changes",
+      );
+      save?.click();
+    });
+    expect(onUpdate).toHaveBeenCalledWith(
+      "live",
+      expect.objectContaining({
+        image_1_url: null,
+        image_2_url: "https://example.test/hero.jpg",
+      }),
+    );
   });
 });

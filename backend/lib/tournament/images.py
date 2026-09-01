@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import re
 from typing import Any
 
@@ -49,11 +50,15 @@ def public_api_base_from_event(event: dict[str, Any] | None) -> str:
     return f"https://{domain}"
 
 
-def public_media_url(api_base: str, key: str) -> str:
+def public_media_url(api_base: str, key: str, *, version: str | None = None) -> str:
     base = str(api_base or "").strip().rstrip("/")
     if not base:
         raise MediaError("public API base is not configured", code="CONFIG_ERROR", status=500)
-    return f"{base}/{str(key).lstrip('/')}"
+    url = f"{base}/{str(key).lstrip('/')}"
+    token = str(version or "").strip()
+    if token:
+        return f"{url}?v={token}"
+    return url
 
 
 def _normalize_url(raw: Any) -> str | None:
@@ -132,10 +137,11 @@ def store_tournament_image(
         raise MediaError("image must be 2 MB or smaller")
     key = media_object_key(tournament_id, slot, ext)
     s3_client.put_object(Bucket=bucket, Key=key, Body=payload, ContentType=content_type)
+    version = hashlib.sha256(payload).hexdigest()[:12]
     return {
         "slot": slot,
         "key": key,
-        "public_url": public_media_url(api_base, key),
+        "public_url": public_media_url(api_base, key, version=version),
     }
 
 

@@ -3050,6 +3050,12 @@ a.past-card:hover {
   height: auto;
 }
 
+.tournament-image-slot {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
 .hero-layer-fields {
   display: grid;
   gap: 10px;

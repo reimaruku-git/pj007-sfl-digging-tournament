@@ -908,12 +908,13 @@ with base64 image bytes (the browser talks only to this API). Max 2 MB.
 {
   "slot": "image_1",
   "key": "media/tournaments/20260823T000000Z_8d/image_1.webp",
-  "public_url": "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev/media/tournaments/20260823T000000Z_8d/image_1.webp"
+  "public_url": "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev/media/tournaments/20260823T000000Z_8d/image_1.webp?v=ab12cd34ef56"
 }
 ```
 
 Save `public_url` on the tournament via `PUT /admin/tournaments/{id}`.
-Sending only one of `image_1_url` / `image_2_url` keeps the other stored
+`v` is a content hash so a replacement of the same slot is not served from
+cache. Sending only one of `image_1_url` / `image_2_url` keeps the other stored
 slot. Send `null` to clear that slot.
 
 ### `GET /media/tournaments/{tournament_id}/{filename}`
