@@ -12,17 +12,34 @@ export type AvatarPreset = {
   file: string;
 };
 
-/** NPC stills copied from sunflower-land/sunflower-land `src/assets/npcs`. */
+/** Idle stills of named SFL NPCs, shipped in `frontend/public/avatars`. */
 export const AVATAR_PRESETS: AvatarPreset[] = [
-  { id: "genie", name: "Genie", file: "genie.png" },
+  { id: "jafar", name: "Jafar", file: "jafar.webp" },
+  { id: "betty", name: "Betty", file: "betty.webp" },
+  { id: "blacksmith", name: "Blacksmith", file: "blacksmith.webp" },
+  { id: "corale", name: "Corale", file: "corale.webp" },
+  { id: "tango", name: "Tango", file: "tango.webp" },
+  { id: "old_salty", name: "Old Salty", file: "old_salty.webp" },
+  { id: "victoria", name: "Victoria", file: "victoria.webp" },
+  { id: "jester", name: "Jester", file: "jester.webp" },
+  { id: "tywin", name: "Tywin", file: "tywin.webp" },
+  { id: "timmy", name: "Timmy", file: "timmy.webp" },
+  { id: "pumpkin_pete", name: "Pumpkin' Pete", file: "pumpkin_pete.webp" },
+  { id: "bert", name: "Bert", file: "bert.webp" },
+  { id: "finley", name: "Finley", file: "finley.webp" },
+  { id: "pharaoh", name: "Pharaoh", file: "pharaoh.webp" },
+  { id: "cornwell", name: "Cornwell", file: "cornwell.webp" },
+  { id: "miranda", name: "Miranda", file: "miranda.webp" },
+  { id: "raven", name: "Raven", file: "raven.webp" },
+  { id: "finn", name: "Finn", file: "finn.webp" },
+  { id: "gambit", name: "Gambit", file: "gambit.webp" },
+  { id: "gordo", name: "Gordo", file: "gordo.webp" },
+  { id: "grimbly", name: "Grimbly", file: "grimbly.webp" },
+  { id: "grimtooth", name: "Grimtooth", file: "grimtooth.webp" },
+  { id: "grubnuk", name: "Grubnuk", file: "grubnuk.webp" },
+  { id: "guria", name: "Guria", file: "guria.webp" },
   { id: "hammerin_harry", name: "Hammerin' Harry", file: "hammerin_harry.webp" },
-  { id: "hoot", name: "Hoot", file: "hoot.png" },
-  { id: "island_boat_pirate", name: "Pirate", file: "island_boat_pirate.png" },
-  { id: "maximus", name: "Maximus", file: "maximus.png" },
-  { id: "nightshade_bumpkin", name: "Nightshade", file: "nightshade_bumpkin.png" },
-  { id: "obie", name: "Obie", file: "obie.png" },
-  { id: "snorkel_bumpkin", name: "Snorkel", file: "snorkel_bumpkin.png" },
-  { id: "workbenchman", name: "Workbench", file: "workbenchman.png" },
+  { id: "mayor", name: "Mayor", file: "mayor.webp" },
 ];
 
 export const AVATAR_PRESET_IDS = new Set(AVATAR_PRESETS.map((row) => row.id));

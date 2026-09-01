@@ -109,6 +109,7 @@ function PublicHeader() {
   const chipRef = useRef<HTMLDivElement>(null);
   const { identity, disconnect } = useFarmSession();
   const navigate = useNavigate();
+  const location = useLocation();
   const profileQuery = useQuery({
     queryKey: ["profile", identity?.farm_id],
     queryFn: () => fetchFarmProfile(identity!.farm_id),
@@ -179,11 +180,13 @@ function PublicHeader() {
               </button>
               {chipOpen && (
                 <div className="connected-menu" data-testid="menu-options">
-                  <Link to="/profile" onClick={() => setChipOpen(false)} data-testid="my-profile">
-                    My profile
-                  </Link>
-                  <Link to={`/farm/${identity.farm_id}`} onClick={() => setChipOpen(false)}>
-                    View farm
+                  <Link
+                    to="/profile"
+                    state={{ from: location.pathname }}
+                    onClick={() => setChipOpen(false)}
+                    data-testid="view-profile"
+                  >
+                    View profile
                   </Link>
                   <button type="button" data-testid="disconnect-farm" onClick={onDisconnect}>
                     Disconnect {identity.name}

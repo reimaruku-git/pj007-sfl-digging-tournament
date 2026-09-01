@@ -2313,6 +2313,29 @@ a.you-farm:focus-visible {
   height: 100%;
 }
 
+.avatar-edit-link {
+  display: block;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+}
+
+.avatar-edit-link:hover,
+.avatar-edit-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.avatar-edit-link .farm-page-avatar {
+  width: 100%;
+  height: 100%;
+  flex: none;
+}
+
 .farm-hero-score {
   text-align: right;
 }

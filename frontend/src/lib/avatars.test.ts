@@ -8,7 +8,34 @@ describe("avatar presets", () => {
   it("ships one frontend file per NPC preset", () => {
     const publicRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../public/avatars");
     const files = new Set(readdirSync(publicRoot));
-    expect(AVATAR_PRESETS.map((row) => row.id)).toEqual([...new Set(AVATAR_PRESETS.map((row) => row.id))]);
+    expect(AVATAR_PRESETS.map((row) => row.id)).toEqual([
+      "jafar",
+      "betty",
+      "blacksmith",
+      "corale",
+      "tango",
+      "old_salty",
+      "victoria",
+      "jester",
+      "tywin",
+      "timmy",
+      "pumpkin_pete",
+      "bert",
+      "finley",
+      "pharaoh",
+      "cornwell",
+      "miranda",
+      "raven",
+      "finn",
+      "gambit",
+      "gordo",
+      "grimbly",
+      "grimtooth",
+      "grubnuk",
+      "guria",
+      "hammerin_harry",
+      "mayor",
+    ]);
     for (const preset of AVATAR_PRESETS) {
       expect(files.has(preset.file)).toBe(true);
       const bytes = readFileSync(resolve(publicRoot, preset.file));
@@ -18,7 +45,7 @@ describe("avatar presets", () => {
   });
 
   it("resolves preset paths and upload URLs", () => {
-    expect(avatarSrc({ avatar_kind: "preset", avatar_preset: "hoot" })).toBe("/avatars/hoot.png");
+    expect(avatarSrc({ avatar_kind: "preset", avatar_preset: "betty" })).toBe("/avatars/betty.webp");
     expect(
       avatarSrc({
         avatar_kind: "upload",

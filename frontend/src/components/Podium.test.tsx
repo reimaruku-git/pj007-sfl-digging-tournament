@@ -103,11 +103,11 @@ describe("Podium", () => {
         score: 12.5,
         name: "Lead",
         avatar_kind: "preset",
-        avatar_preset: "hoot",
+        avatar_preset: "betty",
       }),
     ]);
     const first = el.querySelector(".place-1 [data-testid='farm-avatar'] img");
-    expect(first?.getAttribute("src")).toBe("/avatars/hoot.png");
+    expect(first?.getAttribute("src")).toBe("/avatars/betty.webp");
     expect(el.querySelector(".place-1 [data-testid='color-canvas']")).toBeNull();
   });
 });

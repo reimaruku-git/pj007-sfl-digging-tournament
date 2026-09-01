@@ -131,30 +131,30 @@ describe("public api", () => {
         farm_id: "3666918801844311",
         name: "rmr",
         avatar_kind: "preset",
-        avatar_preset: "hoot",
+        avatar_preset: "betty",
       }),
     );
     const profile = await fetchFarmProfile("3666918801844311");
     expect(mockRequest).toHaveBeenCalledWith("farms/3666918801844311/profile");
-    expect(profile.avatar_preset).toBe("hoot");
+    expect(profile.avatar_preset).toBe("betty");
 
     mockRequest.mockResolvedValueOnce(
       ok({
         farm_id: "3666918801844311",
         name: "rmr",
         avatar_kind: "preset",
-        avatar_preset: "genie",
+        avatar_preset: "jafar",
       }),
     );
     const saved = await putFarmAvatar("3666918801844311", {
       kind: "preset",
-      preset_id: "genie",
+      preset_id: "jafar",
     });
     expect(mockRequest).toHaveBeenCalledWith("farms/3666918801844311/avatar", {
       method: "PUT",
-      body: JSON.stringify({ kind: "preset", preset_id: "genie" }),
+      body: JSON.stringify({ kind: "preset", preset_id: "jafar" }),
     });
-    expect(saved.avatar_preset).toBe("genie");
+    expect(saved.avatar_preset).toBe("jafar");
   });
 
   it("submits a farm id for named tournaments", async () => {

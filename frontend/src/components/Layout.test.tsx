@@ -314,11 +314,12 @@ describe("public chrome", () => {
       (connected as HTMLButtonElement).click();
     });
     const options = el.querySelector('[data-testid="menu-options"]');
-    expect(options?.textContent).toMatch(/My profile/);
-    expect(options?.querySelector('[data-testid="my-profile"]')?.getAttribute("href")).toBe(
+    expect(options?.textContent).toMatch(/View profile/);
+    expect(options?.querySelector('[data-testid="view-profile"]')?.getAttribute("href")).toBe(
       "/profile",
     );
-    expect(options?.textContent).toMatch(/View farm/);
+    expect(options?.textContent).not.toMatch(/View farm/);
+    expect(options?.textContent).not.toMatch(/My profile/);
     expect(options?.querySelector('[data-testid="disconnect-farm"]')?.textContent).toMatch(
       /Disconnect rmr/,
     );

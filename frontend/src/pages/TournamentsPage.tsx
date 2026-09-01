@@ -10,6 +10,7 @@ import {
   type PrizePlace,
   type TournamentSummary,
 } from "../api/public";
+import { DetailBackLink } from "../components/DetailBackLink";
 import { DownloadBoardButton } from "../components/DownloadBoardButton";
 import { useActivity } from "../components/LoadingPopup";
 import { Pebbles } from "../components/Pebbles";
@@ -415,12 +416,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
   return (
     <section className="page-inner tournament-detail" data-testid="tournament-detail">
       <div className="detail-chrome">
-        <Link to={back.to} className="detail-crumb" data-testid="back-link">
-          <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" aria-hidden>
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-          {back.label}
-        </Link>
+        <DetailBackLink to={back.to} label={back.label} />
         {data ? (
           <DownloadBoardButton
             name={data.config.name || "Tournament"}

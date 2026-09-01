@@ -19,3 +19,11 @@ export function tournamentBackTarget(from?: string | null): BackTarget {
   }
   return { to: "/", label: "Back to home" };
 }
+
+export function profileBackTarget(fromPath?: string | null): BackTarget {
+  const match = String(fromPath || "").match(/^\/tournaments\/([^/]+)/);
+  if (match) {
+    return { to: `/tournaments/${encodeURIComponent(match[1])}`, label: "Back" };
+  }
+  return { to: "/", label: "Back" };
+}

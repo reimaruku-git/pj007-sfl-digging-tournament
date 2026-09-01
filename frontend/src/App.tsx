@@ -5,6 +5,7 @@ import { FarmSessionProvider } from "./lib/farmSession";
 import { FarmPage } from "./pages/FarmPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ProfilePicturePage } from "./pages/ProfilePicturePage";
 import { TournamentsPage } from "./pages/TournamentsPage";
 
 const AdminPage = lazy(async () => {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
           <Route path="/farm/:farmId" element={<FarmPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/picture" element={<ProfilePicturePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

@@ -115,7 +115,7 @@ calls the SFL API. Public home uses `featured_tournament_id` from
       "status": "completed",
       "invalidated": false,
       "avatar_kind": "preset",
-      "avatar_preset": "hoot"
+      "avatar_preset": "betty"
     }
   ],
   "count": 1,
@@ -384,7 +384,7 @@ produce a username (new farms can lag 2–7 days).
   "nft_id": 220411,
   "identified_at": "2026-08-17T12:00:00+00:00",
   "avatar_kind": "preset",
-  "avatar_preset": "hoot"
+  "avatar_preset": "betty"
 }
 ```
 
@@ -417,7 +417,7 @@ this call only stores the chosen `preset_id`. Uploads are stored on S3.
 Preset:
 
 ```json
-{ "kind": "preset", "preset_id": "hoot" }
+{ "kind": "preset", "preset_id": "betty" }
 ```
 
 Upload (`content_type`: `image/jpeg`, `image/png`, `image/webp`, or
@@ -439,9 +439,11 @@ Clear:
 
 Success is the same body as `GET /farms/{farm_id}/profile`. `400` if
 `kind` is missing, the preset is unknown, or the upload is not a valid
-image. Known presets: `genie`, `hammerin_harry`, `hoot`,
-`island_boat_pirate`, `maximus`, `nightshade_bumpkin`, `obie`,
-`snorkel_bumpkin`, `workbenchman`.
+image. Known presets: `jafar`, `betty`, `blacksmith`, `corale`,
+`tango`, `old_salty`, `victoria`, `jester`, `tywin`, `timmy`,
+`pumpkin_pete`, `bert`, `finley`, `pharaoh`, `cornwell`, `miranda`,
+`raven`, `finn`, `gambit`, `gordo`, `grimbly`, `grimtooth`, `grubnuk`,
+`guria`, `hammerin_harry`, `mayor`.
 
 ### `GET /media/avatars/{farm_id}/{filename}`
 
