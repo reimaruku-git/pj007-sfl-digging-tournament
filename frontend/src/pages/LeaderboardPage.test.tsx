@@ -372,13 +372,12 @@ describe("LeaderboardPage home", () => {
     expect(heroImage).not.toBeNull();
     expect(art?.contains(heroImage)).toBe(true);
     expect(heroImage?.classList.contains("live-hero-art")).toBe(false);
-    expect(page.querySelector('[data-testid="home-hero-scrim"]')).not.toBeNull();
-    expect(art?.contains(page.querySelector('[data-testid="home-hero-scrim"]'))).toBe(true);
+    expect(page.querySelector('[data-testid="home-hero-scrim"]')).toBeNull();
     expect(page.querySelector('[data-testid="now-digging-image"]')).not.toBeNull();
     expect(page.querySelector(".now-digging-art")?.contains(page.querySelector('[data-testid="now-digging-image"]'))).toBe(
       true,
     );
-    expect(page.querySelector('[data-testid="now-digging-scrim"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="now-digging-scrim"]')).toBeNull();
 
     const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
     const artBlock = [...css.matchAll(/\.live-hero-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
@@ -388,16 +387,26 @@ describe("LeaderboardPage home", () => {
     const thumbBlock = [...css.matchAll(/\.now-digging-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
     expect(thumbBlock).toMatch(/border:/);
     expect(thumbBlock).toMatch(/var\(--gold\)/);
-    const scrimBlock = css.match(/\.tournament-image-scrim\s*\{[^}]+\}/);
-    expect(scrimBlock).not.toBeNull();
-    expect(scrimBlock![0]).toMatch(/linear-gradient\(/);
-    const scrimMixes = [
-      ...scrimBlock![0].matchAll(/color-mix\(\s*in\s+srgb\s*,\s*var\(--bg\)\s+(\d+(?:\.\d+)?)%/g),
-    ];
-    expect(scrimMixes.length).toBeGreaterThanOrEqual(1);
-    for (const mix of scrimMixes) {
-      expect(Number(mix[1])).toBe(85);
-    }
+    expect(css).not.toMatch(/\.tournament-image-scrim/);
+  });
+
+  it("applies featured hero text color and outline on the home copy", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 1,
+      image_2_url: "https://example.test/hero.jpg",
+      hero_text: { color: "#1a1815", outline: "#e4dfd5" },
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+
+    const page = await renderHome();
+    const copy = page.querySelector('[data-testid="hero-copy"]') as HTMLElement;
+    expect(copy).not.toBeNull();
+    expect(copy.style.color.replace(/\s/g, "").toLowerCase()).toMatch(/#1a1815|rgb\(26,24,21\)/);
+    expect(copy.style.textShadow.toLowerCase()).toMatch(/#e4dfd5/);
   });
 
   it("cycles Avg / day, Today, and Total through asc, desc, then rank order", async () => {

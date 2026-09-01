@@ -875,6 +875,16 @@ Optional home-page images: `image_1_url` (small card art) and
 responses include them when set. URLs are served from
 `GET /media/tournaments/{tournament_id}/{filename}` on the public API.
 
+Optional home hero copy: `hero_text` is `{ "color", "outline" }` as
+`#rrggbb` strings. It tints the featured title, eyebrow, and lead on
+the home hero (Image 2). `outline` may be `""` for no tracing.
+Omitted `hero_text` defaults to cream fill `#e4dfd5` with dusk outline
+`#1a1815`. Public list/detail always include the resolved object.
+
+```json
+"hero_text": { "color": "#e4dfd5", "outline": "#1a1815" }
+```
+
 ### `POST /admin/tournaments/{tournament_id}/images`
 
 Upload a tournament home-page image. Admin JWT required. Body is JSON
@@ -914,7 +924,7 @@ Scheduled or live: name, `start_at`, `duration_days` (or inclusive
 `end_at`), prize, and the same extra settings as create
 (`min_bumpkin_island`, `min_digging_streak`, `vip_required`,
 `max_players`, `join_mode`, `description`, `nft_giveaway`,
-`prize_places`, `image_1_url`, `image_2_url`). Omitted keys keep the
+`prize_places`, `image_1_url`, `image_2_url`, `hero_text`). Omitted keys keep the
 stored values; send `null` /
 `[]` to clear an optional gate, description, or prize list. Changing
 the live window re-scores farms from snapshots. Ended: `409`.

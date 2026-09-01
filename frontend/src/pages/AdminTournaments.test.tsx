@@ -975,4 +975,28 @@ describe("AdminTournaments", () => {
     HTMLCanvasElement.prototype.toBlob = originalToBlob;
     vi.unstubAllGlobals();
   });
+
+  it("lets admin preview featured text colors on Image 2", () => {
+    const { container } = render([]);
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    expect(container.querySelector('[data-testid="hero-text-preview"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="hero-text-preset-light"]')).not.toBeNull();
+    const preview = container.querySelector('[data-testid="hero-text-preview"]') as HTMLElement;
+    expect(preview.textContent).toMatch(/Tournament title/);
+    act(() => {
+      (container.querySelector('[data-testid="hero-text-preset-dark"]') as HTMLButtonElement).click();
+    });
+    const copy = preview.querySelector(".hero-text-preview-copy") as HTMLElement;
+    expect(copy.style.color.replace(/\s/g, "").toLowerCase()).toMatch(/#1a1815|rgb\(26,24,21\)/);
+    expect(copy.style.textShadow.toLowerCase()).toMatch(/#e4dfd5/);
+    act(() => {
+      (container.querySelector('[data-testid="hero-text-preset-mid"]') as HTMLButtonElement).click();
+    });
+    expect(copy.style.color.replace(/\s/g, "").toLowerCase()).toMatch(/#b89a56|rgb\(184,154,86\)/);
+  });
 });

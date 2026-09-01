@@ -106,6 +106,33 @@ def test_tournament_image_urls_round_trip(aws_env):
     assert "image_1_url" not in updated or updated.get("image_1_url") is None
 
 
+def test_hero_text_round_trip_on_public_summary(aws_env):
+    store = _store(aws_env)
+    clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
+    created = create_tournament(
+        store,
+        {
+            "name": "Art cup",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+            "hero_text": {"color": "#1A1815", "outline": "#E4DFD5"},
+        },
+        now=clock,
+    )
+    assert created["hero_text"] == {"color": "#1a1815", "outline": "#e4dfd5"}
+    listed = list_public_tournaments(store, now=clock)
+    match = next(row for row in listed if row["tournament_id"] == created["tournament_id"])
+    assert match["hero_text"] == created["hero_text"]
+    updated = update_tournament(
+        store,
+        created["tournament_id"],
+        {"hero_text": {"color": "#b89a56", "outline": "#1a1815"}},
+        now=clock,
+    )
+    assert updated["hero_text"] == {"color": "#b89a56", "outline": "#1a1815"}
+
+
 def test_one_day_tournament_is_allowed(aws_env):
     store = _store(aws_env)
     clock = datetime(2026, 8, 15, 12, tzinfo=timezone.utc)
@@ -478,6 +505,7 @@ def test_http_create_inclusive_window_and_event_settings(aws_env, monkeypatch):
     assert row["join_mode"] == "auto"
     assert row["description"] == "Bring a shovel."
     assert row["nft_giveaway"] is False
+    assert row["hero_text"] == {"color": "#e4dfd5", "outline": "#1a1815"}
     assert row["prize_places"] == [
         {"place": 1, "amount": "50"},
         {"place": 2, "amount": "20"},

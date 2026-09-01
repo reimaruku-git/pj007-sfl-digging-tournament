@@ -7,6 +7,7 @@ per-place prizes, no NFT giveaway.
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -16,6 +17,11 @@ JOIN_MODES = {JOIN_MODE_AUTO, JOIN_MODE_CONFIRM}
 DEFAULT_JOIN_MODE = JOIN_MODE_CONFIRM
 DESCRIPTION_MAX_LEN = 2000
 NFT_NAME_MAX_LEN = 80
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+HERO_TEXT_LIGHT = {"color": "#e4dfd5", "outline": "#1a1815"}
+HERO_TEXT_DARK = {"color": "#1a1815", "outline": "#e4dfd5"}
+HERO_TEXT_MID = {"color": "#b89a56", "outline": "#1a1815"}
+DEFAULT_HERO_TEXT = dict(HERO_TEXT_LIGHT)
 ISLAND_BASIC = "basic"
 ISLAND_SPRING = "spring"
 ISLAND_DESERT = "desert"
@@ -154,6 +160,33 @@ def parse_prize_places(raw: Any, *, nft_giveaway: bool = False) -> list[dict[str
     return places
 
 
+def _parse_hex_color(raw: Any, field: str) -> str:
+    text = str(raw or "").strip()
+    if not HEX_COLOR_RE.match(text):
+        raise EventSettingsError(f"{field} must be a #RRGGBB color")
+    return text.lower()
+
+
+def parse_hero_text(raw: Any) -> dict[str, str]:
+    if raw is None or raw == "":
+        return dict(DEFAULT_HERO_TEXT)
+    if not isinstance(raw, dict):
+        raise EventSettingsError("hero_text must be an object")
+    color_raw = raw.get("color")
+    color = (
+        DEFAULT_HERO_TEXT["color"]
+        if color_raw in (None, "")
+        else _parse_hex_color(color_raw, "hero_text.color")
+    )
+    if "outline" not in raw:
+        outline = DEFAULT_HERO_TEXT["outline"]
+    elif raw.get("outline") in (None, ""):
+        outline = ""
+    else:
+        outline = _parse_hex_color(raw.get("outline"), "hero_text.outline")
+    return {"color": color, "outline": outline}
+
+
 def _keep_or_parse(body: dict[str, Any], src: dict[str, Any], key: str, parse):
     if key in body:
         return parse(body.get(key))
@@ -221,6 +254,11 @@ def parse_event_settings(
         if prize_places_sum(prize_places) != pool:
             raise EventSettingsError("prize_places amounts must sum to prize_amount")
 
+    if "hero_text" in body:
+        hero_text = parse_hero_text(body.get("hero_text"))
+    else:
+        hero_text = parse_hero_text(src.get("hero_text"))
+
     return {
         "min_bumpkin_island": min_island,
         "min_digging_streak": min_streak,
@@ -230,6 +268,7 @@ def parse_event_settings(
         "description": description,
         "prize_places": prize_places,
         "nft_giveaway": nft_giveaway,
+        "hero_text": hero_text,
     }
 
 

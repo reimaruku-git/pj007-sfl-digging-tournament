@@ -1550,7 +1550,7 @@ a.live-board-open:focus-visible .kicker {
 }
 
 .create-window {
-  width: min(42rem, 100%);
+  width: min(48rem, 100%);
   max-height: 90vh;
   overflow: auto;
   background: var(--panel);
@@ -2974,16 +2974,6 @@ a.past-card:hover {
   object-fit: cover;
 }
 
-.tournament-image-scrim {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    color-mix(in srgb, var(--bg) 85%, transparent),
-    color-mix(in srgb, var(--bg) 85%, transparent)
-  );
-}
-
 .tournament-image-fields {
   display: grid;
   gap: 10px;
@@ -3018,6 +3008,89 @@ a.past-card:hover {
   height: auto;
 }
 
+.hero-text-fields {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.hero-text-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hero-text-presets .btn.is-active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.hero-text-colors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.hero-text-color {
+  display: grid;
+  gap: 6px;
+}
+
+.hero-text-color input[type="color"] {
+  width: 100%;
+  height: 36px;
+  padding: 2px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hero-text-preview {
+  position: relative;
+  min-height: 200px;
+  overflow: hidden;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  background: #141210;
+}
+
+.hero-text-preview-art {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-text-preview-art img,
+.hero-text-preview-art .color-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-text-preview-copy {
+  position: relative;
+  z-index: 1;
+  padding: 20px 16px 16px;
+}
+
+.hero-text-preview .hero-title {
+  font-size: 28px;
+  max-width: none;
+  margin-bottom: 10px;
+}
+
+.hero-text-preview .hero-lead {
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
+.hero-text-preview .hero-eyebrow,
+.hero-text-preview .hero-title,
+.hero-text-preview .hero-lead {
+  color: inherit;
+}
+
 .live-hero-inner {
   position: relative;
   z-index: 1;
@@ -3050,6 +3123,12 @@ a.past-card:hover {
   max-width: 38rem;
   color: var(--sand);
   margin-bottom: 22px;
+}
+
+.hero-copy .hero-eyebrow,
+.hero-copy .hero-title,
+.hero-copy .hero-lead {
+  color: inherit;
 }
 
 .hero-actions {

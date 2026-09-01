@@ -29,6 +29,7 @@ import {
   statusLabel,
 } from "../lib/format";
 import { msUntilNextSync } from "../lib/schedule";
+import { heroTextStyle } from "../lib/heroText";
 
 const RULES = [
   {
@@ -172,32 +173,31 @@ function Hero({
     <section className="live-hero" data-testid="home-hero">
       <div className="live-hero-art">
         {featured?.image_2_url ? (
-          <>
-            <img
-              src={featured.image_2_url}
-              alt=""
-              className="tournament-hero-image"
-              data-testid="home-hero-image"
-            />
-            <div className="tournament-image-scrim" data-testid="home-hero-scrim" aria-hidden="true" />
-          </>
+          <img
+            src={featured.image_2_url}
+            alt=""
+            className="tournament-hero-image"
+            data-testid="home-hero-image"
+          />
         ) : (
           <ColorCanvas tone="hero" />
         )}
       </div>
       <div className="live-hero-inner">
-        <p className="hero-eyebrow">{eyebrow}</p>
-        {featured ? (
-          <h2 className="hero-title" data-testid="featured-title">
-            {featured.name}
-          </h2>
-        ) : (
-          <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
-        )}
-        <p className="hero-lead">
-          Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
-          affect your score.
-        </p>
+        <div className="hero-copy" data-testid="hero-copy" style={heroTextStyle(featured?.hero_text)}>
+          <p className="hero-eyebrow">{eyebrow}</p>
+          {featured ? (
+            <h2 className="hero-title" data-testid="featured-title">
+              {featured.name}
+            </h2>
+          ) : (
+            <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
+          )}
+          <p className="hero-lead">
+            Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
+            affect your score.
+          </p>
+        </div>
         <div className="hero-actions">
           <Link to="/tournaments" className="btn primary" data-testid="see-tournaments">
             See tournaments
@@ -232,19 +232,12 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
     <div className="now-digging" data-testid="now-digging">
       <div className="now-digging-art">
         {featured.image_1_url ? (
-          <>
-            <img
-              src={featured.image_1_url}
-              alt=""
-              className="tournament-thumb-image"
-              data-testid="now-digging-image"
-            />
-            <div
-              className="tournament-image-scrim"
-              data-testid="now-digging-scrim"
-              aria-hidden="true"
-            />
-          </>
+          <img
+            src={featured.image_1_url}
+            alt=""
+            className="tournament-thumb-image"
+            data-testid="now-digging-image"
+          />
         ) : (
           <ColorCanvas tone="thumb" />
         )}

@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
 import { updateTournament } from "../api/admin";
-import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
+import type { BumpkinIsland, HeroText, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
+import { ColorCanvas } from "../components/ColorCanvas";
 import { ImageCropModal } from "../components/ImageCropModal";
 import {
   ADMIN_LIVE_PREVIEW,
@@ -27,6 +28,14 @@ import {
   joinedCountLabel,
 } from "../lib/format";
 import {
+  DEFAULT_HERO_TEXT,
+  HERO_TEXT_PRESETS,
+  heroTextStyle,
+  matchingHeroPreset,
+  normalizeHeroText,
+  type HeroTextPresetId,
+} from "../lib/heroText";
+import {
   uploadPendingTournamentImages,
   validateTournamentImageFile,
   validateTournamentImageSource,
@@ -48,6 +57,7 @@ export type TournamentDraft = {
   prize_places: PrizePlace[];
   image_1_url?: string | null;
   image_2_url?: string | null;
+  hero_text: HeroText;
 };
 
 export type TournamentSavePayload = TournamentDraft & {
@@ -193,6 +203,7 @@ export function AdminTournaments({
       })),
       image_1_url: row.image_1_url ?? null,
       image_2_url: row.image_2_url ?? null,
+      hero_text: normalizeHeroText(row.hero_text),
     });
     resetImageDraft();
     setError(null);
@@ -276,6 +287,7 @@ export function AdminTournaments({
       join_mode: draft.join_mode,
       nft_giveaway: draft.nft_giveaway,
       prize_places: prizePlaces,
+      hero_text: normalizeHeroText(draft.hero_text),
     };
     if (draft.image_1_url) payload.image_1_url = draft.image_1_url;
     if (draft.image_2_url) payload.image_2_url = draft.image_2_url;
@@ -723,6 +735,88 @@ export function AdminTournaments({
                 )}
               </div>
             </div>
+            <div className="hero-text-fields" data-testid="hero-text-fields">
+              <p className="meta tournament-image-note">
+                Featured home text sits on Image 2. Pick a setup, then tweak fill and outline.
+              </p>
+              <div className="hero-text-presets">
+                {(Object.keys(HERO_TEXT_PRESETS) as HeroTextPresetId[]).map((id) => {
+                  const preset = HERO_TEXT_PRESETS[id];
+                  const active = matchingHeroPreset(draft.hero_text) === id;
+                  return (
+                    <button
+                      key={id}
+                      className={active ? "btn is-active" : "btn"}
+                      type="button"
+                      data-testid={`hero-text-preset-${id}`}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          hero_text: { color: preset.color, outline: preset.outline },
+                        })
+                      }
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="meta">
+                {matchingHeroPreset(draft.hero_text)
+                  ? HERO_TEXT_PRESETS[matchingHeroPreset(draft.hero_text)!].hint
+                  : "Custom fill and outline."}
+              </p>
+              <div className="hero-text-colors">
+                <label className="hero-text-color">
+                  Text color
+                  <input
+                    type="color"
+                    data-testid="hero-text-color"
+                    value={normalizeHeroText(draft.hero_text).color}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        hero_text: { ...normalizeHeroText(draft.hero_text), color: event.target.value },
+                      })
+                    }
+                  />
+                </label>
+                <label className="hero-text-color">
+                  Outline
+                  <input
+                    type="color"
+                    data-testid="hero-text-outline"
+                    value={normalizeHeroText(draft.hero_text).outline || "#1a1815"}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        hero_text: {
+                          ...normalizeHeroText(draft.hero_text),
+                          outline: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="hero-text-preview" data-testid="hero-text-preview">
+                <div className="hero-text-preview-art">
+                  {imagePreview.image_2 || draft.image_2_url ? (
+                    <img src={imagePreview.image_2 || draft.image_2_url || ""} alt="" />
+                  ) : (
+                    <ColorCanvas tone="hero" />
+                  )}
+                </div>
+                <div className="hero-text-preview-copy" style={heroTextStyle(draft.hero_text)}>
+                  <p className="hero-eyebrow">Live tournament · preview</p>
+                  <h2 className="hero-title">{draft.name.trim() || "Tournament title"}</h2>
+                  <p className="hero-lead">
+                    {draft.description.trim() ||
+                      "Get the 3 Otter Pebbles in as few digs as possible."}
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="toolbar">
               <button
                 className="btn primary"
@@ -761,6 +855,7 @@ function emptyDraft(): TournamentDraft {
     prize_places: [],
     image_1_url: null,
     image_2_url: null,
+    hero_text: { ...DEFAULT_HERO_TEXT },
   };
 }
 
