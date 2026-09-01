@@ -172,12 +172,15 @@ function Hero({
     <section className="live-hero" data-testid="home-hero">
       <div className="live-hero-art">
         {featured?.image_2_url ? (
-          <img
-            src={featured.image_2_url}
-            alt=""
-            className="tournament-hero-image"
-            data-testid="home-hero-image"
-          />
+          <>
+            <img
+              src={featured.image_2_url}
+              alt=""
+              className="tournament-hero-image"
+              data-testid="home-hero-image"
+            />
+            <div className="tournament-image-scrim" data-testid="home-hero-scrim" aria-hidden="true" />
+          </>
         ) : (
           <ColorCanvas tone="hero" />
         )}
@@ -229,12 +232,19 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
     <div className="now-digging" data-testid="now-digging">
       <div className="now-digging-art">
         {featured.image_1_url ? (
-          <img
-            src={featured.image_1_url}
-            alt=""
-            className="tournament-thumb-image"
-            data-testid="now-digging-image"
-          />
+          <>
+            <img
+              src={featured.image_1_url}
+              alt=""
+              className="tournament-thumb-image"
+              data-testid="now-digging-image"
+            />
+            <div
+              className="tournament-image-scrim"
+              data-testid="now-digging-scrim"
+              aria-hidden="true"
+            />
+          </>
         ) : (
           <ColorCanvas tone="thumb" />
         )}

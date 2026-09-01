@@ -2974,6 +2974,16 @@ a.past-card:hover {
   object-fit: cover;
 }
 
+.tournament-image-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    color-mix(in srgb, var(--bg) 85%, transparent),
+    color-mix(in srgb, var(--bg) 85%, transparent)
+  );
+}
+
 .tournament-image-fields {
   display: grid;
   gap: 10px;
@@ -3062,6 +3072,7 @@ a.past-card:hover {
 }
 
 .now-digging-art {
+  position: relative;
   width: 64px;
   height: 64px;
   border-radius: 12px;

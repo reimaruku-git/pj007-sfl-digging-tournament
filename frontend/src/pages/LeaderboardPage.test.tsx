@@ -294,6 +294,8 @@ describe("LeaderboardPage home", () => {
     expect([...canvases].every((node) => !node.getAttribute("src"))).toBe(true);
     expect(page.querySelector(".live-hero-art")).not.toBeNull();
     expect(page.querySelector('[data-testid="home-hero"] img')).toBeNull();
+    expect(page.querySelector('[data-testid="home-hero-scrim"]')).toBeNull();
+    expect(page.querySelector('[data-testid="now-digging-scrim"]')).toBeNull();
     expect(page.querySelector(".place-1 [data-testid='color-canvas']")).not.toBeNull();
     expect(page.querySelector(".you-farm-art [data-testid='color-canvas']")).not.toBeNull();
 
@@ -370,10 +372,13 @@ describe("LeaderboardPage home", () => {
     expect(heroImage).not.toBeNull();
     expect(art?.contains(heroImage)).toBe(true);
     expect(heroImage?.classList.contains("live-hero-art")).toBe(false);
+    expect(page.querySelector('[data-testid="home-hero-scrim"]')).not.toBeNull();
+    expect(art?.contains(page.querySelector('[data-testid="home-hero-scrim"]'))).toBe(true);
     expect(page.querySelector('[data-testid="now-digging-image"]')).not.toBeNull();
     expect(page.querySelector(".now-digging-art")?.contains(page.querySelector('[data-testid="now-digging-image"]'))).toBe(
       true,
     );
+    expect(page.querySelector('[data-testid="now-digging-scrim"]')).not.toBeNull();
 
     const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
     const artBlock = [...css.matchAll(/\.live-hero-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
@@ -383,6 +388,16 @@ describe("LeaderboardPage home", () => {
     const thumbBlock = [...css.matchAll(/\.now-digging-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
     expect(thumbBlock).toMatch(/border:/);
     expect(thumbBlock).toMatch(/var\(--gold\)/);
+    const scrimBlock = css.match(/\.tournament-image-scrim\s*\{[^}]+\}/);
+    expect(scrimBlock).not.toBeNull();
+    expect(scrimBlock![0]).toMatch(/linear-gradient\(/);
+    const scrimMixes = [
+      ...scrimBlock![0].matchAll(/color-mix\(\s*in\s+srgb\s*,\s*var\(--bg\)\s+(\d+(?:\.\d+)?)%/g),
+    ];
+    expect(scrimMixes.length).toBeGreaterThanOrEqual(1);
+    for (const mix of scrimMixes) {
+      expect(Number(mix[1])).toBe(85);
+    }
   });
 
   it("cycles Avg / day, Today, and Total through asc, desc, then rank order", async () => {
