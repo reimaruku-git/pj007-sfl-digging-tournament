@@ -390,6 +390,11 @@ describe("LeaderboardPage home", () => {
     const thumbBlock = [...css.matchAll(/\.now-digging-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
     expect(thumbBlock).toMatch(/border:/);
     expect(thumbBlock).toMatch(/var\(--gold\)/);
+    const diggingBlock = [...css.matchAll(/\.now-digging\s*\{[^}]+\}/g)].map((match) => match[0])[0];
+    expect(diggingBlock).toMatch(/box-shadow:/);
+    expect(diggingBlock).toMatch(/var\(--gold\)/);
+    expect(css).toMatch(/\.live-hero::after/);
+    expect(css).toMatch(/\.live-hero-art::after/);
     expect(css).not.toMatch(/\.tournament-image-scrim/);
   });
 
