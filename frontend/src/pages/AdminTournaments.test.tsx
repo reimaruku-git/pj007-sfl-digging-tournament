@@ -912,4 +912,67 @@ describe("AdminTournaments", () => {
     expect(meta).toMatch(/3x Rare Key/);
     expect(meta).not.toMatch(/3x Rare Key Flower/);
   });
+
+  it("opens an X-style crop popup when picking Image 2", async () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+    class FakeImage {
+      width = 4000;
+      height = 3000;
+      naturalWidth = 4000;
+      naturalHeight = 3000;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      _src = "";
+      get src() {
+        return this._src;
+      }
+      set src(value: string) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    URL.createObjectURL = () => "blob:admin-crop";
+    URL.revokeObjectURL = () => undefined;
+    HTMLCanvasElement.prototype.getContext = () =>
+      ({
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+        fillStyle: "",
+      }) as unknown as CanvasRenderingContext2D;
+    HTMLCanvasElement.prototype.toBlob = function toBlob(callback, type) {
+      callback(new Blob(["jpeg-bytes"], { type: type || "image/jpeg" }));
+    };
+
+    const { container } = render([]);
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    expect(container.querySelector('[data-testid="image-crop-modal"]')).toBeNull();
+    const input = container.querySelector('[data-testid="tournament-image-2"]') as HTMLInputElement;
+    const file = new File(["photo"], "hero.png", { type: "image/png" });
+    await act(async () => {
+      Object.defineProperty(input, "files", { configurable: true, value: [file] });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(container.querySelector('[data-testid="image-crop-modal"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/Choose what Image 2 shows/);
+    await act(async () => {
+      const apply = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Use this crop"),
+      );
+      apply?.click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(container.querySelector('[data-testid="image-crop-modal"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tournament-image-2-preview"]')).not.toBeNull();
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+    HTMLCanvasElement.prototype.toBlob = originalToBlob;
+    vi.unstubAllGlobals();
+  });
 });

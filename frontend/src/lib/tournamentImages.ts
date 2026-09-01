@@ -4,6 +4,17 @@ export type TournamentImageSlot = "image_1" | "image_2";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+
+export function validateTournamentImageSource(file: File): string | null {
+  if (!ALLOWED_TYPES.has(file.type)) {
+    return "Use a JPEG, PNG, WebP, or GIF image.";
+  }
+  if (file.size > MAX_SOURCE_BYTES) {
+    return "Image must be 10 MB or smaller.";
+  }
+  return null;
+}
 
 export function validateTournamentImageFile(file: File): string | null {
   if (!ALLOWED_TYPES.has(file.type)) {

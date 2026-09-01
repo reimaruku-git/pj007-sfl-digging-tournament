@@ -1559,6 +1559,65 @@ a.live-board-open:focus-visible .kicker {
   padding: 18px 18px 14px;
 }
 
+.image-crop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(12, 11, 9, 0.78);
+}
+
+.image-crop-window {
+  width: min(52rem, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px 18px 14px;
+}
+
+.image-crop-stage {
+  margin: 12px 0 14px;
+  background: #0c0b09;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.image-crop-viewport {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: #141210;
+  border: 2px solid var(--gold);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.image-crop-viewport:active {
+  cursor: grabbing;
+}
+
+.image-crop-photo {
+  display: block;
+  max-width: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.image-crop-zoom {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
 .form-row {
   display: grid;
   gap: 10px;
@@ -2902,21 +2961,17 @@ a.past-card:hover {
   position: absolute;
   inset: 0;
   min-height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--gold);
+  box-sizing: border-box;
 }
 
 .tournament-hero-image,
 .tournament-thumb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-}
-
-.tournament-hero-image {
-  width: 100%;
-  height: 100%;
-}
-
-.tournament-thumb-image {
-  width: 100%;
-  height: 100%;
 }
 
 .tournament-image-fields {
@@ -2949,7 +3004,8 @@ a.past-card:hover {
 
 .tournament-image-preview.is-wide {
   width: min(100%, 320px);
-  height: 96px;
+  aspect-ratio: 1600 / 560;
+  height: auto;
 }
 
 .live-hero-inner {
@@ -3010,6 +3066,8 @@ a.past-card:hover {
   height: 64px;
   border-radius: 12px;
   overflow: hidden;
+  border: 1px solid var(--gold);
+  box-sizing: border-box;
 }
 
 .now-digging-name {

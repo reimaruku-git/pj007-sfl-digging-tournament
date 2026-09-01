@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateTournamentImageFile } from "./tournamentImages";
+import { validateTournamentImageFile, validateTournamentImageSource } from "./tournamentImages";
 
 describe("validateTournamentImageFile", () => {
   it("accepts small webp/png uploads", () => {
@@ -19,5 +19,13 @@ describe("validateTournamentImageFile", () => {
       type: "image/webp",
     });
     expect(validateTournamentImageFile(big)).toMatch(/2 MB/i);
+  });
+
+  it("lets a larger source photo through so it can be cropped", () => {
+    const large = new File([new Uint8Array(3 * 1024 * 1024)], "big.webp", {
+      type: "image/webp",
+    });
+    expect(validateTournamentImageFile(large)).toMatch(/2 MB/i);
+    expect(validateTournamentImageSource(large)).toBeNull();
   });
 });

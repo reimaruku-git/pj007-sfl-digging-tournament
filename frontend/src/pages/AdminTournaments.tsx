@@ -4,6 +4,7 @@ import { updateTournament } from "../api/admin";
 import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
+import { ImageCropModal } from "../components/ImageCropModal";
 import {
   ADMIN_LIVE_PREVIEW,
   ADMIN_PAST_PREVIEW,
@@ -28,6 +29,7 @@ import {
 import {
   uploadPendingTournamentImages,
   validateTournamentImageFile,
+  validateTournamentImageSource,
   type TournamentImageSlot,
 } from "../lib/tournamentImages";
 
@@ -104,6 +106,7 @@ export function AdminTournaments({
     image_1: null,
     image_2: null,
   });
+  const [cropJob, setCropJob] = useState<{ slot: TournamentImageSlot; file: File } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localReviewId, setLocalReviewId] = useState<string | null>(null);
@@ -154,7 +157,13 @@ export function AdminTournaments({
 
   function resetImageDraft() {
     setPendingImages({ image_1: null, image_2: null });
-    setImagePreview({ image_1: null, image_2: null });
+    setImagePreview((current) => {
+      for (const url of Object.values(current)) {
+        if (url) URL.revokeObjectURL(url);
+      }
+      return { image_1: null, image_2: null };
+    });
+    setCropJob(null);
   }
 
   function openCreate() {
@@ -193,17 +202,36 @@ export function AdminTournaments({
   function onPickImage(slot: TournamentImageSlot, file: File | null) {
     if (!file) {
       setPendingImages((current) => ({ ...current, [slot]: null }));
-      setImagePreview((current) => ({ ...current, [slot]: null }));
+      setImagePreview((current) => {
+        if (current[slot]) URL.revokeObjectURL(current[slot] as string);
+        return { ...current, [slot]: null };
+      });
       return;
     }
-    const issue = validateTournamentImageFile(file);
+    const issue = validateTournamentImageSource(file);
     if (issue) {
       setError(issue);
       return;
     }
     setError(null);
+    setCropJob({ slot, file });
+  }
+
+  function applyCrop(file: File) {
+    if (!cropJob) return;
+    const slot = cropJob.slot;
+    const issue = validateTournamentImageFile(file);
+    if (issue) {
+      setError(issue);
+      setCropJob(null);
+      return;
+    }
     setPendingImages((current) => ({ ...current, [slot]: file }));
-    setImagePreview((current) => ({ ...current, [slot]: URL.createObjectURL(file) }));
+    setImagePreview((current) => {
+      if (current[slot]) URL.revokeObjectURL(current[slot] as string);
+      return { ...current, [slot]: URL.createObjectURL(file) };
+    });
+    setCropJob(null);
   }
 
   async function submit(event: FormEvent) {
@@ -647,8 +675,8 @@ export function AdminTournaments({
             </label>
             <div className="tournament-image-fields" data-testid="tournament-image-fields">
               <p className="meta tournament-image-note">
-                Home page images only. Image 1 is the small card art; Image 2 is the wide hero
-                canvas.
+                Home page images only. Image 1 is the 64×64 card (1:1). Image 2 fills the wide hero
+                canvas (1600×560). If the photo is larger or does not match, crop which part shows.
               </p>
               <div className="form-row tournament-image-row">
                 <label>
@@ -657,7 +685,10 @@ export function AdminTournaments({
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
                     data-testid="tournament-image-1"
-                    onChange={(event) => onPickImage("image_1", event.target.files?.[0] ?? null)}
+                    onChange={(event) => {
+                      onPickImage("image_1", event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
                   />
                 </label>
                 {(imagePreview.image_1 || draft.image_1_url) && (
@@ -676,7 +707,10 @@ export function AdminTournaments({
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
                     data-testid="tournament-image-2"
-                    onChange={(event) => onPickImage("image_2", event.target.files?.[0] ?? null)}
+                    onChange={(event) => {
+                      onPickImage("image_2", event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
                   />
                 </label>
                 {(imagePreview.image_2 || draft.image_2_url) && (
@@ -703,6 +737,9 @@ export function AdminTournaments({
             </div>
           </form>
         </div>
+      )}
+      {cropJob && (
+        <ImageCropModal job={cropJob} onApply={applyCrop} onCancel={() => setCropJob(null)} />
       )}
     </section>
   );
