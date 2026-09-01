@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,6 +9,7 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { ColorCanvas, farmCanvasTone } from "../components/ColorCanvas";
+import { HeroLayerStack } from "../components/HeroLayerStack";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
 import {
@@ -143,6 +144,56 @@ export function LeaderboardPage() {
   );
 }
 
+function HeroArt({
+  src,
+  layers,
+}: {
+  src?: string | null;
+  layers?: TournamentSummary["hero_layers"];
+}) {
+  return (
+    <HeroLayerStack
+      className="live-hero-art"
+      src={src}
+      layers={layers}
+      imageClassName="tournament-hero-image"
+      imageTestId="home-hero-image"
+    />
+  );
+}
+
+function ThumbArt({ src }: { src?: string | null }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [ready, setReady] = useState(false);
+  useLayoutEffect(() => {
+    if (!src) {
+      setReady(false);
+      return;
+    }
+    const el = imgRef.current;
+    if (el?.complete && el.naturalWidth > 0) {
+      setReady(true);
+      return;
+    }
+    setReady(false);
+  }, [src]);
+  return (
+    <div className="now-digging-art">
+      <ColorCanvas tone="thumb" />
+      {src ? (
+        <img
+          ref={imgRef}
+          src={src}
+          alt=""
+          className={ready ? "tournament-thumb-image is-ready" : "tournament-thumb-image"}
+          data-testid="now-digging-image"
+          onLoad={() => setReady(true)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function Hero({
   featured,
   loading,
@@ -170,20 +221,22 @@ function Hero({
     : "Live tournament";
   return (
     <section className="live-hero" data-testid="home-hero">
-      <ColorCanvas tone="hero" className="live-hero-art" />
+      <HeroArt src={featured?.image_2_url} layers={featured?.hero_layers} />
       <div className="live-hero-inner">
-        <p className="hero-eyebrow">{eyebrow}</p>
-        {featured ? (
-          <h2 className="hero-title" data-testid="featured-title">
-            {featured.name}
-          </h2>
-        ) : (
-          <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
-        )}
-        <p className="hero-lead">
-          Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
-          affect your score.
-        </p>
+        <div className="hero-copy" data-testid="hero-copy">
+          <p className="hero-eyebrow">{eyebrow}</p>
+          {featured ? (
+            <h2 className="hero-title" data-testid="featured-title">
+              {featured.name}
+            </h2>
+          ) : (
+            <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
+          )}
+          <p className="hero-lead">
+            Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
+            affect your score.
+          </p>
+        </div>
         <div className="hero-actions">
           <Link to="/tournaments" className="btn primary" data-testid="see-tournaments">
             See tournaments
@@ -216,7 +269,7 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
   const windowCopy = formatWindowRange(featured.start_at, lastDay);
   return (
     <div className="now-digging" data-testid="now-digging">
-      <ColorCanvas tone="thumb" className="now-digging-art" />
+      <ThumbArt src={featured.image_1_url} />
       <div className="now-digging-copy">
         <div className="kicker">{featured.status === "scheduled" ? "Up next" : "Now digging"}</div>
         <div className="now-digging-name">{featured.name}</div>

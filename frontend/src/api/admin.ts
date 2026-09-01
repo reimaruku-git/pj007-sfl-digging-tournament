@@ -1,5 +1,6 @@
 import { errorMessage, requestJson } from "./client";
 import type {
+  HeroLayer,
   LeaderboardEntry,
   Slogan,
   SloganList,
@@ -228,6 +229,9 @@ export type TournamentWrite = {
   description?: string;
   prize_places?: { place: number; amount: string; nft_name?: string }[];
   nft_giveaway?: boolean;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
+  hero_layers?: HeroLayer[];
 };
 
 export async function listAdminTournaments(): Promise<TournamentList> {
@@ -261,6 +265,9 @@ export async function createTournament(input: {
   description?: string;
   prize_places?: { place: number; amount: string; nft_name?: string }[];
   nft_giveaway?: boolean;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
+  hero_layers?: HeroLayer[];
 }): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>("admin/tournaments", {
     method: "POST",
@@ -288,6 +295,9 @@ export async function updateTournament(
     description?: string;
     prize_places?: { place: number; amount: string; nft_name?: string }[];
     nft_giveaway?: boolean;
+    image_1_url?: string | null;
+    image_2_url?: string | null;
+    hero_layers?: HeroLayer[];
   },
 ): Promise<TournamentWrite> {
   const { response, data } = await requestJson<{ tournament: TournamentWrite }>(
@@ -306,6 +316,31 @@ export async function deleteTournament(tournamentId: string): Promise<void> {
     { method: "DELETE" },
   );
   if (!response.ok) throw new Error(errorMessage(data, "failed to cancel tournament"));
+}
+
+export type TournamentImageUpload = {
+  slot: "image_1" | "image_2";
+  key: string;
+  public_url: string;
+};
+
+export async function uploadAdminTournamentImage(
+  tournamentId: string,
+  slot: "image_1" | "image_2",
+  contentType: string,
+  data: string,
+): Promise<TournamentImageUpload> {
+  const { response, data: payload } = await requestJson<TournamentImageUpload>(
+    `admin/tournaments/${encodeURIComponent(tournamentId)}/images`,
+    {
+      method: "POST",
+      body: JSON.stringify({ slot, content_type: contentType, data }),
+    },
+  );
+  if (!response.ok || !payload) {
+    throw new Error(errorMessage(payload, "failed to upload tournament image"));
+  }
+  return payload;
 }
 
 export async function saveConfig(input: {

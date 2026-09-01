@@ -13,6 +13,12 @@ export type PrizePlace = {
   nft_name?: string;
 };
 
+export type HeroLayer = {
+  kind: "dusk" | "color";
+  opacity: number;
+  color?: string;
+};
+
 export type TournamentConfig = {
   tournament_id?: string;
   name?: string;
@@ -33,6 +39,9 @@ export type TournamentConfig = {
   prize_places?: PrizePlace[];
   nft_giveaway?: boolean;
   enrolled_count?: number;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
+  hero_layers?: HeroLayer[];
 };
 
 export type FarmDayRecord = {
@@ -190,6 +199,9 @@ export type TournamentSummary = {
   prize_places?: PrizePlace[];
   nft_giveaway?: boolean;
   enrolled_count?: number;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
+  hero_layers?: HeroLayer[];
 };
 
 export type TournamentArchive = {

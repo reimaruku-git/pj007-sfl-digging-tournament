@@ -1,8 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { RosterMember, TrackedFarm } from "../api/admin";
-import type { BumpkinIsland, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
+import type { BumpkinIsland, HeroLayer, JoinMode, PrizePlace, TournamentSummary } from "../api/public";
 import { MIN_BUMPKIN_ISLANDS } from "../api/public";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
+import { ImageCropModal } from "../components/ImageCropModal";
 import {
   ADMIN_LIVE_PREVIEW,
   ADMIN_PAST_PREVIEW,
@@ -24,6 +25,18 @@ import {
   isNumericPrizeAmount,
   joinedCountLabel,
 } from "../lib/format";
+import { HeroLayerStack } from "../components/HeroLayerStack";
+import {
+  DEFAULT_HERO_LAYERS,
+  MAX_HERO_LAYERS,
+  normalizeHeroLayers,
+} from "../lib/heroLayers";
+import {
+  uploadPendingTournamentImages,
+  validateTournamentImageFile,
+  validateTournamentImageSource,
+  type TournamentImageSlot,
+} from "../lib/tournamentImages";
 
 export type TournamentDraft = {
   name: string;
@@ -38,6 +51,9 @@ export type TournamentDraft = {
   join_mode: JoinMode;
   nft_giveaway: boolean;
   prize_places: PrizePlace[];
+  image_1_url?: string | null;
+  image_2_url?: string | null;
+  hero_layers: HeroLayer[];
 };
 
 export type TournamentSavePayload = TournamentDraft & {
@@ -71,7 +87,7 @@ export function AdminTournaments({
   selectedId?: string | null;
   roster?: RosterMember[];
   onSelect?: (id: string | null) => void;
-  onCreate: (draft: TournamentSavePayload) => Promise<void>;
+  onCreate: (draft: TournamentSavePayload) => Promise<{ tournament_id: string }>;
   onUpdate: (id: string, draft: TournamentSavePayload) => Promise<void>;
   onDelete: (row: TournamentSummary) => Promise<void>;
   onAddFarms?: (id: string, farmIds: string[]) => Promise<void>;
@@ -88,6 +104,19 @@ export function AdminTournaments({
   const ended = useMemo(() => pastTournaments(items), [items]);
   const [editor, setEditor] = useState<Editor>(null);
   const [draft, setDraft] = useState<TournamentDraft>(emptyDraft());
+  const [pendingImages, setPendingImages] = useState<Record<TournamentImageSlot, File | null>>({
+    image_1: null,
+    image_2: null,
+  });
+  const [imagePreview, setImagePreview] = useState<Record<TournamentImageSlot, string | null>>({
+    image_1: null,
+    image_2: null,
+  });
+  const [cropJob, setCropJob] = useState<{ slot: TournamentImageSlot; file: File } | null>(null);
+  const [clearedImages, setClearedImages] = useState<Record<TournamentImageSlot, boolean>>({
+    image_1: false,
+    image_2: false,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localReviewId, setLocalReviewId] = useState<string | null>(null);
@@ -136,8 +165,21 @@ export function AdminTournaments({
     );
   }
 
+  function resetImageDraft() {
+    setPendingImages({ image_1: null, image_2: null });
+    setClearedImages({ image_1: false, image_2: false });
+    setImagePreview((current) => {
+      for (const url of Object.values(current)) {
+        if (url) URL.revokeObjectURL(url);
+      }
+      return { image_1: null, image_2: null };
+    });
+    setCropJob(null);
+  }
+
   function openCreate() {
     setDraft(emptyDraft());
+    resetImageDraft();
     setError(null);
     setEditor({ mode: "create" });
   }
@@ -160,9 +202,70 @@ export function AdminTournaments({
         amount: item.amount,
         nft_name: item.nft_name || "",
       })),
+      image_1_url: row.image_1_url ?? null,
+      image_2_url: row.image_2_url ?? null,
+      hero_layers: normalizeHeroLayers(row.hero_layers),
     });
+    resetImageDraft();
     setError(null);
     setEditor({ mode: "edit", id: row.tournament_id });
+  }
+
+  function onPickImage(slot: TournamentImageSlot, file: File | null) {
+    if (!file) {
+      setPendingImages((current) => ({ ...current, [slot]: null }));
+      setImagePreview((current) => {
+        if (current[slot]) URL.revokeObjectURL(current[slot] as string);
+        return { ...current, [slot]: null };
+      });
+      return;
+    }
+    const issue = validateTournamentImageSource(file);
+    if (issue) {
+      setError(issue);
+      return;
+    }
+    setError(null);
+    setCropJob({ slot, file });
+  }
+
+  function applyCrop(file: File) {
+    if (!cropJob) return;
+    const slot = cropJob.slot;
+    const issue = validateTournamentImageFile(file);
+    if (issue) {
+      setError(issue);
+      setCropJob(null);
+      return;
+    }
+    setPendingImages((current) => ({ ...current, [slot]: file }));
+    setClearedImages((current) => ({ ...current, [slot]: false }));
+    setImagePreview((current) => {
+      if (current[slot]) URL.revokeObjectURL(current[slot] as string);
+      return { ...current, [slot]: URL.createObjectURL(file) };
+    });
+    setCropJob(null);
+  }
+
+  function removeImage(slot: TournamentImageSlot) {
+    setPendingImages((current) => ({ ...current, [slot]: null }));
+    setClearedImages((current) => ({ ...current, [slot]: true }));
+    setImagePreview((current) => {
+      if (current[slot]) URL.revokeObjectURL(current[slot] as string);
+      return { ...current, [slot]: null };
+    });
+    const field = slot === "image_1" ? "image_1_url" : "image_2_url";
+    setDraft({ ...draft, [field]: null });
+  }
+
+  function nextImageUrl(
+    slot: TournamentImageSlot,
+    patch: Partial<Record<`${TournamentImageSlot}_url`, string>>,
+  ): string | null {
+    const field = slot === "image_1" ? "image_1_url" : "image_2_url";
+    if (pendingImages[slot]) return patch[field] ?? null;
+    if (clearedImages[slot]) return null;
+    return draft[field] ?? null;
   }
 
   async function submit(event: FormEvent) {
@@ -207,16 +310,26 @@ export function AdminTournaments({
       join_mode: draft.join_mode,
       nft_giveaway: draft.nft_giveaway,
       prize_places: prizePlaces,
+      hero_layers: normalizeHeroLayers(draft.hero_layers),
     };
     setBusy(true);
     setError(null);
     try {
+      let tournamentId = editor?.mode === "edit" ? editor.id : "";
+      if (editor?.mode !== "edit") {
+        const created = await onCreate(payload);
+        tournamentId = created.tournament_id;
+      }
+      const imagePatch = await uploadPendingTournamentImages(tournamentId, pendingImages);
+      payload.image_1_url = nextImageUrl("image_1", imagePatch);
+      payload.image_2_url = nextImageUrl("image_2", imagePatch);
       if (editor?.mode === "edit") {
         await onUpdate(editor.id, payload);
-      } else {
-        await onCreate(payload);
+      } else if (imagePatch.image_1_url || imagePatch.image_2_url) {
+        await onUpdate(tournamentId, payload);
       }
       setEditor(null);
+      resetImageDraft();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -595,6 +708,191 @@ export function AdminTournaments({
                 <option value="auto">Auto join</option>
               </select>
             </label>
+            <div className="tournament-image-fields" data-testid="tournament-image-fields">
+              <p className="meta tournament-image-note">
+                Home page images only. Image 1 is the 64×64 card (1:1). Image 2 fills the wide hero
+                canvas (1600×560). If the photo is larger or does not match, crop which part shows.
+              </p>
+              <div className="form-row tournament-image-row">
+                <label>
+                  Image 1 (small)
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    data-testid="tournament-image-1"
+                    onChange={(event) => {
+                      onPickImage("image_1", event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {(imagePreview.image_1 || draft.image_1_url) && (
+                  <div className="tournament-image-slot">
+                    <img
+                      className="tournament-image-preview is-small"
+                      src={imagePreview.image_1 || draft.image_1_url || ""}
+                      alt="Image 1 preview"
+                      data-testid="tournament-image-1-preview"
+                    />
+                    <button
+                      className="btn"
+                      type="button"
+                      data-testid="tournament-image-1-remove"
+                      onClick={() => removeImage("image_1")}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="form-row tournament-image-row">
+                <label>
+                  Image 2 (wide)
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    data-testid="tournament-image-2"
+                    onChange={(event) => {
+                      onPickImage("image_2", event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {(imagePreview.image_2 || draft.image_2_url) && (
+                  <div className="tournament-image-slot">
+                    <img
+                      className="tournament-image-preview is-wide"
+                      src={imagePreview.image_2 || draft.image_2_url || ""}
+                      alt="Image 2 preview"
+                      data-testid="tournament-image-2-preview"
+                    />
+                    <button
+                      className="btn"
+                      type="button"
+                      data-testid="tournament-image-2-remove"
+                      onClick={() => removeImage("image_2")}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="hero-layer-fields" data-testid="hero-layer-fields">
+              <p className="meta tournament-image-note">
+                Image 2 stays underneath. The original dusk canvas sits on top so the photo shows
+                through. Add, remove, or change layers; home type stays the original sand and cream.
+              </p>
+              <div className="hero-layer-list">
+                {draft.hero_layers.map((layer, index) => (
+                  <div className="hero-layer-row" key={`${layer.kind}-${index}`} data-testid="hero-layer-row">
+                    <span className="hero-layer-kind">
+                      {layer.kind === "dusk" ? "Dusk canvas" : "Color wash"}
+                    </span>
+                    {layer.kind === "color" ? (
+                      <label className="hero-text-color">
+                        Color
+                        <input
+                          type="color"
+                          value={layer.color || "#1a1815"}
+                          data-testid="hero-layer-color"
+                          onChange={(event) =>
+                            setDraft({
+                              ...draft,
+                              hero_layers: draft.hero_layers.map((item, itemIndex) =>
+                                itemIndex === index && item.kind === "color"
+                                  ? { ...item, color: event.target.value }
+                                  : item,
+                              ),
+                            })
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label className="hero-layer-opacity">
+                      See-through {Math.round(layer.opacity * 100)}%
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        data-testid="hero-layer-opacity"
+                        value={Math.round(layer.opacity * 100)}
+                        onChange={(event) => {
+                          const opacity = Number(event.target.value) / 100;
+                          setDraft({
+                            ...draft,
+                            hero_layers: draft.hero_layers.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, opacity } : item,
+                            ),
+                          });
+                        }}
+                      />
+                    </label>
+                    <button
+                      className="btn"
+                      type="button"
+                      data-testid="hero-layer-remove"
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          hero_layers: draft.hero_layers.filter((_, itemIndex) => itemIndex !== index),
+                        })
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="toolbar">
+                <button
+                  className="btn"
+                  type="button"
+                  data-testid="hero-layer-add-dusk"
+                  disabled={draft.hero_layers.length >= MAX_HERO_LAYERS}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      hero_layers: [...draft.hero_layers, { kind: "dusk", opacity: 0.78 }],
+                    })
+                  }
+                >
+                  Add dusk
+                </button>
+                <button
+                  className="btn"
+                  type="button"
+                  data-testid="hero-layer-add-color"
+                  disabled={draft.hero_layers.length >= MAX_HERO_LAYERS}
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      hero_layers: [
+                        ...draft.hero_layers,
+                        { kind: "color", color: "#1a1815", opacity: 0.2 },
+                      ],
+                    })
+                  }
+                >
+                  Add color
+                </button>
+              </div>
+              <div className="hero-text-preview" data-testid="hero-layer-preview">
+                <HeroLayerStack
+                  className="hero-text-preview-art"
+                  src={imagePreview.image_2 || draft.image_2_url}
+                  layers={draft.hero_layers}
+                />
+                <div className="hero-text-preview-copy">
+                  <p className="hero-eyebrow">Live tournament · preview</p>
+                  <h2 className="hero-title">{draft.name.trim() || "Tournament title"}</h2>
+                  <p className="hero-lead">
+                    {draft.description.trim() ||
+                      "Get the 3 Otter Pebbles in as few digs as possible."}
+                  </p>
+                </div>
+              </div>
+            </div>
             <div className="toolbar">
               <button
                 className="btn primary"
@@ -609,6 +907,9 @@ export function AdminTournaments({
             </div>
           </form>
         </div>
+      )}
+      {cropJob && (
+        <ImageCropModal job={cropJob} onApply={applyCrop} onCancel={() => setCropJob(null)} />
       )}
     </section>
   );
@@ -628,6 +929,9 @@ function emptyDraft(): TournamentDraft {
     join_mode: "confirm",
     nft_giveaway: false,
     prize_places: [],
+    image_1_url: null,
+    image_2_url: null,
+    hero_layers: DEFAULT_HERO_LAYERS.map((layer) => ({ ...layer })),
   };
 }
 

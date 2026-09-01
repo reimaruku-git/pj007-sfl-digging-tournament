@@ -7,6 +7,7 @@ per-place prizes, no NFT giveaway.
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -16,6 +17,11 @@ JOIN_MODES = {JOIN_MODE_AUTO, JOIN_MODE_CONFIRM}
 DEFAULT_JOIN_MODE = JOIN_MODE_CONFIRM
 DESCRIPTION_MAX_LEN = 2000
 NFT_NAME_MAX_LEN = 80
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
+HERO_LAYER_KINDS = frozenset({"dusk", "color"})
+MAX_HERO_LAYERS = 6
+DEFAULT_DUSK_OPACITY = 0.78
+DEFAULT_HERO_LAYERS = [{"kind": "dusk", "opacity": DEFAULT_DUSK_OPACITY}]
 ISLAND_BASIC = "basic"
 ISLAND_SPRING = "spring"
 ISLAND_DESERT = "desert"
@@ -154,6 +160,51 @@ def parse_prize_places(raw: Any, *, nft_giveaway: bool = False) -> list[dict[str
     return places
 
 
+def _parse_hex_color(raw: Any, field: str) -> str:
+    text = str(raw or "").strip()
+    if not HEX_COLOR_RE.match(text):
+        raise EventSettingsError(f"{field} must be a #RRGGBB color")
+    return text.lower()
+
+
+def _parse_opacity(raw: Any, field: str) -> float:
+    if raw is None or raw == "":
+        return DEFAULT_DUSK_OPACITY
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise EventSettingsError(f"{field} must be a number") from exc
+    if value < 0 or value > 1:
+        raise EventSettingsError(f"{field} must be between 0 and 1")
+    return round(value, 2)
+
+
+def parse_hero_layer(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise EventSettingsError("hero_layers items must be objects")
+    kind = str(raw.get("kind") or "").strip().lower()
+    if kind not in HERO_LAYER_KINDS:
+        raise EventSettingsError("hero_layers.kind must be dusk or color")
+    opacity = _parse_opacity(raw.get("opacity"), "hero_layers.opacity")
+    if kind == "dusk":
+        return {"kind": "dusk", "opacity": opacity}
+    return {
+        "kind": "color",
+        "color": _parse_hex_color(raw.get("color"), "hero_layers.color"),
+        "opacity": opacity,
+    }
+
+
+def parse_hero_layers(raw: Any) -> list[dict[str, Any]]:
+    if raw is None or raw == "":
+        return [dict(item) for item in DEFAULT_HERO_LAYERS]
+    if not isinstance(raw, list):
+        raise EventSettingsError("hero_layers must be a list")
+    if len(raw) > MAX_HERO_LAYERS:
+        raise EventSettingsError(f"hero_layers must have at most {MAX_HERO_LAYERS} items")
+    return [parse_hero_layer(item) for item in raw]
+
+
 def _keep_or_parse(body: dict[str, Any], src: dict[str, Any], key: str, parse):
     if key in body:
         return parse(body.get(key))
@@ -221,6 +272,13 @@ def parse_event_settings(
         if prize_places_sum(prize_places) != pool:
             raise EventSettingsError("prize_places amounts must sum to prize_amount")
 
+    if "hero_layers" in body:
+        hero_layers = parse_hero_layers(body.get("hero_layers"))
+    elif "hero_layers" in src:
+        hero_layers = parse_hero_layers(src.get("hero_layers"))
+    else:
+        hero_layers = parse_hero_layers(None)
+
     return {
         "min_bumpkin_island": min_island,
         "min_digging_streak": min_streak,
@@ -230,6 +288,7 @@ def parse_event_settings(
         "description": description,
         "prize_places": prize_places,
         "nft_giveaway": nft_giveaway,
+        "hero_layers": hero_layers,
     }
 
 

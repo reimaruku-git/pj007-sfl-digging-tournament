@@ -32,7 +32,7 @@ function render(items: TournamentSummary[], handlers = {}) {
   root = createRoot(container);
   const props = {
     items,
-    onCreate: vi.fn().mockResolvedValue(undefined),
+    onCreate: vi.fn().mockResolvedValue({ tournament_id: "new-cup" }),
     onUpdate: vi.fn().mockResolvedValue(undefined),
     onDelete: vi.fn().mockResolvedValue(undefined),
     ...handlers,
@@ -150,7 +150,7 @@ describe("AdminTournaments", () => {
     expect(onFeature).toHaveBeenCalledWith("past-cup");
   });
 
-  it("splits current and upcoming and lets both be edited", () => {
+  it("splits current and upcoming and lets both be edited", async () => {
     const onUpdate = vi.fn().mockResolvedValue(undefined);
     const { container } = render(
       [
@@ -202,7 +202,7 @@ describe("AdminTournaments", () => {
     expect((container.querySelector('[data-testid="duration-days"]') as HTMLInputElement).value).toBe(
       "14",
     );
-    act(() => {
+    await act(async () => {
       const save = [...container.querySelectorAll("button")].find(
         (node) => node.textContent === "Save changes",
       );
@@ -427,7 +427,7 @@ describe("AdminTournaments", () => {
   });
 
   it("submits snake_case extra settings on create and edit", async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onCreate = vi.fn().mockResolvedValue({ tournament_id: "new-cup" });
     const onUpdate = vi.fn().mockResolvedValue(undefined);
     const { container } = render(
       [
@@ -859,7 +859,7 @@ describe("AdminTournaments", () => {
   });
 
   it("saves a text prize pool when NFTs are given away", async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onCreate = vi.fn().mockResolvedValue({ tournament_id: "new-cup" });
     const { container } = render([], { onCreate });
     act(() => {
       const button = [...container.querySelectorAll("button")].find((node) =>
@@ -911,5 +911,133 @@ describe("AdminTournaments", () => {
       container.querySelector('[data-testid="admin-card-live"]')?.textContent ?? "";
     expect(meta).toMatch(/3x Rare Key/);
     expect(meta).not.toMatch(/3x Rare Key Flower/);
+  });
+
+  it("opens an X-style crop popup when picking Image 2", async () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+    class FakeImage {
+      width = 4000;
+      height = 3000;
+      naturalWidth = 4000;
+      naturalHeight = 3000;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      _src = "";
+      get src() {
+        return this._src;
+      }
+      set src(value: string) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    URL.createObjectURL = () => "blob:admin-crop";
+    URL.revokeObjectURL = () => undefined;
+    HTMLCanvasElement.prototype.getContext = () =>
+      ({
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+        fillStyle: "",
+      }) as unknown as CanvasRenderingContext2D;
+    HTMLCanvasElement.prototype.toBlob = function toBlob(callback, type) {
+      callback(new Blob(["jpeg-bytes"], { type: type || "image/jpeg" }));
+    };
+
+    const { container } = render([]);
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    expect(container.querySelector('[data-testid="image-crop-modal"]')).toBeNull();
+    const input = container.querySelector('[data-testid="tournament-image-2"]') as HTMLInputElement;
+    const file = new File(["photo"], "hero.png", { type: "image/png" });
+    await act(async () => {
+      Object.defineProperty(input, "files", { configurable: true, value: [file] });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(container.querySelector('[data-testid="image-crop-modal"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/Choose what Image 2 shows/);
+    await act(async () => {
+      const apply = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Use this crop"),
+      );
+      apply?.click();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(container.querySelector('[data-testid="image-crop-modal"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tournament-image-2-preview"]')).not.toBeNull();
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+    HTMLCanvasElement.prototype.toBlob = originalToBlob;
+    vi.unstubAllGlobals();
+  });
+
+  it("lets admin add and remove dusk layers over Image 2", () => {
+    const { container } = render([]);
+    act(() => {
+      const button = [...container.querySelectorAll("button")].find((node) =>
+        node.textContent?.includes("Create new tournament"),
+      );
+      button?.click();
+    });
+    expect(container.querySelector('[data-testid="hero-layer-preview"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="hero-text-preset-light"]')).toBeNull();
+    expect(container.querySelectorAll('[data-testid="hero-layer-row"]').length).toBe(1);
+    act(() => {
+      (container.querySelector('[data-testid="hero-layer-add-color"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('[data-testid="hero-layer-row"]').length).toBe(2);
+    act(() => {
+      (container.querySelector('[data-testid="hero-layer-remove"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('[data-testid="hero-layer-row"]').length).toBe(1);
+    const preview = container.querySelector('[data-testid="hero-layer-preview"]') as HTMLElement;
+    expect(preview.textContent).toMatch(/Tournament title/);
+    expect(preview.querySelector(".hero-text-preview-copy")?.getAttribute("style") || "").toBe("");
+  });
+
+  it("lets admin remove a stored Image 1 without dropping Image 2", async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      [
+        row({
+          tournament_id: "live",
+          name: "Live cup",
+          status: "active",
+          image_1_url: "https://example.test/thumb.jpg",
+          image_2_url: "https://example.test/hero.jpg",
+        }),
+      ],
+      { onUpdate },
+    );
+    act(() => {
+      const edit = [...container.querySelectorAll('[data-testid="admin-card-live"] button')].find(
+        (node) => node.textContent === "Edit",
+      );
+      (edit as HTMLButtonElement | null)?.click();
+    });
+    expect(container.querySelector('[data-testid="tournament-image-1-preview"]')).not.toBeNull();
+    act(() => {
+      (container.querySelector('[data-testid="tournament-image-1-remove"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="tournament-image-1-preview"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tournament-image-2-preview"]')).not.toBeNull();
+    await act(async () => {
+      const save = [...container.querySelectorAll("button")].find(
+        (node) => node.textContent === "Save changes",
+      );
+      save?.click();
+    });
+    expect(onUpdate).toHaveBeenCalledWith(
+      "live",
+      expect.objectContaining({
+        image_1_url: null,
+        image_2_url: "https://example.test/hero.jpg",
+      }),
+    );
   });
 });

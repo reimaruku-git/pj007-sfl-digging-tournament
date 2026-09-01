@@ -870,13 +870,68 @@ already live. A future start is `scheduled`. `GET /config` and
 `GET /leaderboard` follow the soonest-ending live event. Each live
 event has its own board at `GET /tournaments/{id}`.
 
+Optional home-page images: `image_1_url` (small card art) and
+`image_2_url` (wide hero canvas). Public tournament list/detail
+responses include them when set. URLs are served from
+`GET /media/tournaments/{tournament_id}/{filename}` on the public API.
+
+Optional home hero layers: `hero_layers` is a list painted **over** Image 2
+so the uploaded photo stays underneath and shows through. Each item is
+`{ "kind": "dusk", "opacity": 0.78 }` (the original blank-hero canvas) or
+`{ "kind": "color", "color": "#1a1815", "opacity": 0.2 }` (a solid wash).
+`opacity` is a JSON number from 0 to 1. Omitted `hero_layers` defaults to
+one dusk layer at `0.78`. Send `[]` for no overlay (full-strength photo).
+Public list/detail always include the resolved list. Home copy stays the
+original sand/cream type; it is not recolored.
+
+```json
+"hero_layers": [{ "kind": "dusk", "opacity": 0.78 }]
+```
+
+### `POST /admin/tournaments/{tournament_id}/images`
+
+Upload a tournament home-page image. Admin JWT required. Body is JSON
+with base64 image bytes (the browser talks only to this API). Max 2 MB.
+
+```json
+{
+  "slot": "image_1",
+  "content_type": "image/webp",
+  "data": "UklGRg=="
+}
+```
+
+`slot` is `image_1` (small) or `image_2` (wide). Allowed
+`content_type`: `image/jpeg`, `image/png`, `image/webp`, `image/gif`.
+
+```json
+{
+  "slot": "image_1",
+  "key": "media/tournaments/20260823T000000Z_8d/image_1.webp",
+  "public_url": "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev/media/tournaments/20260823T000000Z_8d/image_1.webp?v=ab12cd34ef56"
+}
+```
+
+Save `public_url` on the tournament via `PUT /admin/tournaments/{id}`.
+`v` is a content hash so a replacement of the same slot is not served from
+cache. Sending only one of `image_1_url` / `image_2_url` keeps the other stored
+slot. Send `null` to clear that slot.
+
+### `GET /media/tournaments/{tournament_id}/{filename}`
+
+Public binary image bytes for tournament home-page art. Example:
+`/media/tournaments/20260823T000000Z_8d/image_2.png`. No auth.
+Returns the stored object with a matching image `Content-Type` and
+`Cache-Control: public, max-age=300`.
+
 ### `PUT /admin/tournaments/{tournament_id}`
 
 Scheduled or live: name, `start_at`, `duration_days` (or inclusive
 `end_at`), prize, and the same extra settings as create
 (`min_bumpkin_island`, `min_digging_streak`, `vip_required`,
 `max_players`, `join_mode`, `description`, `nft_giveaway`,
-`prize_places`). Omitted keys keep the stored values; send `null` /
+`prize_places`, `image_1_url`, `image_2_url`, `hero_layers`). Omitted keys keep the
+stored values; send `null` /
 `[]` to clear an optional gate, description, or prize list. Changing
 the live window re-scores farms from snapshots. Ended: `409`.
 

@@ -53,6 +53,35 @@ def create_response(
     }
 
 
+def create_binary_response(
+    status_code: int,
+    body: bytes,
+    content_type: str,
+    *,
+    extra_headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Build a binary API Gateway proxy response."""
+    import base64
+
+    allowed_origin = _resolve_allowed_origin()
+    headers = dict(extra_headers) if extra_headers else {}
+    headers.update(
+        {
+            "Content-Type": content_type,
+            "Access-Control-Allow-Origin": allowed_origin,
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
+            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+            "Cache-Control": "public, max-age=300",
+        }
+    )
+    return {
+        "statusCode": status_code,
+        "headers": headers,
+        "body": base64.b64encode(body).decode("ascii"),
+        "isBase64Encoded": True,
+    }
+
+
 def create_error_response(
     status_code: int,
     message: str,

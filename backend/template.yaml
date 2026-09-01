@@ -423,6 +423,7 @@ Resources:
                   - !Sub ${AppBucket.Arn}/config/*
                   - !Sub ${AppBucket.Arn}/snapshots/*
                   - !Sub ${AppBucket.Arn}/archives/*
+                  - !Sub ${AppBucket.Arn}/media/tournaments/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -433,6 +434,7 @@ Resources:
                       - config/*
                       - snapshots/*
                       - archives/*
+                      - media/tournaments/*
         - PolicyName: MainInvokeSync
           PolicyDocument:
             Version: "2012-10-17"
@@ -598,6 +600,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /tournaments/{tournament_id}
             Method: GET
+        GetTournamentMedia:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /media/tournaments/{tournament_id}/{filename}
+            Method: GET
         GetTournamentFarm:
           Type: HttpApi
           Properties:
@@ -714,6 +722,14 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/tournaments/{tournament_id}
             Method: DELETE
+            Auth:
+              Authorizer: CognitoAuthorizer
+        AdminPutTournamentImage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/tournaments/{tournament_id}/images
+            Method: POST
             Auth:
               Authorizer: CognitoAuthorizer
         AdminListFarms:
@@ -935,6 +951,7 @@ Resources:
                   - cloudformation:ListStackResources
                   - cloudformation:CreateStack
                   - cloudformation:UpdateStack
+                  - cloudformation:ContinueUpdateRollback
                   - cloudformation:ValidateTemplate
                 Resource:
                   - !Sub arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${AWS::StackName}/*

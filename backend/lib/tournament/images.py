@@ -1,0 +1,169 @@
+"""Tournament image uploads on S3 and public CDN URLs."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import re
+from typing import Any
+
+SLOTS = frozenset({"image_1", "image_2"})
+IMAGE_URL_FIELDS = ("image_1_url", "image_2_url")
+ALLOWED_CONTENT_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+}
+MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+
+class MediaError(Exception):
+    def __init__(self, message: str, *, code: str = "VALIDATION_ERROR", status: int = 400) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.status = status
+
+
+def media_object_key(tournament_id: str, slot: str, ext: str) -> str:
+    tid = str(tournament_id or "").strip()
+    if not tid or "/" in tid or ".." in tid:
+        raise MediaError("invalid tournament id")
+    if slot not in SLOTS:
+        raise MediaError("slot must be image_1 or image_2")
+    safe_ext = str(ext or "").strip().lower()
+    if safe_ext not in set(ALLOWED_CONTENT_TYPES.values()):
+        raise MediaError("unsupported image type")
+    return f"media/tournaments/{tid}/{slot}.{safe_ext}"
+
+
+def public_api_base_from_event(event: dict[str, Any] | None) -> str:
+    """Build the public API origin from the incoming request (avoids a CF cycle)."""
+    ctx = (event or {}).get("requestContext") or {}
+    domain = str(ctx.get("domainName") or "").strip()
+    stage = str(ctx.get("stage") or "").strip()
+    if not domain:
+        raise MediaError("request host is missing", code="CONFIG_ERROR", status=500)
+    if "execute-api" in domain and stage and stage != "$default":
+        return f"https://{domain}/{stage}"
+    return f"https://{domain}"
+
+
+def public_media_url(api_base: str, key: str, *, version: str | None = None) -> str:
+    base = str(api_base or "").strip().rstrip("/")
+    if not base:
+        raise MediaError("public API base is not configured", code="CONFIG_ERROR", status=500)
+    url = f"{base}/{str(key).lstrip('/')}"
+    token = str(version or "").strip()
+    if token:
+        return f"{url}?v={token}"
+    return url
+
+
+def _normalize_url(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def parse_media_fields(body: dict[str, Any]) -> dict[str, str | None]:
+    out: dict[str, str | None] = {}
+    for field in IMAGE_URL_FIELDS:
+        if field not in body:
+            continue
+        out[field] = _normalize_url(body.get(field))
+    return out
+
+
+def merge_media_fields(
+    row: dict[str, Any],
+    body: dict[str, Any],
+    *,
+    existing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    parsed = parse_media_fields(body)
+    if existing:
+        for field in IMAGE_URL_FIELDS:
+            if field in existing and field not in parsed:
+                row[field] = existing.get(field)
+    for field, value in parsed.items():
+        if value is None:
+            row.pop(field, None)
+        else:
+            row[field] = value
+    return row
+
+
+def public_media_fields(row: dict[str, Any] | None) -> dict[str, str]:
+    payload: dict[str, str] = {}
+    if not row:
+        return payload
+    for field in IMAGE_URL_FIELDS:
+        url = _normalize_url(row.get(field))
+        if url:
+            payload[field] = url
+    return payload
+
+
+def store_tournament_image(
+    *,
+    bucket: str,
+    tournament_id: str,
+    body: dict[str, Any],
+    api_base: str,
+    s3_client,
+) -> dict[str, Any]:
+    slot = str(body.get("slot") or "").strip()
+    content_type = str(body.get("content_type") or "").strip().lower()
+    if slot not in SLOTS:
+        raise MediaError("slot must be image_1 or image_2")
+    ext = ALLOWED_CONTENT_TYPES.get(content_type)
+    if not ext:
+        raise MediaError("content_type must be image/jpeg, image/png, image/webp, or image/gif")
+    raw = str(body.get("data") or "").strip()
+    if not raw:
+        raise MediaError("data is required")
+    if raw.startswith("data:") and "," in raw:
+        raw = raw.split(",", 1)[1]
+    try:
+        payload = base64.b64decode(raw)
+    except Exception as exc:
+        raise MediaError("data must be base64 image bytes") from exc
+    if not payload:
+        raise MediaError("data is required")
+    if len(payload) > MAX_IMAGE_BYTES:
+        raise MediaError("image must be 2 MB or smaller")
+    key = media_object_key(tournament_id, slot, ext)
+    s3_client.put_object(Bucket=bucket, Key=key, Body=payload, ContentType=content_type)
+    version = hashlib.sha256(payload).hexdigest()[:12]
+    return {
+        "slot": slot,
+        "key": key,
+        "public_url": public_media_url(api_base, key, version=version),
+    }
+
+
+def media_prefix_for_tournament(tournament_id: str) -> str:
+    tid = str(tournament_id or "").strip()
+    return f"media/tournaments/{tid}/"
+
+
+_MEDIA_KEY_RE = re.compile(r"^media/tournaments/[^/]+/(image_1|image_2)\.(jpg|png|webp|gif)$")
+
+
+def is_managed_media_key(key: str) -> bool:
+    return bool(_MEDIA_KEY_RE.match(str(key or "").strip()))
+
+
+def media_key_from_path(tournament_id: str, filename: str) -> str:
+    tid = str(tournament_id or "").strip()
+    name = str(filename or "").strip()
+    key = f"media/tournaments/{tid}/{name}"
+    if not is_managed_media_key(key):
+        raise MediaError("media object not found", code="NOT_FOUND", status=404)
+    return key
+
+
+CONTENT_TYPE_BY_EXT = {ext: f"image/{ext if ext != 'jpg' else 'jpeg'}" for ext in ALLOWED_CONTENT_TYPES.values()}

@@ -294,6 +294,8 @@ describe("LeaderboardPage home", () => {
     expect([...canvases].every((node) => !node.getAttribute("src"))).toBe(true);
     expect(page.querySelector(".live-hero-art")).not.toBeNull();
     expect(page.querySelector('[data-testid="home-hero"] img')).toBeNull();
+    expect(page.querySelector('[data-testid="home-hero-scrim"]')).toBeNull();
+    expect(page.querySelector('[data-testid="now-digging-scrim"]')).toBeNull();
     expect(page.querySelector(".place-1 [data-testid='color-canvas']")).not.toBeNull();
     expect(page.querySelector(".you-farm-art [data-testid='color-canvas']")).not.toBeNull();
 
@@ -304,7 +306,7 @@ describe("LeaderboardPage home", () => {
       ...readdirSync(publicRoot, { recursive: true }).map(String),
     ];
     const rasters = names.filter((name) => /\.(png|jpe?g)$/i.test(name)).sort();
-    expect(rasters).toEqual(["desert-dig-site.png"]);
+    expect(rasters).toEqual(["desert-dig-site.png", "shovel.png"]);
 
     const css = readFileSync(resolve(srcRoot, "index.css"), "utf8");
     const appFrame = css.match(/\.app-frame\s*\{[^}]+\}/);
@@ -349,6 +351,75 @@ describe("LeaderboardPage home", () => {
     expect(noteSize).not.toBeNull();
     expect(Number(leadSize![1])).toBeGreaterThan(Number(noteSize![1]));
     expect(leadRule![0]).not.toMatch(/text-align:\s*right/);
+  });
+
+  it("keeps Image 2 under the original dusk canvas without hiding it", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 1,
+      image_1_url: "https://example.test/thumb.jpg",
+      image_2_url: "https://example.test/hero.jpg",
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+
+    const page = await renderHome();
+    const art = page.querySelector(".live-hero-art");
+    const heroImage = page.querySelector('[data-testid="home-hero-image"]') as HTMLImageElement | null;
+    expect(art).not.toBeNull();
+    expect(heroImage).not.toBeNull();
+    expect(art?.contains(heroImage)).toBe(true);
+    expect(heroImage?.classList.contains("is-ready")).toBe(false);
+    expect(page.querySelector('[data-testid="hero-layer"][data-kind="dusk"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="home-hero-scrim"]')).toBeNull();
+    expect(page.querySelector('[data-testid="now-digging-image"]')).not.toBeNull();
+    expect(
+      page.querySelector(".now-digging-art")?.contains(page.querySelector('[data-testid="now-digging-image"]')),
+    ).toBe(true);
+    expect(page.querySelector(".now-digging-art [data-testid='color-canvas']")).not.toBeNull();
+    expect(page.querySelector('[data-testid="now-digging-scrim"]')).toBeNull();
+
+    const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
+    const artBlock = [...css.matchAll(/\.live-hero-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
+    expect(artBlock).toMatch(/min-height:\s*560px/);
+    expect(artBlock).not.toMatch(/border:/);
+    expect(css).toMatch(/\.hero-layer\s*\{/);
+    expect(css).not.toMatch(/\.tournament-hero-image\.is-ready/);
+    const thumbBlock = [...css.matchAll(/\.now-digging-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
+    expect(thumbBlock).toMatch(/border:/);
+    expect(thumbBlock).toMatch(/var\(--gold\)/);
+    const diggingBlock = [...css.matchAll(/\.now-digging\s*\{[^}]+\}/g)].map((match) => match[0])[0];
+    expect(diggingBlock).toMatch(/box-shadow:/);
+    expect(diggingBlock).toMatch(/var\(--gold\)/);
+    expect(css).toMatch(/\.live-hero::after/);
+    expect(css).toMatch(/\.live-hero-art::after/);
+    expect(css).not.toMatch(/\.tournament-image-scrim/);
+  });
+
+  it("keeps original hero type colors and paints dusk over the uploaded photo", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      count: 1,
+      image_2_url: "https://example.test/hero.jpg",
+      hero_layers: [
+        { kind: "dusk", opacity: 0.6 },
+        { kind: "color", color: "#1a1815", opacity: 0.2 },
+      ],
+    });
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(archive(live, []));
+
+    const page = await renderHome();
+    const copy = page.querySelector('[data-testid="hero-copy"]') as HTMLElement;
+    expect(copy).not.toBeNull();
+    expect(copy.classList.contains("is-custom")).toBe(false);
+    expect(copy.getAttribute("style") || "").toBe("");
+    const layers = [...page.querySelectorAll('[data-testid="hero-layer"]')];
+    expect(layers.map((node) => node.getAttribute("data-kind"))).toEqual(["dusk", "color"]);
   });
 
   it("cycles Avg / day, Today, and Total through asc, desc, then rank order", async () => {

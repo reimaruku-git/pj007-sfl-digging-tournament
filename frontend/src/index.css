@@ -1550,13 +1550,72 @@ a.live-board-open:focus-visible .kicker {
 }
 
 .create-window {
-  width: min(42rem, 100%);
+  width: min(48rem, 100%);
   max-height: 90vh;
   overflow: auto;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r);
   padding: 18px 18px 14px;
+}
+
+.image-crop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(12, 11, 9, 0.78);
+}
+
+.image-crop-window {
+  width: min(52rem, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px 18px 14px;
+}
+
+.image-crop-stage {
+  margin: 12px 0 14px;
+  background: #0c0b09;
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.image-crop-viewport {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  background: #141210;
+  border: 2px solid var(--gold);
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.image-crop-viewport:active {
+  cursor: grabbing;
+}
+
+.image-crop-photo {
+  display: block;
+  max-width: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.image-crop-zoom {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
 .form-row {
@@ -1919,35 +1978,15 @@ tr.is-you,
 }
 
 .slogan-arrow {
-  display: inline-block;
-  width: 1.35em;
-  height: 0.55em;
-  margin: 0 0.4em 0 0.55em;
-  vertical-align: middle;
-  position: relative;
-  opacity: 0.88;
+  display: inline;
+  margin: 0 0.32em 0 0.42em;
   color: var(--cream);
-}
-
-.slogan-arrow::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0.45em;
-  top: 50%;
-  height: 1px;
-  background: currentColor;
-  transform: translateY(-50%);
-}
-
-.slogan-arrow::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 3px solid transparent;
-  border-left: 5px solid currentColor;
+  font-size: 1.05em;
+  line-height: 1;
+  vertical-align: -0.06em;
+  opacity: 0.92;
+  font-style: normal;
+  font-variant-emoji: text;
 }
 
 .operator-farm-link {
@@ -2894,14 +2933,195 @@ a.past-card:hover {
   min-height: 560px;
   display: grid;
   align-items: end;
-  margin-bottom: 8px;
+  margin-bottom: 28px;
   overflow: hidden;
+}
+
+.live-hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--gold) 48%, transparent);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .live-hero-art {
   position: absolute;
   inset: 0;
   min-height: 560px;
+  overflow: hidden;
+}
+
+.live-hero-art::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 88px;
+  background: linear-gradient(180deg, transparent 0%, var(--bg) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tournament-hero-image,
+.tournament-thumb-image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tournament-thumb-image {
+  opacity: 0;
+}
+
+.tournament-thumb-image.is-ready {
+  opacity: 1;
+}
+
+.hero-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-layer.is-dusk .color-canvas {
+  min-height: 100%;
+}
+
+.tournament-image-fields {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.tournament-image-note {
+  margin: 0;
+}
+
+.tournament-image-row {
+  align-items: end;
+  gap: 12px;
+}
+
+.tournament-image-preview {
+  display: block;
+  border: 1px solid var(--window-line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tournament-image-preview.is-small {
+  width: 96px;
+  height: 96px;
+}
+
+.tournament-image-preview.is-wide {
+  width: min(100%, 320px);
+  aspect-ratio: 1600 / 560;
+  height: auto;
+}
+
+.tournament-image-slot {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.hero-layer-fields {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.hero-layer-list {
+  display: grid;
+  gap: 8px;
+}
+
+.hero-layer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.hero-layer-kind {
+  font-size: 13px;
+  color: var(--sand);
+}
+
+.hero-layer-opacity {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--mute);
+}
+
+.hero-layer-opacity input[type="range"] {
+  width: 100%;
+}
+
+.hero-text-color {
+  display: grid;
+  gap: 6px;
+}
+
+.hero-text-color input[type="color"] {
+  width: 100%;
+  height: 36px;
+  padding: 2px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.hero-text-preview {
+  position: relative;
+  min-height: 200px;
+  overflow: hidden;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  background: #141210;
+}
+
+.hero-text-preview-art {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-text-preview-art img,
+.hero-text-preview-art .color-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-text-preview-copy {
+  position: relative;
+  z-index: 1;
+  padding: 20px 16px 16px;
+}
+
+.hero-text-preview .hero-title {
+  font-size: 28px;
+  max-width: none;
+  margin-bottom: 10px;
+}
+
+.hero-text-preview .hero-lead {
+  margin-bottom: 0;
+  font-size: 13px;
 }
 
 .live-hero-inner {
@@ -2950,18 +3170,22 @@ a.past-card:hover {
   grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1.6fr);
   gap: 18px;
   align-items: center;
-  background: rgba(20, 18, 16, 0.82);
-  border: 1px solid var(--window-line);
+  background: color-mix(in srgb, var(--panel) 94%, #000 6%);
+  border: 1px solid color-mix(in srgb, var(--gold) 46%, var(--window-line));
   border-radius: 18px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   backdrop-filter: blur(12px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 }
 
 .now-digging-art {
+  position: relative;
   width: 64px;
   height: 64px;
   border-radius: 12px;
   overflow: hidden;
+  border: 1px solid var(--gold);
+  box-sizing: border-box;
 }
 
 .now-digging-name {
@@ -3001,6 +3225,10 @@ a.past-card:hover {
   font-size: 18px;
   color: var(--cream);
   margin-top: 2px;
+}
+
+.live-event > .home-band:first-child {
+  margin-top: 20px;
 }
 
 .home-band {

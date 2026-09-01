@@ -36,6 +36,18 @@ jobs:
           role-to-assume: ${{ vars.DEV_AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Recover CloudFormation stack if rollback failed
+        run: |
+          STACK=sfl-pj007-dev-digging-tournament
+          STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo MISSING)
+          echo "Stack status: $STATUS"
+          if [ "$STATUS" = "UPDATE_ROLLBACK_FAILED" ]; then
+            aws cloudformation continue-update-rollback \
+              --stack-name "$STACK" \
+              --resources-to-skip FrontendBucketPolicy FarmSyncFunction
+            aws cloudformation wait stack-rollback-complete --stack-name "$STACK"
+          fi
+
       - name: SAM build
         run: sam build
 
