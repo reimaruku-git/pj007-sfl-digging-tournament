@@ -44,8 +44,8 @@ export type TournamentDraft = {
   join_mode: JoinMode;
   nft_giveaway: boolean;
   prize_places: PrizePlace[];
-  image_1_url: string | null;
-  image_2_url: string | null;
+  image_1_url?: string | null;
+  image_2_url?: string | null;
 };
 
 export type TournamentSavePayload = TournamentDraft & {
