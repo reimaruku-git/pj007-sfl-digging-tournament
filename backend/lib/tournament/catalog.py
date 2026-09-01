@@ -11,6 +11,7 @@ from tournament.event_settings import (
     parse_event_settings,
     public_event_settings,
 )
+from tournament.avatars import attach_avatars
 from tournament.images import merge_media_fields, public_media_fields
 from tournament.farms import FarmRegistry, utc_now_iso
 from tournament.leaderboard import build_leaderboard, public_entry
@@ -607,6 +608,14 @@ def _public_tournament_payload(
     }
 
 
+def _board_with_avatars(store: Store, payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not payload:
+        return payload
+    out = dict(payload)
+    out["entries"] = attach_avatars(store, payload.get("entries") or [])
+    return out
+
+
 def get_public_tournament(
     store: Store, tournament_id_value: str, *, now: datetime | None = None
 ) -> dict[str, Any] | None:
@@ -626,27 +635,33 @@ def get_public_tournament(
             **(archive.get("config") or {}),
             "enrolled_count": len(enrolled_farm_ids(store, tournament_id_value)),
         }
-        return _public_tournament_payload(
-            tournament_id_value=tournament_id_value,
-            archived_at=archive.get("archived_at") or row.get("archived_at"),
-            config=ended_config,
-            entries=entries,
-            count=len(entries),
-            leader_farm_id=archive.get("leader_farm_id"),
-            accepts_joins=False,
+        return _board_with_avatars(
+            store,
+            _public_tournament_payload(
+                tournament_id_value=tournament_id_value,
+                archived_at=archive.get("archived_at") or row.get("archived_at"),
+                config=ended_config,
+                entries=entries,
+                count=len(entries),
+                leader_farm_id=archive.get("leader_farm_id"),
+                accepts_joins=False,
+            ),
         )
     if row and row.get("status") == STATUS_ACTIVE:
         board = live_board_payload(store, now=clock, tournament_id=tournament_id_value)
         live_config = public_config({**row, "current_tournament_id": tournament_id_value})
         live_config["enrolled_count"] = len(enrolled_farm_ids(store, tournament_id_value))
-        return _public_tournament_payload(
-            tournament_id_value=tournament_id_value,
-            archived_at=None,
-            config=live_config,
-            entries=board.get("entries") or [],
-            count=int(board.get("count") or 0),
-            leader_farm_id=board.get("leader_farm_id"),
-            accepts_joins=is_joinable(row, now=clock),
+        return _board_with_avatars(
+            store,
+            _public_tournament_payload(
+                tournament_id_value=tournament_id_value,
+                archived_at=None,
+                config=live_config,
+                entries=board.get("entries") or [],
+                count=int(board.get("count") or 0),
+                leader_farm_id=board.get("leader_farm_id"),
+                accepts_joins=is_joinable(row, now=clock),
+            ),
         )
     if row:
         board = enrollment_board(
@@ -656,28 +671,34 @@ def get_public_tournament(
         )
         scheduled_config = public_config({**row, "current_tournament_id": tournament_id_value})
         scheduled_config["enrolled_count"] = len(enrolled_farm_ids(store, tournament_id_value))
-        return _public_tournament_payload(
-            tournament_id_value=tournament_id_value,
-            archived_at=None,
-            config=scheduled_config,
-            entries=board.get("entries") or [],
-            count=int(board.get("count") or 0),
-            leader_farm_id=board.get("leader_farm_id"),
-            accepts_joins=is_joinable(row, now=clock),
+        return _board_with_avatars(
+            store,
+            _public_tournament_payload(
+                tournament_id_value=tournament_id_value,
+                archived_at=None,
+                config=scheduled_config,
+                entries=board.get("entries") or [],
+                count=int(board.get("count") or 0),
+                leader_farm_id=board.get("leader_farm_id"),
+                accepts_joins=is_joinable(row, now=clock),
+            ),
         )
     if archive:
         entries = [
             _hydrate_entry(entry, int((archive.get("config") or {}).get("duration_days") or 1))
             for entry in (archive.get("entries") or [])
         ]
-        return _public_tournament_payload(
-            tournament_id_value=tournament_id_value,
-            archived_at=archive.get("archived_at"),
-            config=archive.get("config") or {},
-            entries=entries,
-            count=int(archive.get("count") or 0),
-            leader_farm_id=archive.get("leader_farm_id"),
-            accepts_joins=False,
+        return _board_with_avatars(
+            store,
+            _public_tournament_payload(
+                tournament_id_value=tournament_id_value,
+                archived_at=archive.get("archived_at"),
+                config=archive.get("config") or {},
+                entries=entries,
+                count=int(archive.get("count") or 0),
+                leader_farm_id=archive.get("leader_farm_id"),
+                accepts_joins=False,
+            ),
         )
     return None
 
@@ -725,7 +746,8 @@ def get_public_tournament_farm(
     snapshot = store.read_archive_farm(tournament_id_value, farm_id)
     if snapshot and isinstance(snapshot.get("score"), dict):
         days = int((payload.get("config") or {}).get("duration_days") or 1)
-        return _hydrate_entry({**snapshot.get("score"), "farm_id": farm_id}, days)
+        entry = _hydrate_entry({**snapshot.get("score"), "farm_id": farm_id}, days)
+        return attach_avatars(store, [entry])[0]
     return None
 
 

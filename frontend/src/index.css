@@ -1885,6 +1885,32 @@ tr.is-you,
   overflow: hidden;
 }
 
+.podium-art .farm-avatar,
+.podium-art .color-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.podium-art .farm-avatar {
+  display: grid;
+  place-items: center;
+  background: #141210;
+}
+
+.podium-art .farm-avatar img {
+  width: 100%;
+  height: 100%;
+}
+
+.farm-avatar.is-preset img {
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.farm-avatar.is-upload img {
+  object-fit: cover;
+}
+
 .place-1 .podium-art {
   height: 320px;
 }
@@ -2270,6 +2296,21 @@ a.you-farm:focus-visible {
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 14px;
+}
+
+.farm-page-avatar {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #141210;
+}
+
+.farm-page-avatar img,
+.farm-page-avatar .color-canvas {
+  width: 100%;
+  height: 100%;
 }
 
 .farm-hero-score {
@@ -2827,6 +2868,15 @@ a.past-card:hover {
   height: 32px;
   border-radius: 50%;
   flex: 0 0 32px;
+  overflow: hidden;
+  display: block;
+}
+
+.connected-avatar img,
+.connected-avatar .color-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .connected-copy {
@@ -3481,6 +3531,13 @@ a.past-card:hover {
   overflow: hidden;
 }
 
+.you-farm-art .farm-avatar,
+.you-farm-art .color-canvas,
+.you-farm-art .farm-avatar img {
+  width: 100%;
+  height: 100%;
+}
+
 .you-farm-copy .kicker {
   margin-bottom: 4px;
 }
@@ -3811,4 +3868,67 @@ a.past-card:hover {
   .window-card-facts {
     text-align: left;
   }
+}
+
+.profile-hero {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 12px 0 20px;
+}
+
+.profile-avatar-lg {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #141210;
+}
+
+.profile-avatar-lg img,
+.profile-avatar-lg .color-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-edit h3 {
+  margin: 0 0 6px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.preset-option {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  border: 1px solid var(--line);
+  background: #141210;
+  color: inherit;
+  border-radius: 12px;
+  padding: 10px 8px;
+  cursor: pointer;
+}
+
+.preset-option img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.preset-option span {
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.preset-option.is-selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold);
 }

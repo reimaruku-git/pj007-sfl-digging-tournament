@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFarm, fetchTournamentFarm } from "../api/public";
 import { Pebbles } from "../components/Pebbles";
+import { FarmAvatar } from "../components/FarmAvatar";
 import { farmBackTarget } from "../lib/backTarget";
 import { formatDateUtc, formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
 
@@ -48,6 +49,7 @@ export function FarmPage() {
       {farm && (
         <>
           <div className="farm-hero">
+            <FarmAvatar fields={farm} fallbackTone="farm" className="farm-page-avatar" alt="" />
             <div>
               <h2>{farm.name || "Unnamed farm"}</h2>
               <p className="farm-id">{farm.farm_id}</p>

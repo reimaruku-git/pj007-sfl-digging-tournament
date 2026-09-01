@@ -7,12 +7,12 @@ import {
   cropImageToFrame,
   loadImageFromFile,
   visibleSourceRect,
+  type CropSlot,
   type ImageFrame,
 } from "../lib/imageCrop";
-import type { TournamentImageSlot } from "../lib/tournamentImages";
 
 type CropJob = {
-  slot: TournamentImageSlot;
+  slot: CropSlot;
   file: File;
 };
 
@@ -134,7 +134,7 @@ export function ImageCropModal({
     }
   }
 
-  const title = job.slot === "image_1" ? "Image 1" : "Image 2";
+  const title = job.slot === "avatar" ? "Profile picture" : job.slot === "image_1" ? "Image 1" : "Image 2";
 
   return (
     <div className="image-crop-overlay" data-testid="image-crop-modal" role="dialog" aria-modal="true">

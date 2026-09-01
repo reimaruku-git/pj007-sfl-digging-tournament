@@ -9,6 +9,7 @@ import {
   type TournamentSummary,
 } from "../api/public";
 import { ColorCanvas, farmCanvasTone } from "../components/ColorCanvas";
+import { FarmAvatar } from "../components/FarmAvatar";
 import { HeroLayerStack } from "../components/HeroLayerStack";
 import { Pebbles } from "../components/Pebbles";
 import { Podium } from "../components/Podium";
@@ -536,7 +537,7 @@ function YouFarmCard({
   return (
     <Link to={href} className="you-farm-panel" data-testid="you-farm">
       <div className="you-farm-art">
-        <ColorCanvas tone={farmCanvasTone(farmId)} />
+        <FarmAvatar fields={farm} fallbackTone={farmCanvasTone(farmId)} />
       </div>
       <div className="you-farm-copy">
         <span className="kicker">Your farm</span>

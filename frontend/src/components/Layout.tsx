@@ -11,7 +11,8 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { fetchSlogans } from "../api/public";
+import { fetchFarmProfile, fetchSlogans } from "../api/public";
+import { FarmAvatar } from "./FarmAvatar";
 import { useFarmSession } from "../lib/farmSession";
 import {
   copyText,
@@ -24,7 +25,6 @@ import {
 import { pickDailySlogan, SEED_SLOGANS, todayPickFrom } from "../lib/slogans";
 import { SITE_VERSION } from "../siteVersion";
 import { AdminSlogansPanel } from "./AdminSlogansPanel";
-import { ColorCanvas } from "./ColorCanvas";
 import { FarmConnect } from "./FarmConnect";
 import { IdentifiedFarmsPanel } from "./IdentifiedFarmsPanel";
 import { SyncCountdown } from "./SyncCountdown";
@@ -109,6 +109,12 @@ function PublicHeader() {
   const chipRef = useRef<HTMLDivElement>(null);
   const { identity, disconnect } = useFarmSession();
   const navigate = useNavigate();
+  const profileQuery = useQuery({
+    queryKey: ["profile", identity?.farm_id],
+    queryFn: () => fetchFarmProfile(identity!.farm_id),
+    enabled: Boolean(identity?.farm_id),
+    staleTime: 60 * 1000,
+  });
 
   useEffect(() => {
     if (!chipOpen) return;
@@ -161,7 +167,11 @@ function PublicHeader() {
                 aria-expanded={chipOpen}
                 onClick={() => setChipOpen((value) => !value)}
               >
-                <ColorCanvas tone="avatar" className="connected-avatar" />
+                <FarmAvatar
+                  fields={profileQuery.data}
+                  className="connected-avatar"
+                  alt=""
+                />
                 <span className="connected-copy">
                   <span className="farm-connected-kicker">Connected</span>
                   <span className="farm-connected-name">{identity.name}</span>
@@ -169,6 +179,9 @@ function PublicHeader() {
               </button>
               {chipOpen && (
                 <div className="connected-menu" data-testid="menu-options">
+                  <Link to="/profile" onClick={() => setChipOpen(false)} data-testid="my-profile">
+                    My profile
+                  </Link>
                   <Link to={`/farm/${identity.farm_id}`} onClick={() => setChipOpen(false)}>
                     View farm
                   </Link>

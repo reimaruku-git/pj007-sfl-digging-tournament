@@ -37,6 +37,7 @@ vi.mock("../api/public", () => ({
     today_day: null,
   }),
   identifyFarm: (...args: unknown[]) => identifyFarm(...args),
+  fetchFarmProfile: vi.fn().mockResolvedValue({ farm_id: "111", name: "rmr" }),
 }));
 
 vi.mock("../api/admin", () => ({
@@ -313,6 +314,10 @@ describe("public chrome", () => {
       (connected as HTMLButtonElement).click();
     });
     const options = el.querySelector('[data-testid="menu-options"]');
+    expect(options?.textContent).toMatch(/My profile/);
+    expect(options?.querySelector('[data-testid="my-profile"]')?.getAttribute("href")).toBe(
+      "/profile",
+    );
     expect(options?.textContent).toMatch(/View farm/);
     expect(options?.querySelector('[data-testid="disconnect-farm"]')?.textContent).toMatch(
       /Disconnect rmr/,

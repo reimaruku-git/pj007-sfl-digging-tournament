@@ -1,16 +1,19 @@
 import type { TournamentImageSlot } from "./tournamentImages";
 
+export type CropSlot = TournamentImageSlot | "avatar";
+
 export type ImageFrame = {
-  slot: TournamentImageSlot;
+  slot: CropSlot;
   width: number;
   height: number;
   label: string;
 };
 
 /** Fixed home frames. Image 1 is the 64×64 card; Image 2 is the 560px-tall hero. */
-export const IMAGE_FRAMES: Record<TournamentImageSlot, ImageFrame> = {
+export const IMAGE_FRAMES: Record<CropSlot, ImageFrame> = {
   image_1: { slot: "image_1", width: 512, height: 512, label: "small card (1:1)" },
   image_2: { slot: "image_2", width: 1600, height: 560, label: "wide hero (1600×560)" },
+  avatar: { slot: "avatar", width: 512, height: 512, label: "profile picture (1:1)" },
 };
 
 export function frameAspect(frame: ImageFrame): number {

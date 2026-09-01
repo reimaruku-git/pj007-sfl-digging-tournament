@@ -424,6 +424,7 @@ Resources:
                   - !Sub ${AppBucket.Arn}/snapshots/*
                   - !Sub ${AppBucket.Arn}/archives/*
                   - !Sub ${AppBucket.Arn}/media/tournaments/*
+                  - !Sub ${AppBucket.Arn}/media/avatars/*
               - Effect: Allow
                 Action:
                   - s3:ListBucket
@@ -435,6 +436,7 @@ Resources:
                       - snapshots/*
                       - archives/*
                       - media/tournaments/*
+                      - media/avatars/*
         - PolicyName: MainInvokeSync
           PolicyDocument:
             Version: "2012-10-17"
@@ -606,6 +608,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /media/tournaments/{tournament_id}/{filename}
             Method: GET
+        GetAvatarMedia:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /media/avatars/{farm_id}/{filename}
+            Method: GET
         GetTournamentFarm:
           Type: HttpApi
           Properties:
@@ -624,6 +632,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /farms/{farm_id}/memberships
             Method: GET
+        GetFarmProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /farms/{farm_id}/profile
+            Method: GET
+        PutFarmAvatar:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /farms/{farm_id}/avatar
+            Method: PUT
         PostIdentify:
           Type: HttpApi
           Properties:

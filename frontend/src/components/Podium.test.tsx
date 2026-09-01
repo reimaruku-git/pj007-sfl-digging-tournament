@@ -94,4 +94,20 @@ describe("Podium", () => {
     expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/2nd 7\.25/);
     expect(el.querySelector('[data-testid="podium-tie-3"]')).toBeNull();
   });
+
+  it("shows a chosen NPC still on the podium art", () => {
+    const el = renderPodium([
+      entry({
+        farm_id: "1",
+        rank: 1,
+        score: 12.5,
+        name: "Lead",
+        avatar_kind: "preset",
+        avatar_preset: "hoot",
+      }),
+    ]);
+    const first = el.querySelector(".place-1 [data-testid='farm-avatar'] img");
+    expect(first?.getAttribute("src")).toBe("/avatars/hoot.png");
+    expect(el.querySelector(".place-1 [data-testid='color-canvas']")).toBeNull();
+  });
 });

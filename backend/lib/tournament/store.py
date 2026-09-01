@@ -283,6 +283,7 @@ class Store:
         farm_id = str(farm_id).strip()
         if not farm_id:
             raise ValueError("farm_id is required")
+        existing = self.get_identity(farm_id) or {}
         item = {
             "pk": self.identity_pk(farm_id),
             "farm_id": farm_id,
@@ -290,13 +291,51 @@ class Store:
             "nft_id": nft_id,
             "identified_at": utc_now_iso(),
         }
+        for key in ("avatar_kind", "avatar_preset", "avatar_url"):
+            if existing.get(key):
+                item[key] = existing[key]
         self.config_table.put_item(Item=_to_ddb(item))
         return item
+
+    def put_identity_avatar(
+        self,
+        farm_id: str,
+        *,
+        kind: str | None,
+        preset: str | None = None,
+        url: str | None = None,
+    ) -> dict[str, Any]:
+        existing = self.get_identity(farm_id)
+        if not existing:
+            raise ValueError("identity not found")
+        for key in ("avatar_kind", "avatar_preset", "avatar_url"):
+            existing.pop(key, None)
+        if kind == "preset" and preset:
+            existing["avatar_kind"] = "preset"
+            existing["avatar_preset"] = preset
+        elif kind == "upload" and url:
+            existing["avatar_kind"] = "upload"
+            existing["avatar_url"] = url
+        self.config_table.put_item(Item=_to_ddb(existing))
+        return existing
 
     def get_identity(self, farm_id: str) -> dict[str, Any] | None:
         response = self.config_table.get_item(Key={"pk": self.identity_pk(str(farm_id).strip())})
         item = response.get("Item")
         return _from_ddb(item) if item else None
+
+    def identities_for_farms(self, farm_ids: Any) -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+        seen: set[str] = set()
+        for raw in farm_ids or []:
+            farm_id = str(raw or "").strip()
+            if not farm_id or farm_id in seen:
+                continue
+            seen.add(farm_id)
+            row = self.get_identity(farm_id)
+            if row:
+                out[farm_id] = row
+        return out
 
     def list_identities(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
