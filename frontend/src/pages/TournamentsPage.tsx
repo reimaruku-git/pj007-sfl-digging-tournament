@@ -47,7 +47,7 @@ export function showWinnersStrip(entries: LeaderboardEntry[]): boolean {
   return rankedWinners(entries).length >= 2;
 }
 
-/** Prize rows for the details card (1st–3rd on the card; extras in view prices). */
+/** Prize rows for the details card (1st–3rd on the card; extras in view prizes). */
 export function displayPrizePlaces(
   places: PrizePlace[] | null | undefined,
   prizeAmount: string | null | undefined,
@@ -475,7 +475,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                       data-testid="tournament-more-prizes"
                       onClick={() => setPrizesOpen(true)}
                     >
-                      view prices
+                      view prizes
                       <svg
                         viewBox="0 0 24 24"
                         fill="none"

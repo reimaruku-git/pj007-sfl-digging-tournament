@@ -671,7 +671,7 @@ describe("TournamentsPage", () => {
       '[data-testid="tournament-more-prizes"]',
     ) as HTMLButtonElement;
     expect(morePrizes).not.toBeNull();
-    expect(morePrizes.textContent).toMatch(/view prices/i);
+    expect(morePrizes.textContent).toMatch(/view prizes/i);
     const prizeRows = page.querySelector('[data-testid="tournament-prize-places"]');
     expect(prizeRows).not.toBeNull();
     expect(prizeRows!.compareDocumentPosition(morePrizes) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
@@ -863,7 +863,7 @@ describe("TournamentsPage", () => {
     const page = await renderAt("/tournaments/live");
     const more = page.querySelector('[data-testid="tournament-more-prizes"]') as HTMLButtonElement;
     expect(more).not.toBeNull();
-    expect(more.textContent).toMatch(/view prices/i);
+    expect(more.textContent).toMatch(/view prizes/i);
     expect(page.querySelector('[data-testid="view-all-winners"]')).toBeNull();
     const prizeRows = page.querySelector('[data-testid="tournament-prize-places"]');
     expect(prizeRows!.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
