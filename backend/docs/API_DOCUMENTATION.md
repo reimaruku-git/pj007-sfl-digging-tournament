@@ -910,6 +910,8 @@ with base64 image bytes (the browser talks only to this API). Max 2 MB.
 ```
 
 Save `public_url` on the tournament via `PUT /admin/tournaments/{id}`.
+Sending only one of `image_1_url` / `image_2_url` keeps the other stored
+slot. Send `null` to clear that slot.
 
 ### `GET /media/tournaments/{tournament_id}/{filename}`
 

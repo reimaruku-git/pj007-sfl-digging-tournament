@@ -97,6 +97,14 @@ def test_tournament_image_urls_round_trip(aws_env):
     match = next(row for row in listed if row["tournament_id"] == created["tournament_id"])
     assert match["image_1_url"] == created["image_1_url"]
     assert match["image_2_url"] == created["image_2_url"]
+    kept = update_tournament(
+        store,
+        created["tournament_id"],
+        {"image_2_url": "https://site/media/tournaments/x/image_2.png"},
+        now=clock,
+    )
+    assert kept["image_1_url"] == created["image_1_url"]
+    assert kept["image_2_url"].endswith("image_2.png")
     updated = update_tournament(
         store,
         created["tournament_id"],
@@ -104,6 +112,7 @@ def test_tournament_image_urls_round_trip(aws_env):
         now=clock,
     )
     assert "image_1_url" not in updated or updated.get("image_1_url") is None
+    assert updated.get("image_2_url") == kept["image_2_url"]
 
 
 def test_hero_text_round_trip_on_public_summary(aws_env):

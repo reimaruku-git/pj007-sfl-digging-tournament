@@ -66,6 +66,17 @@ def test_merge_media_fields_clears_url_when_null_sent():
     assert "image_1_url" not in row
 
 
+def test_merge_media_fields_keeps_other_slot_when_one_updated():
+    row = {"tournament_id": "cup-1", "name": "Cup"}
+    existing = {
+        "image_1_url": "https://site/media/tournaments/cup-1/image_1.webp",
+        "image_2_url": "https://site/old.webp",
+    }
+    merge_media_fields(row, {"image_2_url": "https://site/new.webp"}, existing=existing)
+    assert row["image_1_url"] == existing["image_1_url"]
+    assert row["image_2_url"] == "https://site/new.webp"
+
+
 def test_public_media_fields_only_includes_set_urls():
     payload = public_media_fields(
         {"image_1_url": "https://site/a.webp", "image_2_url": "", "name": "Cup"}

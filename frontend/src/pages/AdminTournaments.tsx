@@ -303,7 +303,15 @@ export function AdminTournaments({
       }
       const imagePatch = await uploadPendingTournamentImages(tournamentId, pendingImages);
       if (Object.keys(imagePatch).length > 0) {
-        await updateTournament(tournamentId, imagePatch);
+        await updateTournament(tournamentId, {
+          ...(draft.image_1_url && imagePatch.image_1_url === undefined
+            ? { image_1_url: draft.image_1_url }
+            : {}),
+          ...(draft.image_2_url && imagePatch.image_2_url === undefined
+            ? { image_2_url: draft.image_2_url }
+            : {}),
+          ...imagePatch,
+        });
       }
       setEditor(null);
       resetImageDraft();

@@ -144,6 +144,48 @@ export function LeaderboardPage() {
   );
 }
 
+function HeroArt({ src }: { src?: string | null }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(false);
+  }, [src]);
+  return (
+    <div className="live-hero-art">
+      <ColorCanvas tone="hero" />
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          className={ready ? "tournament-hero-image is-ready" : "tournament-hero-image"}
+          data-testid="home-hero-image"
+          onLoad={() => setReady(true)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ThumbArt({ src }: { src?: string | null }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(false);
+  }, [src]);
+  return (
+    <div className="now-digging-art">
+      <ColorCanvas tone="thumb" />
+      {src ? (
+        <img
+          src={src}
+          alt=""
+          className={ready ? "tournament-thumb-image is-ready" : "tournament-thumb-image"}
+          data-testid="now-digging-image"
+          onLoad={() => setReady(true)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function Hero({
   featured,
   loading,
@@ -171,20 +213,13 @@ function Hero({
     : "Live tournament";
   return (
     <section className="live-hero" data-testid="home-hero">
-      <div className="live-hero-art">
-        {featured?.image_2_url ? (
-          <img
-            src={featured.image_2_url}
-            alt=""
-            className="tournament-hero-image"
-            data-testid="home-hero-image"
-          />
-        ) : (
-          <ColorCanvas tone="hero" />
-        )}
-      </div>
+      <HeroArt src={featured?.image_2_url} />
       <div className="live-hero-inner">
-        <div className="hero-copy" data-testid="hero-copy" style={heroTextStyle(featured?.hero_text)}>
+        <div
+          className={featured ? "hero-copy is-custom" : "hero-copy"}
+          data-testid="hero-copy"
+          style={featured ? heroTextStyle(featured.hero_text) : undefined}
+        >
           <p className="hero-eyebrow">{eyebrow}</p>
           {featured ? (
             <h2 className="hero-title" data-testid="featured-title">
@@ -230,18 +265,7 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
   const windowCopy = formatWindowRange(featured.start_at, lastDay);
   return (
     <div className="now-digging" data-testid="now-digging">
-      <div className="now-digging-art">
-        {featured.image_1_url ? (
-          <img
-            src={featured.image_1_url}
-            alt=""
-            className="tournament-thumb-image"
-            data-testid="now-digging-image"
-          />
-        ) : (
-          <ColorCanvas tone="thumb" />
-        )}
-      </div>
+      <ThumbArt src={featured.image_1_url} />
       <div className="now-digging-copy">
         <div className="kicker">{featured.status === "scheduled" ? "Up next" : "Now digging"}</div>
         <div className="now-digging-name">{featured.name}</div>

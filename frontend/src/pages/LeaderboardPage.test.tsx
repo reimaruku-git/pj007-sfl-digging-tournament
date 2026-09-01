@@ -353,7 +353,7 @@ describe("LeaderboardPage home", () => {
     expect(leadRule![0]).not.toMatch(/text-align:\s*right/);
   });
 
-  it("keeps the original hero frame when Image 2 is set", async () => {
+  it("keeps the original dusk hero canvas and fades Image 2 in on top", async () => {
     const live = summary({
       tournament_id: "sprint",
       name: "Creators Digging Tournament",
@@ -367,27 +367,35 @@ describe("LeaderboardPage home", () => {
 
     const page = await renderHome();
     const art = page.querySelector(".live-hero-art");
-    const heroImage = page.querySelector('[data-testid="home-hero-image"]');
+    const heroImage = page.querySelector('[data-testid="home-hero-image"]') as HTMLImageElement | null;
     expect(art).not.toBeNull();
+    expect(art?.querySelector('[data-testid="color-canvas"]')).not.toBeNull();
     expect(heroImage).not.toBeNull();
     expect(art?.contains(heroImage)).toBe(true);
-    expect(heroImage?.classList.contains("live-hero-art")).toBe(false);
+    expect(heroImage?.classList.contains("is-ready")).toBe(false);
     expect(page.querySelector('[data-testid="home-hero-scrim"]')).toBeNull();
     expect(page.querySelector('[data-testid="now-digging-image"]')).not.toBeNull();
-    expect(page.querySelector(".now-digging-art")?.contains(page.querySelector('[data-testid="now-digging-image"]'))).toBe(
-      true,
-    );
+    expect(
+      page.querySelector(".now-digging-art")?.contains(page.querySelector('[data-testid="now-digging-image"]')),
+    ).toBe(true);
+    expect(page.querySelector(".now-digging-art [data-testid='color-canvas']")).not.toBeNull();
     expect(page.querySelector('[data-testid="now-digging-scrim"]')).toBeNull();
+
+    await act(async () => {
+      heroImage?.dispatchEvent(new Event("load"));
+    });
+    expect(heroImage?.classList.contains("is-ready")).toBe(true);
 
     const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"), "utf8");
     const artBlock = [...css.matchAll(/\.live-hero-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
     expect(artBlock).toMatch(/min-height:\s*560px/);
-    expect(artBlock).toMatch(/border:/);
-    expect(artBlock).toMatch(/var\(--gold\)/);
+    expect(artBlock).not.toMatch(/border:/);
+    expect(artBlock).not.toMatch(/var\(--gold\)/);
     const thumbBlock = [...css.matchAll(/\.now-digging-art\s*\{[^}]+\}/g)].map((match) => match[0])[0];
     expect(thumbBlock).toMatch(/border:/);
     expect(thumbBlock).toMatch(/var\(--gold\)/);
     expect(css).not.toMatch(/\.tournament-image-scrim/);
+    expect(css).toMatch(/\.tournament-hero-image\.is-ready/);
   });
 
   it("applies featured hero text color and outline on the home copy", async () => {
@@ -405,6 +413,7 @@ describe("LeaderboardPage home", () => {
     const page = await renderHome();
     const copy = page.querySelector('[data-testid="hero-copy"]') as HTMLElement;
     expect(copy).not.toBeNull();
+    expect(copy.classList.contains("is-custom")).toBe(true);
     expect(copy.style.color.replace(/\s/g, "").toLowerCase()).toMatch(/#1a1815|rgb\(26,24,21\)/);
     expect(copy.style.textShadow.toLowerCase()).toMatch(/#e4dfd5/);
   });
