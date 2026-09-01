@@ -3955,3 +3955,132 @@ a.past-card:hover {
   border-color: var(--gold);
   box-shadow: 0 0 0 1px var(--gold);
 }
+
+@media (max-width: 800px) {
+  .farm-hero {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .farm-hero > div:not(.farm-hero-score) {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .farm-hero-score {
+    flex: 1 1 100%;
+    text-align: left;
+  }
+
+  .farm-hero-score b {
+    font-size: 36px;
+  }
+
+  .farm-sheet h2,
+  .profile-hero h2 {
+    font-size: 22px;
+    overflow-wrap: anywhere;
+  }
+
+  .farm-id {
+    overflow-wrap: anywhere;
+  }
+
+  .farm-avg-row {
+    grid-template-columns: 1fr;
+  }
+
+  .farm-days li {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .farm-days li > div:first-child {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .farm-day-score {
+    align-items: flex-start;
+  }
+
+  .share-row {
+    flex-wrap: wrap;
+  }
+
+  .profile-hero {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .preset-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .preset-option {
+    padding: 8px 4px 10px;
+    min-height: 88px;
+  }
+
+  .preset-option img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .preset-option span {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-picture-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .profile-picture-toolbar .btn {
+    flex: 1 1 140px;
+    min-width: 140px;
+    width: auto;
+    min-height: 44px;
+  }
+
+  .profile-picture-toolbar .btn.primary {
+    flex: 1 1 100%;
+  }
+
+  .connected-menu a,
+  .connected-menu button {
+    min-height: 44px;
+    padding: 12px 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .live-hero {
+    width: calc(100% + 36px);
+    margin-left: -18px;
+    margin-right: -18px;
+  }
+
+  .image-crop-overlay {
+    padding: 8px;
+    align-items: stretch;
+  }
+
+  .image-crop-window {
+    width: 100%;
+    max-height: 100dvh;
+    padding: 14px 12px 12px;
+  }
+
+  .image-crop-stage {
+    padding: 8px;
+  }
+
+  .image-crop-window .toolbar .btn {
+    min-height: 44px;
+  }
+}

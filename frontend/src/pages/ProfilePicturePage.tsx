@@ -182,7 +182,7 @@ export function ProfilePicturePage() {
             );
           })}
         </div>
-        <div className="toolbar">
+        <div className="toolbar profile-picture-toolbar">
           <button
             className="btn primary"
             type="button"
