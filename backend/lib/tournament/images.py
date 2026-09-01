@@ -80,7 +80,11 @@ def merge_media_fields(
 ) -> dict[str, Any]:
     parsed = parse_media_fields(body)
     if parsed:
-        row.update(parsed)
+        for field, value in parsed.items():
+            if value is None:
+                row.pop(field, None)
+            else:
+                row[field] = value
         return row
     if existing:
         for field in IMAGE_URL_FIELDS:

@@ -63,7 +63,7 @@ def test_merge_media_fields_preserves_existing_urls():
 def test_merge_media_fields_clears_url_when_null_sent():
     row = {"image_1_url": "https://site/old.webp"}
     merge_media_fields(row, {"image_1_url": None})
-    assert row["image_1_url"] is None
+    assert "image_1_url" not in row
 
 
 def test_public_media_fields_only_includes_set_urls():

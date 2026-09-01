@@ -248,9 +248,9 @@ export function AdminTournaments({
       join_mode: draft.join_mode,
       nft_giveaway: draft.nft_giveaway,
       prize_places: prizePlaces,
-      image_1_url: draft.image_1_url,
-      image_2_url: draft.image_2_url,
     };
+    if (draft.image_1_url) payload.image_1_url = draft.image_1_url;
+    if (draft.image_2_url) payload.image_2_url = draft.image_2_url;
     setBusy(true);
     setError(null);
     try {

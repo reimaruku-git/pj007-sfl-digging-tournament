@@ -33,6 +33,7 @@ from tournament.catalog import (
     update_tournament,
 )
 from tournament.farms import FarmRegistry
+from tournament.history import recorded_farm_stats
 from tournament.images import (
     CONTENT_TYPE_BY_EXT,
     MediaError,
