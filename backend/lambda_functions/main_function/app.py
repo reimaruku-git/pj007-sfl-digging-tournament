@@ -13,7 +13,12 @@ from urllib.parse import unquote
 
 import boto3
 
-from common.response import create_binary_response, create_error_response, create_response, set_request_origin
+from common.response import (
+    create_binary_response,
+    create_error_response,
+    create_response,
+    set_request_origin,
+)
 from tournament.archive import archive_current
 from tournament.catalog import (
     CatalogError,
@@ -34,6 +39,12 @@ from tournament.catalog import (
 )
 from tournament.farms import FarmRegistry
 from tournament.history import recorded_farm_stats
+from tournament.avatars import (
+    apply_avatar_update,
+    attach_avatars,
+    avatar_key_from_path,
+    public_profile,
+)
 from tournament.images import (
     CONTENT_TYPE_BY_EXT,
     MediaError,
@@ -244,7 +255,7 @@ def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
             extra_headers={"Cache-Control": "public, max-age=30"},
         )
     cache = _refresh_public_board(store)
-    entries = [public_entry(row) for row in (cache.get("entries") or [])]
+    entries = attach_avatars(store, [public_entry(row) for row in (cache.get("entries") or [])])
     return create_response(
         200,
         {
@@ -284,7 +295,7 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
         tournament_days=days,
     )
     match = next((item for item in ranked if item.get("farm_id") == farm_id), row)
-    entry = public_entry(match)
+    entry = attach_avatars(store, [public_entry(match)])[0]
     stats = recorded_farm_stats(store, farm_id)
     entry["recorded_average_per_day"] = stats["recorded_average_per_day"]
     if stats["score_today"] is not None:
@@ -303,12 +314,7 @@ def handle_get_farm_memberships(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _public_identity(row: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "farm_id": str(row.get("farm_id") or ""),
-        "name": str(row.get("name") or ""),
-        "nft_id": row.get("nft_id"),
-        "identified_at": row.get("identified_at"),
-    }
+    return public_profile(row)
 
 
 def handle_identify_farm(event: dict[str, Any]) -> dict[str, Any]:
@@ -328,6 +334,55 @@ def handle_identify_farm(event: dict[str, Any]) -> dict[str, Any]:
         nft_id=looked_up.get("nft_id"),
     )
     return create_response(200, _public_identity(stored))
+
+
+def handle_get_farm_profile(event: dict[str, Any]) -> dict[str, Any]:
+    farm_id = _path_params(event).get("farm_id", "").strip()
+    if not farm_id:
+        return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+        return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
+    identity = _get_store().get_identity(farm_id)
+    if not identity:
+        return create_error_response(404, "farm has not identified", "NOT_FOUND")
+    return create_response(200, _public_identity(identity))
+
+
+def handle_put_farm_avatar(event: dict[str, Any]) -> dict[str, Any]:
+    farm_id = _path_params(event).get("farm_id", "").strip()
+    if not farm_id:
+        return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+        return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
+    store = _get_store()
+    try:
+        payload = apply_avatar_update(
+            store,
+            farm_id=farm_id,
+            body=_body(event),
+            api_base=public_api_base_from_event(event),
+            s3_client=store._s3,
+        )
+    except MediaError as exc:
+        return create_error_response(exc.status, exc.message, exc.code)
+    return create_response(200, payload)
+
+
+def handle_get_avatar_media(event: dict[str, Any]) -> dict[str, Any]:
+    farm_id = unquote(_path_params(event).get("farm_id", "").strip())
+    filename = unquote(_path_params(event).get("filename", "").strip())
+    if not farm_id or not filename:
+        return create_error_response(400, "farm_id and filename are required", "VALIDATION_ERROR")
+    try:
+        key = avatar_key_from_path(farm_id, filename)
+        payload, stored_type = _get_store().read_object(key)
+    except MediaError as exc:
+        return create_error_response(exc.status, exc.message, exc.code)
+    except FileNotFoundError:
+        return create_error_response(404, "media object not found", "NOT_FOUND")
+    ext = filename.rsplit(".", 1)[-1].lower()
+    content_type = stored_type or CONTENT_TYPE_BY_EXT.get(ext, "application/octet-stream")
+    return create_binary_response(200, payload, content_type)
 
 
 def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
@@ -498,7 +553,9 @@ def handle_get_tournament_media(event: dict[str, Any]) -> dict[str, Any]:
     tournament = unquote(_path_params(event).get("tournament_id", "").strip())
     filename = unquote(_path_params(event).get("filename", "").strip())
     if not tournament or not filename:
-        return create_error_response(400, "tournament_id and filename are required", "VALIDATION_ERROR")
+        return create_error_response(
+            400, "tournament_id and filename are required", "VALIDATION_ERROR"
+        )
     try:
         key = media_key_from_path(tournament, filename)
         payload, stored_type = _get_store().read_object(key)
@@ -836,6 +893,11 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
     ("GET", re.compile(r"^/tournaments$"), handle_list_tournaments),
     (
         "GET",
+        re.compile(r"^/media/avatars/(?P<farm_id>[^/]+)/(?P<filename>[^/]+)$"),
+        handle_get_avatar_media,
+    ),
+    (
+        "GET",
         re.compile(r"^/media/tournaments/(?P<tournament_id>[^/]+)/(?P<filename>[^/]+)$"),
         handle_get_tournament_media,
     ),
@@ -849,6 +911,16 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
         "GET",
         re.compile(r"^/farms/(?P<farm_id>[^/]+)/memberships$"),
         handle_get_farm_memberships,
+    ),
+    (
+        "GET",
+        re.compile(r"^/farms/(?P<farm_id>[^/]+)/profile$"),
+        handle_get_farm_profile,
+    ),
+    (
+        "PUT",
+        re.compile(r"^/farms/(?P<farm_id>[^/]+)/avatar$"),
+        handle_put_farm_avatar,
     ),
     ("GET", re.compile(r"^/farms/(?P<farm_id>[^/]+)$"), handle_get_farm),
     ("POST", re.compile(r"^/identify$"), handle_identify_farm),

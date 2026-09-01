@@ -3,6 +3,7 @@ import type { LeaderboardEntry } from "../api/public";
 import { podiumPlaceTiedOnPrimary } from "../lib/board";
 import { formatScore } from "../lib/format";
 import { ColorCanvas, type CanvasTone } from "./ColorCanvas";
+import { FarmAvatar } from "./FarmAvatar";
 import { Pebbles } from "./Pebbles";
 
 function farmPath(farmId: string, tournamentId?: string) {
@@ -43,7 +44,7 @@ function Slot({
   return (
     <Link to={farmPath(entry.farm_id, tournamentId)} className={`podium-card place-${place}`}>
       <div className="podium-art">
-        <ColorCanvas tone={PLACE_TONE[place]} />
+        <FarmAvatar fields={entry} fallbackTone={PLACE_TONE[place]} />
         <span className="podium-place">{place}</span>
       </div>
       <div className="podium-meta">

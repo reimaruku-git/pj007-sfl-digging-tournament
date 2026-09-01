@@ -10,10 +10,12 @@ import {
 } from "./imageCrop";
 
 describe("imageCrop", () => {
-  it("uses a 1:1 card and a 1600×560 hero frame", () => {
+  it("uses a 1:1 card, a 1600×560 hero frame, and a 1:1 profile crop", () => {
     expect(IMAGE_FRAMES.image_1).toMatchObject({ width: 512, height: 512 });
     expect(IMAGE_FRAMES.image_2).toMatchObject({ width: 1600, height: 560 });
+    expect(IMAGE_FRAMES.avatar).toMatchObject({ width: 512, height: 512 });
     expect(frameAspect(IMAGE_FRAMES.image_1)).toBe(1);
+    expect(frameAspect(IMAGE_FRAMES.avatar)).toBe(1);
     expect(frameAspect(IMAGE_FRAMES.image_2)).toBeCloseTo(1600 / 560);
   });
 

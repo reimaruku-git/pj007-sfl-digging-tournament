@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { farmBackTarget, tournamentBackTarget } from "./backTarget";
+import { farmBackTarget, profileBackTarget, tournamentBackTarget } from "./backTarget";
 
 describe("farmBackTarget", () => {
   it("returns to the tournament when the farm was opened from that event", () => {
@@ -26,5 +26,23 @@ describe("tournamentBackTarget", () => {
   it("returns home when opened from the home board or with no origin", () => {
     expect(tournamentBackTarget("home")).toEqual({ to: "/", label: "Back to home" });
     expect(tournamentBackTarget(undefined)).toEqual({ to: "/", label: "Back to home" });
+  });
+});
+
+describe("profileBackTarget", () => {
+  it("returns Back to the tournament when opened from an event page", () => {
+    expect(profileBackTarget("/tournaments/sprint")).toEqual({
+      to: "/tournaments/sprint",
+      label: "Back",
+    });
+    expect(profileBackTarget("/tournaments/sprint/farm/1")).toEqual({
+      to: "/tournaments/sprint",
+      label: "Back",
+    });
+  });
+
+  it("returns Back home from the live board or with no origin", () => {
+    expect(profileBackTarget("/")).toEqual({ to: "/", label: "Back" });
+    expect(profileBackTarget(undefined)).toEqual({ to: "/", label: "Back" });
   });
 });

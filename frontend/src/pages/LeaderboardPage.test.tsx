@@ -305,7 +305,10 @@ describe("LeaderboardPage home", () => {
       ...readdirSync(srcRoot, { recursive: true }).map(String),
       ...readdirSync(publicRoot, { recursive: true }).map(String),
     ];
-    const rasters = names.filter((name) => /\.(png|jpe?g)$/i.test(name)).sort();
+    const rasters = names
+      .filter((name) => /\.(png|jpe?g)$/i.test(name))
+      .filter((name) => !String(name).replaceAll("\\", "/").includes("avatars/"))
+      .sort();
     expect(rasters).toEqual(["desert-dig-site.png", "shovel.png"]);
 
     const css = readFileSync(resolve(srcRoot, "index.css"), "utf8");

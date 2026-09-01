@@ -44,6 +44,7 @@ vi.mock("./api/public", () => ({
   submitFarm: vi.fn(),
   identifyFarm: vi.fn(),
   fetchFarm: vi.fn().mockRejectedValue(new Error("farm not found")),
+  fetchFarmProfile: vi.fn().mockRejectedValue(new Error("profile not found")),
   fetchSlogans: vi.fn().mockResolvedValue({
     slogans: [
       { text: "Slap my pets", icon: "hand" },

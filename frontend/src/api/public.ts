@@ -83,6 +83,9 @@ export type LeaderboardEntry = {
   invalidated: boolean;
   days?: FarmDayRecord[];
   recorded_average_per_day?: number | null;
+  avatar_kind?: "preset" | "upload" | null;
+  avatar_preset?: string | null;
+  avatar_url?: string | null;
 };
 
 export type LeaderboardResponse = {
@@ -240,7 +243,12 @@ export type FarmIdentityResponse = {
   name: string;
   nft_id?: number | null;
   identified_at?: string | null;
+  avatar_kind?: "preset" | "upload" | null;
+  avatar_preset?: string | null;
+  avatar_url?: string | null;
 };
+
+export type FarmProfile = FarmIdentityResponse;
 
 export async function identifyFarm(farmId: string): Promise<FarmIdentityResponse> {
   const { response, data } = await requestJson<FarmIdentityResponse>("identify", {
@@ -248,6 +256,31 @@ export async function identifyFarm(farmId: string): Promise<FarmIdentityResponse
     body: JSON.stringify({ farm_id: farmId }),
   });
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to identify farm"));
+  return data;
+}
+
+export async function fetchFarmProfile(farmId: string): Promise<FarmProfile> {
+  const { response, data } = await requestJson<FarmProfile>(
+    `farms/${encodeURIComponent(farmId)}/profile`,
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "profile not found"));
+  return data;
+}
+
+export async function putFarmAvatar(
+  farmId: string,
+  body: {
+    kind: "preset" | "upload" | "none";
+    preset_id?: string;
+    content_type?: string;
+    data?: string;
+  },
+): Promise<FarmProfile> {
+  const { response, data } = await requestJson<FarmProfile>(
+    `farms/${encodeURIComponent(farmId)}/avatar`,
+    { method: "PUT", body: JSON.stringify(body) },
+  );
+  if (!response.ok || !data) throw new Error(errorMessage(data, "failed to save profile picture"));
   return data;
 }
 

@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fetchFarm,
   fetchFarmMemberships,
+  fetchFarmProfile,
   fetchLeaderboard,
   fetchSlogans,
   fetchTournament,
   identifyFarm,
   listTournaments,
+  putFarmAvatar,
   submitFarm,
 } from "./public";
 
@@ -121,6 +123,38 @@ describe("public api", () => {
     });
     expect(identity.name).toBe("rmr");
     expect(identity.farm_id).toBe("3666918801844311");
+  });
+
+  it("loads and updates a farm profile picture", async () => {
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        farm_id: "3666918801844311",
+        name: "rmr",
+        avatar_kind: "preset",
+        avatar_preset: "betty",
+      }),
+    );
+    const profile = await fetchFarmProfile("3666918801844311");
+    expect(mockRequest).toHaveBeenCalledWith("farms/3666918801844311/profile");
+    expect(profile.avatar_preset).toBe("betty");
+
+    mockRequest.mockResolvedValueOnce(
+      ok({
+        farm_id: "3666918801844311",
+        name: "rmr",
+        avatar_kind: "preset",
+        avatar_preset: "jafar",
+      }),
+    );
+    const saved = await putFarmAvatar("3666918801844311", {
+      kind: "preset",
+      preset_id: "jafar",
+    });
+    expect(mockRequest).toHaveBeenCalledWith("farms/3666918801844311/avatar", {
+      method: "PUT",
+      body: JSON.stringify({ kind: "preset", preset_id: "jafar" }),
+    });
+    expect(saved.avatar_preset).toBe("jafar");
   });
 
   it("submits a farm id for named tournaments", async () => {

@@ -4,7 +4,7 @@ Wire JSON is **snake_case**. The browser talks only to this API.
 
 Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no `Bearer ` prefix.
 API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
-Public routes (`/health`, `/config`, `/slogans`, `/leaderboard`, `/farms/{farm_id}`, `/farms/{farm_id}/memberships`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`) have no authorizer.
+Public routes (`/health`, `/config`, `/slogans`, `/leaderboard`, `/farms/{farm_id}`, `/farms/{farm_id}/memberships`, `/farms/{farm_id}/profile`, `PUT /farms/{farm_id}/avatar`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`, `/media/*`) have no authorizer.
 
 Errors:
 
@@ -113,7 +113,9 @@ calls the SFL API. Public home uses `featured_tournament_id` from
       "third_op_at": "2026-08-14T12:42:00+00:00",
       "last_updated_at": "2026-08-14T13:00:00+00:00",
       "status": "completed",
-      "invalidated": false
+      "invalidated": false,
+      "avatar_kind": "preset",
+      "avatar_preset": "betty"
     }
   ],
   "count": 1,
@@ -142,6 +144,13 @@ calls the SFL API. Public home uses `featured_tournament_id` from
 ```
 
 `status` is `not_started` | `in_progress` | `completed` | `invalidated`.
+
+Optional avatar fields come from the farm's identity, not the score row.
+`avatar_kind` is `preset` (NPC still shipped in the frontend) or `upload`
+(S3 object served at `GET /media/avatars/{farm_id}/{filename}`). Preset
+responses include `avatar_preset` and omit `avatar_url`. Upload responses
+include `avatar_url` and omit `avatar_preset`. Farms with no picture omit
+both. Tournament boards and `GET /farms/{farm_id}` use the same overlay.
 
 `digs_to_third_op` is the **total score**: the sum of each stored day's
 3rd-pebble digs that already have a number. `score` is that total divided
@@ -373,12 +382,73 @@ produce a username (new farms can lag 2–7 days).
   "farm_id": "3666918801844311",
   "name": "rmr",
   "nft_id": 220411,
-  "identified_at": "2026-08-17T12:00:00+00:00"
+  "identified_at": "2026-08-17T12:00:00+00:00",
+  "avatar_kind": "preset",
+  "avatar_preset": "betty"
 }
 ```
 
 `400` if `farm_id` is missing or not numeric. `404` if sfl.world has no
-username for that farm.
+username for that farm. Re-identify keeps a previously chosen avatar.
+
+### `GET /farms/{farm_id}/profile`
+
+Public identity for a farm that has identified. Same body as
+`POST /identify`. `404` if that farm has never identified.
+
+```json
+{
+  "farm_id": "3666918801844311",
+  "name": "rmr",
+  "nft_id": 220411,
+  "identified_at": "2026-08-17T12:00:00+00:00",
+  "avatar_kind": "upload",
+  "avatar_url": "https://oacun88q99.execute-api.ap-southeast-1.amazonaws.com/dev/media/avatars/3666918801844311/avatar.jpg?v=ab12cd34ef56"
+}
+```
+
+### `PUT /farms/{farm_id}/avatar`
+
+Set or clear the farm's profile picture. The farm must already have
+identified (`404` `identify this farm first`). No Cognito session —
+same public model as `POST /identify`. NPC presets are frontend files;
+this call only stores the chosen `preset_id`. Uploads are stored on S3.
+
+Preset:
+
+```json
+{ "kind": "preset", "preset_id": "betty" }
+```
+
+Upload (`content_type`: `image/jpeg`, `image/png`, `image/webp`, or
+`image/gif`; `data` is base64, 2 MB max):
+
+```json
+{
+  "kind": "upload",
+  "content_type": "image/jpeg",
+  "data": "/9j/4AAQ..."
+}
+```
+
+Clear:
+
+```json
+{ "kind": "none" }
+```
+
+Success is the same body as `GET /farms/{farm_id}/profile`. `400` if
+`kind` is missing, the preset is unknown, or the upload is not a valid
+image. Known presets: `jafar`, `betty`, `blacksmith`, `corale`,
+`tango`, `old_salty`, `victoria`, `jester`, `tywin`, `timmy`,
+`pumpkin_pete`, `bert`, `finley`, `pharaoh`, `cornwell`, `miranda`,
+`raven`, `finn`, `gambit`, `gordo`, `grimbly`, `grimtooth`, `grubnuk`,
+`guria`, `hammerin_harry`, `mayor`.
+
+### `GET /media/avatars/{farm_id}/{filename}`
+
+Public binary bytes for an uploaded avatar. Example:
+`/media/avatars/3666918801844311/avatar.jpg`. No auth.
 
 ### `GET /farms/{farm_id}/memberships`
 

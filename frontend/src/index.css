@@ -1885,6 +1885,32 @@ tr.is-you,
   overflow: hidden;
 }
 
+.podium-art .farm-avatar,
+.podium-art .color-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.podium-art .farm-avatar {
+  display: grid;
+  place-items: center;
+  background: #141210;
+}
+
+.podium-art .farm-avatar img {
+  width: 100%;
+  height: 100%;
+}
+
+.farm-avatar.is-preset img {
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.farm-avatar.is-upload img {
+  object-fit: cover;
+}
+
 .place-1 .podium-art {
   height: 320px;
 }
@@ -2270,6 +2296,44 @@ a.you-farm:focus-visible {
   gap: 16px;
   align-items: flex-start;
   margin-bottom: 14px;
+}
+
+.farm-page-avatar {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #141210;
+}
+
+.farm-page-avatar img,
+.farm-page-avatar .color-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-edit-link {
+  display: block;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+}
+
+.avatar-edit-link:hover,
+.avatar-edit-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.avatar-edit-link .farm-page-avatar {
+  width: 100%;
+  height: 100%;
+  flex: none;
 }
 
 .farm-hero-score {
@@ -2827,6 +2891,15 @@ a.past-card:hover {
   height: 32px;
   border-radius: 50%;
   flex: 0 0 32px;
+  overflow: hidden;
+  display: block;
+}
+
+.connected-avatar img,
+.connected-avatar .color-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .connected-copy {
@@ -3481,6 +3554,13 @@ a.past-card:hover {
   overflow: hidden;
 }
 
+.you-farm-art .farm-avatar,
+.you-farm-art .color-canvas,
+.you-farm-art .farm-avatar img {
+  width: 100%;
+  height: 100%;
+}
+
 .you-farm-copy .kicker {
   margin-bottom: 4px;
 }
@@ -3810,5 +3890,197 @@ a.past-card:hover {
 
   .window-card-facts {
     text-align: left;
+  }
+}
+
+.profile-hero {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 12px 0 20px;
+}
+
+.profile-avatar-lg {
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #141210;
+}
+
+.profile-avatar-lg img,
+.profile-avatar-lg .color-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-edit h3 {
+  margin: 0 0 6px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.preset-option {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  border: 1px solid var(--line);
+  background: #141210;
+  color: inherit;
+  border-radius: 12px;
+  padding: 10px 8px;
+  cursor: pointer;
+}
+
+.preset-option img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.preset-option span {
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.preset-option.is-selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold);
+}
+
+@media (max-width: 800px) {
+  .farm-hero {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .farm-hero > div:not(.farm-hero-score) {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .farm-hero-score {
+    flex: 1 1 100%;
+    text-align: left;
+  }
+
+  .farm-hero-score b {
+    font-size: 36px;
+  }
+
+  .farm-sheet h2,
+  .profile-hero h2 {
+    font-size: 22px;
+    overflow-wrap: anywhere;
+  }
+
+  .farm-id {
+    overflow-wrap: anywhere;
+  }
+
+  .farm-avg-row {
+    grid-template-columns: 1fr;
+  }
+
+  .farm-days li {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .farm-days li > div:first-child {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .farm-day-score {
+    align-items: flex-start;
+  }
+
+  .share-row {
+    flex-wrap: wrap;
+  }
+
+  .profile-hero {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .preset-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .preset-option {
+    padding: 8px 4px 10px;
+    min-height: 88px;
+  }
+
+  .preset-option img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .preset-option span {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-picture-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .profile-picture-toolbar .btn {
+    flex: 1 1 140px;
+    min-width: 140px;
+    width: auto;
+    min-height: 44px;
+  }
+
+  .profile-picture-toolbar .btn.primary {
+    flex: 1 1 100%;
+  }
+
+  .connected-menu a,
+  .connected-menu button {
+    min-height: 44px;
+    padding: 12px 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .live-hero {
+    width: calc(100% + 36px);
+    margin-left: -18px;
+    margin-right: -18px;
+  }
+
+  .image-crop-overlay {
+    padding: 8px;
+    align-items: stretch;
+  }
+
+  .image-crop-window {
+    width: 100%;
+    max-height: 100dvh;
+    padding: 14px 12px 12px;
+  }
+
+  .image-crop-stage {
+    padding: 8px;
+  }
+
+  .image-crop-window .toolbar .btn {
+    min-height: 44px;
   }
 }
