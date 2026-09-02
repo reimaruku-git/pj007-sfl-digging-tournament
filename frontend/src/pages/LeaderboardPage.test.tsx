@@ -208,7 +208,7 @@ describe("LeaderboardPage home", () => {
     expect(podium.querySelector('[data-testid="tournament-podium"]')).not.toBeNull();
     expect(podium.querySelector(".place-1")?.textContent).toMatch(/rmr/);
     expect(podium.querySelector('[data-testid="podium-avg-1"]')?.textContent).toMatch(/27\.57/);
-    expect(podium.querySelector('[data-testid="podium-avg-1"]')?.textContent).toMatch(/Avg\/day/);
+    expect(podium.querySelector('[data-testid="podium-avg-1"]')?.textContent).toMatch(/AVG SCORE/);
     expect(podium.querySelector(".place-1")?.textContent).not.toMatch(/193/);
     expect(podium.querySelector(".place-2")?.textContent).toMatch(/Farm 218/);
     expect(podium.querySelector(".place-3")?.textContent).toMatch(/Farm 219/);
@@ -225,7 +225,7 @@ describe("LeaderboardPage home", () => {
     expect(standings.textContent).toMatch(/Total/);
     expect(standings.textContent).toMatch(/Today/);
     expect(standings.textContent).toMatch(/Pebbles/);
-    expect(standings.textContent).toMatch(/Avg \/ day/);
+    expect(standings.textContent).toMatch(/AVG SCORE/);
     expect(page.querySelector('[data-testid="you-farm-name"]')?.textContent).toBe("rmr");
     expect(page.querySelector('[data-testid="you-farm-avg"]')?.textContent).toMatch(/27\.57/);
 
@@ -425,7 +425,7 @@ describe("LeaderboardPage home", () => {
     expect(layers.map((node) => node.getAttribute("data-kind"))).toEqual(["dusk", "color"]);
   });
 
-  it("cycles Avg / day, Today, and Total through asc, desc, then rank order", async () => {
+  it("cycles AVG SCORE, Today, and Total through asc, desc, then rank order", async () => {
     const live = summary({
       tournament_id: "one",
       name: "First board",

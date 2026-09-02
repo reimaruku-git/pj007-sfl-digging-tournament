@@ -4,7 +4,7 @@ import type { LeaderboardEntry } from "../api/public";
 import type { AvatarFields } from "../lib/avatars";
 import { FarmAvatar } from "./FarmAvatar";
 import { Pebbles } from "./Pebbles";
-import { formatDateUtc, formatRelative, formatScore, formatWhenUtc, statusLabel } from "../lib/format";
+import { formatDateUtc, formatRelative, formatScore, formatWhenUtc, statusLabel, AVG_SCORE_LABEL } from "../lib/format";
 
 export function FarmResult({
   farm,
@@ -66,7 +66,7 @@ export function FarmResult({
       <div className="stats farm-stats" data-testid="farm-score-facts">
         <div className="farm-avg-row" data-testid="farm-pebble-averages">
           <div className="stat">
-            <span className="muted">Average per day</span>
+            <span className="muted">{AVG_SCORE_LABEL}</span>
             <b data-testid="farm-average">{formatScore(farm.score)}</b>
           </div>
           <div className="stat stat-pebble">

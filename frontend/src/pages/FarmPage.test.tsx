@@ -105,12 +105,12 @@ describe("FarmPage days", () => {
     await renderFarm();
     const facts = container.querySelector("[data-testid='farm-score-facts']");
     expect(container.querySelector("[data-testid='farm-total']")?.textContent).toBe("14");
-    expect(facts?.textContent).toMatch(/Average per day/);
+    expect(facts?.textContent).toMatch(/AVG SCORE/);
     expect(container.querySelector("[data-testid='farm-average']")?.textContent).toBe("14.00");
     const avgRow = container.querySelector("[data-testid='farm-pebble-averages']");
     expect(avgRow).not.toBeNull();
     const avgKids = [...(avgRow?.children ?? [])] as HTMLElement[];
-    expect(avgKids[0]?.textContent).toMatch(/Average per day/);
+    expect(avgKids[0]?.textContent).toMatch(/AVG SCORE/);
     expect(avgKids[1]?.textContent).toMatch(/1st pebble avg/);
     expect(avgKids[2]?.textContent).toMatch(/2nd pebble avg/);
     expect(container.querySelector("[data-testid='farm-first-average']")?.textContent).toBe("4.00");

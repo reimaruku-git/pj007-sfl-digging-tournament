@@ -22,6 +22,7 @@ import {
 } from "../lib/board";
 import { useFarmSession } from "../lib/farmSession";
 import {
+  AVG_SCORE_LABEL,
   formatScore,
   formatTopPrize,
   formatWindowRange,
@@ -430,7 +431,7 @@ function StandingsTable({
   return (
     <div className="board-scroll standings-panel">
       <div className="standings-sort-bar" data-testid="standings-sort">
-        <SortHeader column="avg" label="Avg / day" sort={sort} onSort={onSort} />
+        <SortHeader column="avg" label={AVG_SCORE_LABEL} sort={sort} onSort={onSort} />
         <SortHeader column="today" label="Today" sort={sort} onSort={onSort} />
         <SortHeader column="total" label="Total" sort={sort} onSort={onSort} />
       </div>
@@ -447,7 +448,7 @@ function StandingsTable({
             </th>
             <th>Pebbles</th>
             <th>
-              <SortHeader column="avg" label="Avg / day" sort={sort} onSort={onSort} />
+              <SortHeader column="avg" label={AVG_SCORE_LABEL} sort={sort} onSort={onSort} />
             </th>
           </tr>
         </thead>
@@ -508,7 +509,9 @@ function StandingsTable({
             <div className="farm-card-score">
               <b>{row.digs_to_third_op ?? "—"}</b>
               <span>total</span>
-              <span className="muted">{formatScore(row.score)} avg/day</span>
+              <span className="muted">
+                {formatScore(row.score)} {AVG_SCORE_LABEL}
+              </span>
               <span className="muted">today {row.score_today ?? "—"}</span>
             </div>
           </Link>
@@ -567,7 +570,7 @@ function YouFarmCard({
           <dd>{loading ? "—" : (farm?.score_today ?? "—")}</dd>
         </div>
         <div data-testid="you-farm-avg">
-          <dt>Avg / day</dt>
+          <dt>{AVG_SCORE_LABEL}</dt>
           <dd>
             {loading ? "—" : formatScore(farm?.recorded_average_per_day ?? farm?.score)}
           </dd>

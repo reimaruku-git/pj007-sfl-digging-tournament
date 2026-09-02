@@ -1,6 +1,7 @@
 import type { LeaderboardEntry, PrizePlace } from "../api/public";
 import { homeBoardRows } from "./board";
 import {
+  AVG_SCORE_LABEL,
   formatDetailDateRangeUtc,
   formatPrizeAmount,
   formatScore,
@@ -475,7 +476,7 @@ function paintPodium(
       const avgW = ctx.measureText(item.avg).width;
       ctx.font = "700 11px 'Source Sans 3', system-ui, sans-serif";
       ctx.fillStyle = MUTE;
-      ctx.fillText("AVG/DAY", x + 26 + avgW, y + h - 22);
+      ctx.fillText(AVG_SCORE_LABEL, x + 26 + avgW, y + h - 22);
     }
   });
 }
@@ -505,7 +506,7 @@ function paintTable(
   ctx.fillText("FARM", innerLeft + 56, tableHeadY);
   ctx.textAlign = "right";
   ctx.fillText("TOTAL", colTotal, tableHeadY);
-  ctx.fillText("AVG", colAvg, tableHeadY);
+  ctx.fillText(AVG_SCORE_LABEL, colAvg, tableHeadY);
   ctx.fillText("TODAY", colToday, tableHeadY);
   ctx.fillText("PEBBLES", colPebbles, tableHeadY);
   ctx.fillText("STATUS", colStatus, tableHeadY);

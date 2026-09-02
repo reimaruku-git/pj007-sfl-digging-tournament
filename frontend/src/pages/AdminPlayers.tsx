@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import type { PlayerDetail, TrackedFarm } from "../api/admin";
 import { ConfirmDialog, useConfirm } from "../components/ConfirmDialog";
-import { formatScore } from "../lib/format";
+import { AVG_SCORE_LABEL, formatScore } from "../lib/format";
 
 export function AdminPlayers({
   farms,
@@ -78,7 +78,7 @@ export function AdminPlayers({
               <th>Farm</th>
               <th>Active</th>
               <th>Digging streak</th>
-              <th>Average per day</th>
+              <th>{AVG_SCORE_LABEL}</th>
             </tr>
           </thead>
           <tbody>
@@ -153,7 +153,7 @@ function PlayerDetailPanel({
             {farm.name || "Unnamed"} · {farm.farm_id}
           </div>
           <p className="meta">
-            Streak {detail?.digging_streak ?? farm.digging_streak ?? 0} · avg/day{" "}
+            Streak {detail?.digging_streak ?? farm.digging_streak ?? 0} · {AVG_SCORE_LABEL}{" "}
             {formatScore(detail?.average_per_day ?? farm.average_per_day)}
           </p>
         </div>

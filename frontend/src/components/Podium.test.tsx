@@ -55,7 +55,7 @@ describe("Podium", () => {
     ]);
     const first = el.querySelector('[data-testid="podium-avg-1"]');
     expect(first?.textContent).toMatch(/12\.50/);
-    expect(first?.textContent).toMatch(/Avg\/day/);
+    expect(first?.textContent).toMatch(/AVG SCORE/);
     expect(el.querySelector(".place-1")?.textContent).not.toMatch(/88/);
     expect(el.querySelector('[data-testid="podium-tie-1"]')).toBeNull();
     expect(el.querySelector('[data-testid="podium-tie-2"]')).toBeNull();
@@ -92,10 +92,10 @@ describe("Podium", () => {
         digs_to_third_op: 54,
       }),
     ]);
-    expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/2nd 6\.50/);
-    expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/1st 4\.25/);
-    expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/2nd 7\.25/);
-    expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/1st 5\.00/);
+    expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/2nd: 6\.50/);
+    expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/1st: 4\.25/);
+    expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/2nd: 7\.25/);
+    expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/1st: 5\.00/);
     expect(el.querySelector('[data-testid="podium-tie-3"]')).toBeNull();
   });
 
