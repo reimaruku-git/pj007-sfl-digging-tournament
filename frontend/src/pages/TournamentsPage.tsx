@@ -24,6 +24,7 @@ import {
   hasRequestedTournament,
 } from "../lib/followFarm";
 import {
+  AVG_SCORE_LABEL,
   formatDateUtc,
   formatDetailDateRangeUtc,
   formatDurationDays,
@@ -633,7 +634,7 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
                     <th>Rank</th>
                     <th>Farm</th>
                     <th>Total</th>
-                    <th>Avg / day</th>
+                    <th>{AVG_SCORE_LABEL}</th>
                     <th>Today</th>
                     <th>Pebbles</th>
                     <th>Status</th>

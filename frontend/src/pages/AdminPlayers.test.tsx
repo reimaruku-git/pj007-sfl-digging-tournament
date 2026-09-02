@@ -55,7 +55,7 @@ describe("AdminPlayers", () => {
     expect(text).toMatch(/rmr/);
     expect(text).toMatch(/yes/);
     expect(text).toMatch(/Digging streak/);
-    expect(text).toMatch(/Average per day/);
+    expect(text).toMatch(/AVG SCORE/);
     expect(container.querySelector('[data-testid="player-streak-99"]')?.textContent).toBe("2");
     expect(container.querySelector('[data-testid="player-avg-99"]')?.textContent).toBe("6.00");
     expect(text).not.toMatch(/Override/);
@@ -101,7 +101,7 @@ describe("AdminPlayers", () => {
     expect(detail).not.toBeNull();
     expect(detail?.textContent).toMatch(/July cup/);
     expect(detail?.textContent).toMatch(/Streak 4/);
-    expect(detail?.textContent).toMatch(/avg\/day 3.00/);
+    expect(detail?.textContent).toMatch(/AVG SCORE 3\.00/);
     const actions =
       container.querySelector('[data-testid="player-detail-actions"]')?.textContent ?? "";
     expect(actions).toMatch(/Disable/);

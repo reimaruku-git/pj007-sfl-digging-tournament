@@ -231,6 +231,9 @@ export function formatScore(score: number | null | undefined): string {
   return Number(score).toFixed(2);
 }
 
+/** Standings column and podium label for the official tournament average. */
+export const AVG_SCORE_LABEL = "AVG SCORE";
+
 export function formatUtcClock(now: Date = new Date()): string {
   const hours = String(now.getUTCHours()).padStart(2, "0");
   const minutes = String(now.getUTCMinutes()).padStart(2, "0");

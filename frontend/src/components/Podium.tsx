@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import type { LeaderboardEntry } from "../api/public";
 import { podiumPlaceTiedOnPrimary } from "../lib/board";
-import { formatScore } from "../lib/format";
+import { AVG_SCORE_LABEL, formatScore } from "../lib/format";
 import { ColorCanvas, type CanvasTone } from "./ColorCanvas";
 import { FarmAvatar } from "./FarmAvatar";
 import { Pebbles } from "./Pebbles";
@@ -51,12 +51,12 @@ function Slot({
         <div className="podium-name">{entry.name || "Unnamed farm"}</div>
         <div className="podium-score" data-testid={`podium-avg-${place}`}>
           {formatScore(entry.score)}
-          <span>Avg/day</span>
+          <span>{AVG_SCORE_LABEL}</span>
         </div>
         {showTieBreak ? (
           <div className="podium-tie" data-testid={`podium-tie-${place}`}>
-            <span>2nd {formatScore(entry.score_second_op)}</span>
-            <span>3rd {formatScore(entry.score)}</span>
+            <span>2nd: {formatScore(entry.score_second_op)}</span>
+            <span>1st: {formatScore(entry.score_first_op)}</span>
           </div>
         ) : null}
         <Pebbles count={entry.otter_count} />

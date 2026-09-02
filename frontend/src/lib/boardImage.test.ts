@@ -303,7 +303,7 @@ describe("paintBoardImage", () => {
     expect(texts).toContain("RANK");
     expect(texts).toContain("FARM");
     expect(texts).toContain("TOTAL");
-    expect(texts).toContain("AVG");
+    expect(texts).toContain("AVG SCORE");
     expect(texts).toContain("TODAY");
     expect(texts).toContain("PEBBLES");
     expect(texts).toContain("STATUS");
