@@ -253,6 +253,17 @@ def test_identify_rejects_non_numeric_farm_id(aws_env, monkeypatch):
 
 
 @responses.activate
+def test_identify_accepts_short_numeric_farm_id(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    _stub_sfl_world(farm_id="7916", username="early-farmer", nft_id=100)
+    response = app.lambda_handler(_event("POST", "/identify", {"farm_id": "7916"}), None)
+    assert response["statusCode"] == 200
+    body = _json(response)
+    assert body["farm_id"] == "7916"
+    assert body["name"] == "early-farmer"
+
+
+@responses.activate
 def test_join_uses_identified_sfl_world_name(aws_env, monkeypatch, live_join_open):
     live_join_open("2026-08-01T00:00:00+00:00")
     app = _load_app(aws_env, monkeypatch)
