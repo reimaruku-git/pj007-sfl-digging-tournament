@@ -7,10 +7,14 @@ import requests
 import responses
 
 from tournament.sfl_client import (
+    IDENTIFY_MAX_RETRIES,
+    IDENTIFY_TIMEOUT_SECONDS,
     PooledSFLClient,
     RateLimitedSFLClient,
     SFLApiError,
+    build_identify_sfl_client,
     build_sfl_client,
+    identity_from_community_payload,
     key_fingerprint,
     load_sfl_keys,
     parse_sfl_keys_payload,
@@ -296,6 +300,41 @@ def test_env_keys_are_not_required_to_build_a_client():
         client.fetch_farm("1")
 
 
+def test_identity_from_community_payload_reads_username_and_nft_id():
+    payload = {"farm": {"username": "rmr", "nft_id": 220411}, "nftId": None}
+    assert identity_from_community_payload(payload, "3666918801844311") == {
+        "farm_id": "3666918801844311",
+        "name": "rmr",
+        "nft_id": 220411,
+    }
+
+
+def test_identity_from_community_payload_uses_farm_id_when_username_missing():
+    payload = {"farm": {"island": {"type": "desert"}}}
+    looked_up = identity_from_community_payload(payload, "3666918801844311")
+    assert looked_up == {
+        "farm_id": "3666918801844311",
+        "name": "3666918801844311",
+        "nft_id": None,
+    }
+
+
+def test_identity_from_community_payload_none_without_farm():
+    assert identity_from_community_payload({"error": "missing"}, "1") is None
+    assert identity_from_community_payload(None, "1") is None
+
+
+def test_build_identify_sfl_client_is_one_timed_request():
+    assert build_identify_sfl_client([]) is None
+    assert build_identify_sfl_client(None) is None
+    client = build_identify_sfl_client([KEY_A, KEY_B])
+    assert isinstance(client, RateLimitedSFLClient)
+    assert client._timeout == IDENTIFY_TIMEOUT_SECONDS
+    assert client._max_retries == IDENTIFY_MAX_RETRIES
+    assert IDENTIFY_TIMEOUT_SECONDS <= 12
+    assert IDENTIFY_MAX_RETRIES == 1
+
+
 def test_sam_and_deploy_wire_keys_from_secrets_bucket():
     from pathlib import Path
 
@@ -316,5 +355,7 @@ def test_sam_and_deploy_wire_keys_from_secrets_bucket():
     assert "SFL_API_KEY" not in main
     assert "load_sfl_keys" in farm_sync
     assert "load_sfl_keys" in main
+    assert "build_identify_sfl_client" in main
+    assert "identity_from_community_payload" in main
     assert "sfl." not in template
     assert "sfl." not in workflow

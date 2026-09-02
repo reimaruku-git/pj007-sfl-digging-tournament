@@ -367,11 +367,16 @@ archive.
 
 ### `POST /identify`
 
-Resolve a visitor farm ID to the Sunflower Land username via sfl.world
-`GET /api/v1/land/info/farm_id/{farm_id}`. The browser never calls
-sfl.world. The resolved name is stored so admin can retrieve the farm ID
-later (`GET /admin/identities`). Identify fails when sfl.world cannot
-produce a username (new farms can lag 2–7 days).
+Resolve a visitor farm ID to the Sunflower Land username. Tries sfl.world
+`GET /api/v1/land/info/farm_id/{farm_id}` first. The browser never calls
+sfl.world or `api.sunflower-land.com`. When sfl.world cannot produce a
+username (new farms can lag 2–7 days), or that lookup 404s, times out,
+or returns non-JSON, identify falls back to one timed Community API
+fetch (`GET /community/farms/{farm_id}`) using the secrets-bucket keys.
+A Community farm with no `username` still identifies using `farm_id` as
+the stored name. The resolved name is stored so admin can retrieve the
+farm ID later (`GET /admin/identities`). Identify fails only when both
+lookups miss.
 
 ```json
 { "farm_id": "3666918801844311" }
@@ -388,8 +393,10 @@ produce a username (new farms can lag 2–7 days).
 }
 ```
 
-`400` if `farm_id` is missing or not numeric. `404` if sfl.world has no
-username for that farm. Re-identify keeps a previously chosen avatar.
+`400` if `farm_id` is missing or not numeric. `404` `NOT_FOUND` if
+neither sfl.world nor the Community API has that farm. `502`
+`LOOKUP_FAILED` if both lookups error without a farm. Re-identify keeps
+a previously chosen avatar.
 
 ### `GET /farms/{farm_id}/profile`
 
@@ -478,7 +485,7 @@ a reload or on another browser.
 ### `POST /submissions`
 
 Join request for one or more scheduled/live tournaments. Visitors have no
-accounts; they send a numeric farm ID. The display name is the sfl.world
+accounts; they send a numeric farm ID. The display name is the
 username from `POST /identify` when that farm has identified; the client
 does not collect a typed display name. Already-tracked farms may still
 request another event. `tournament_id` (one) or `tournament_ids` (many)
@@ -592,8 +599,9 @@ All `/admin/*` routes require a Cognito ID token. `401` if the token is missing 
 
 ### `GET /admin/identities`
 
-Farms that identified on the public site. `name` is the sfl.world
-username stored at identify time.
+Farms that identified on the public site. `name` is the username stored
+at identify time (sfl.world, or Community `farm.username` / `farm_id`
+when sfl.world missed).
 
 ```json
 {

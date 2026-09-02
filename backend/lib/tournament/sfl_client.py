@@ -26,6 +26,9 @@ COMMUNITY_FARM_PATH = "/community/farms/{farm_id}"
 DEFAULT_FAILURE_INTERVAL_SECONDS = 12.0
 DEFAULT_SUCCESS_ROUND_SECONDS = 10.0
 DEFAULT_KEYS_OBJECT = "sfl-api-keys.json"
+# Identify is user-facing (API Gateway ~29s). One timed GET, no sweep retries.
+IDENTIFY_TIMEOUT_SECONDS = 12
+IDENTIFY_MAX_RETRIES = 1
 
 
 class SFLApiError(Exception):
@@ -294,3 +297,51 @@ def build_sfl_client(
         success_round_seconds=success_round_seconds,
         sleeper=sleeper,
     )
+
+
+def build_identify_sfl_client(
+    keys: Sequence[str] | None = None,
+    **kwargs,
+) -> RateLimitedSFLClient | None:
+    """One timed Community GET for public identify. None if no keys."""
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for raw in keys or ():
+        key = (raw or "").strip()
+        if key and key not in seen:
+            cleaned.append(key)
+            seen.add(key)
+    if not cleaned:
+        return None
+    inner = dict(kwargs)
+    inner.setdefault("timeout", IDENTIFY_TIMEOUT_SECONDS)
+    inner.setdefault("max_retries", IDENTIFY_MAX_RETRIES)
+    inner.setdefault("min_interval_seconds", DEFAULT_FAILURE_INTERVAL_SECONDS)
+    return RateLimitedSFLClient(cleaned[0], **inner)
+
+
+def identity_from_community_payload(payload: Any, farm_id: str) -> dict[str, Any] | None:
+    """Name and optional nft_id from a Community farm payload. None if no farm.
+
+    ``farm.username`` is optional; a farm that exists without a name still
+    identifies using ``farm_id`` so the visitor can connect.
+    """
+    if not isinstance(payload, dict):
+        return None
+    farm = payload.get("farm")
+    if not isinstance(farm, dict):
+        return None
+    token = str(farm_id or "").strip()
+    if not token:
+        return None
+    name = str(farm.get("username") or payload.get("username") or farm.get("name") or "").strip()
+    if not name:
+        name = token
+    nft_id = payload.get("nft_id")
+    if nft_id is None:
+        nft_id = payload.get("nftId")
+    if nft_id is None:
+        nft_id = farm.get("nft_id")
+    if nft_id is None:
+        nft_id = farm.get("nftId")
+    return {"farm_id": token, "name": name, "nft_id": nft_id}
