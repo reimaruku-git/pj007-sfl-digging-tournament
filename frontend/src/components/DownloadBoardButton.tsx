@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { LeaderboardEntry } from "../api/public";
+import type { LeaderboardEntry, PrizePlace } from "../api/public";
 import { downloadTournamentBoardImage } from "../lib/boardImage";
 
 export function DownloadBoardButton({
@@ -8,8 +8,16 @@ export function DownloadBoardButton({
   endAt,
   durationDays,
   prizeAmount,
+  prizePlaces,
   entries,
   totalCount,
+  connectedFarmId,
+  enrolledCount,
+  maxPlayers,
+  minBumpkinIsland,
+  minDiggingStreak,
+  vipRequired,
+  joinMode,
   testId = "download-board",
 }: {
   name: string;
@@ -17,8 +25,16 @@ export function DownloadBoardButton({
   endAt: string | null;
   durationDays?: number | null;
   prizeAmount?: string | null;
+  prizePlaces?: PrizePlace[] | null;
   entries: LeaderboardEntry[];
   totalCount?: number;
+  connectedFarmId?: string | null;
+  enrolledCount?: number | null;
+  maxPlayers?: number | null;
+  minBumpkinIsland?: string | null;
+  minDiggingStreak?: number | null;
+  vipRequired?: boolean | null;
+  joinMode?: string | null;
   testId?: string;
 }) {
   const [busy, setBusy] = useState(false);
@@ -35,8 +51,16 @@ export function DownloadBoardButton({
         end_at: endAt,
         duration_days: durationDays,
         prize_amount: prizeAmount,
+        prize_places: prizePlaces,
         entries,
         total_count: totalCount,
+        connected_farm_id: connectedFarmId,
+        enrolled_count: enrolledCount,
+        max_players: maxPlayers,
+        min_bumpkin_island: minBumpkinIsland,
+        min_digging_streak: minDiggingStreak,
+        vip_required: vipRequired,
+        join_mode: joinMode,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not download image");

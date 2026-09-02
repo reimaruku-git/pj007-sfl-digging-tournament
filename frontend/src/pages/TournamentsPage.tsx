@@ -424,8 +424,16 @@ function TournamentDetail({ tournamentId }: { tournamentId: string }) {
             endAt={data.config.end_at}
             durationDays={data.config.duration_days}
             prizeAmount={data.config.prize_amount}
+            prizePlaces={data.config.prize_places}
             entries={data.entries}
             totalCount={data.count}
+            connectedFarmId={identity?.farm_id}
+            enrolledCount={data.config.enrolled_count}
+            maxPlayers={data.config.max_players}
+            minBumpkinIsland={data.config.min_bumpkin_island}
+            minDiggingStreak={data.config.min_digging_streak}
+            vipRequired={data.config.vip_required}
+            joinMode={data.config.join_mode}
           />
         ) : null}
       </div>

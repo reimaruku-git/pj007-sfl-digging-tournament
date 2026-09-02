@@ -31,7 +31,12 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FarmSessionProvider } from "../lib/farmSession";
-import { addRequestedTournamentId, clearFarmIdentity, hasRequestedTournament, writeFarmIdentity } from "../lib/followFarm";
+import {
+  addRequestedTournamentId,
+  clearFarmIdentity,
+  hasRequestedTournament,
+  writeFarmIdentity,
+} from "../lib/followFarm";
 import {
   displayPrizePlaces,
   isLongRewardText,
@@ -371,7 +376,9 @@ describe("TournamentsPage", () => {
     expect(css).toMatch(/\.standings-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     expect(css).toMatch(/\.detail-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     expect(css).toMatch(/\.podium-card\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
-    expect(css).toMatch(/\.now-digging\s*\{[^}]*border:\s*1px solid color-mix\(in srgb, var\(--gold\)/s);
+    expect(css).toMatch(
+      /\.now-digging\s*\{[^}]*border:\s*1px solid color-mix\(in srgb, var\(--gold\)/s,
+    );
     expect(css).toMatch(/\.you-farm-panel\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     expect(css).toMatch(/\.rules-grid\s*\{[^}]*border:\s*1px solid var\(--window-line\)/s);
     const ongoing = css.match(/\.window-card\.is-ongoing\s*\{[^}]+\}/);
@@ -433,6 +440,13 @@ describe("TournamentsPage", () => {
       name: "Test Tournament 2",
       status: "active",
       prize_amount: "30",
+      prize_places: [{ place: 1, amount: "30" }],
+      min_bumpkin_island: "desert",
+      min_digging_streak: 4,
+      vip_required: true,
+      max_players: 10,
+      enrolled_count: 2,
+      join_mode: "confirm",
     });
     fetchTournament.mockResolvedValue(
       archive(live, [
@@ -512,7 +526,15 @@ describe("TournamentsPage", () => {
       expect.objectContaining({
         name: "Test Tournament 2",
         prize_amount: "30",
+        prize_places: [{ place: 1, amount: "30" }],
         total_count: 2,
+        connected_farm_id: "3666918801844311",
+        enrolled_count: 2,
+        max_players: 10,
+        min_bumpkin_island: "desert",
+        min_digging_streak: 4,
+        vip_required: true,
+        join_mode: "confirm",
       }),
     );
     const payload = downloadTournamentBoardImage.mock.calls[0]?.[0] as {

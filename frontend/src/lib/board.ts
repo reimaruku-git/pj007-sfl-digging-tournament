@@ -57,8 +57,9 @@ export function homeBoardRows(
   entries: LeaderboardEntry[],
   sort: StandingsSort,
   connectedFarmId?: string | null,
+  limit = HOME_BOARD_LIMIT,
 ): LeaderboardEntry[] {
-  const top = sortedStandings(entries, sort).slice(0, HOME_BOARD_LIMIT);
+  const top = sortedStandings(entries, sort).slice(0, limit);
   const mine = (connectedFarmId || "").trim();
   if (!mine) return top;
   if (top.some((row) => row.farm_id === mine)) return top;
