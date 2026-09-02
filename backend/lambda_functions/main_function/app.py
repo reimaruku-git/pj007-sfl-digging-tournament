@@ -77,7 +77,13 @@ from tournament.slogans import (
     slogans_document,
 )
 from tournament.stats import player_detail, player_list_row
-from tournament.sfl_client import build_sfl_client, load_sfl_keys
+from tournament.sfl_client import (
+    SFLApiError,
+    build_identify_sfl_client,
+    build_sfl_client,
+    identity_from_community_payload,
+    load_sfl_keys,
+)
 from tournament.sfl_world import SflWorldError, lookup_farm_name
 from tournament.store import Store
 from tournament.sync import (
@@ -139,6 +145,23 @@ def _join_sfl_client():
     if not keys:
         return None
     return build_sfl_client(keys)
+
+
+def _identify_from_community(farm_id: str) -> dict[str, Any] | None:
+    """Timed Community fallback after sfl.world misses. None if that farm is gone."""
+    client = build_identify_sfl_client(load_sfl_keys(SECRETS_BUCKET, SFL_KEYS_OBJECT))
+    if client is None:
+        logger.warning("identify Community fallback skipped for %s: no SFL keys", farm_id)
+        return None
+    try:
+        payload = client.fetch_farm(farm_id)
+    except SFLApiError as exc:
+        logger.warning("identify Community fallback failed for %s: %s", farm_id, exc)
+        return None
+    looked_up = identity_from_community_payload(payload, farm_id)
+    if looked_up is None:
+        logger.warning("identify Community payload had no farm for %s", farm_id)
+    return looked_up
 
 
 def _headers(event: dict[str, Any]) -> dict[str, str]:
@@ -327,7 +350,10 @@ def handle_identify_farm(event: dict[str, Any]) -> dict[str, Any]:
     try:
         looked_up = lookup_farm_name(farm_id)
     except SflWorldError as exc:
-        return create_error_response(exc.status_code, exc.message, exc.code)
+        logger.warning("sfl.world identify failed for %s: %s", farm_id, exc.message)
+        looked_up = _identify_from_community(farm_id)
+        if looked_up is None:
+            return create_error_response(exc.status_code, exc.message, exc.code)
     stored = _get_store().put_identity(
         farm_id,
         looked_up["name"],
