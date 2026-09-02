@@ -56,7 +56,7 @@ function Slot({
         {showTieBreak ? (
           <div className="podium-tie" data-testid={`podium-tie-${place}`}>
             <span>2nd {formatScore(entry.score_second_op)}</span>
-            <span>3rd {formatScore(entry.score)}</span>
+            <span>1st {formatScore(entry.score_first_op)}</span>
           </div>
         ) : null}
         <Pebbles count={entry.otter_count} />

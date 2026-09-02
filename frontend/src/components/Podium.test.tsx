@@ -62,12 +62,13 @@ describe("Podium", () => {
     expect(el.querySelector('[data-testid="podium-tie-3"]')).toBeNull();
   });
 
-  it("shows 2nd and 3rd pebble averages only on tied top-3 primary scores", () => {
+  it("shows 1st and 2nd pebble averages only on tied top-3 primary scores", () => {
     const el = renderPodium([
       entry({
         farm_id: "1",
         rank: 1,
         score: 10,
+        score_first_op: 4.25,
         score_second_op: 6.5,
         name: "Lead",
         digs_to_third_op: 40,
@@ -76,6 +77,7 @@ describe("Podium", () => {
         farm_id: "2",
         rank: 2,
         score: 10,
+        score_first_op: 5.0,
         score_second_op: 7.25,
         name: "Tied",
         digs_to_third_op: 40,
@@ -84,14 +86,16 @@ describe("Podium", () => {
         farm_id: "3",
         rank: 3,
         score: 18,
+        score_first_op: 6,
         score_second_op: 9,
         name: "Clear",
         digs_to_third_op: 54,
       }),
     ]);
     expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/2nd 6\.50/);
-    expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/3rd 10\.00/);
+    expect(el.querySelector('[data-testid="podium-tie-1"]')?.textContent).toMatch(/1st 4\.25/);
     expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/2nd 7\.25/);
+    expect(el.querySelector('[data-testid="podium-tie-2"]')?.textContent).toMatch(/1st 5\.00/);
     expect(el.querySelector('[data-testid="podium-tie-3"]')).toBeNull();
   });
 
