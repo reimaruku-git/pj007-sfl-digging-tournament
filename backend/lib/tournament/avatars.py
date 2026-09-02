@@ -7,6 +7,7 @@ import hashlib
 import re
 from typing import Any, Iterable
 
+from tournament.farms import FARM_ID_RE
 from tournament.images import (
     ALLOWED_CONTENT_TYPES,
     MAX_IMAGE_BYTES,
@@ -45,13 +46,12 @@ PRESET_IDS = frozenset(
     }
 )
 AVATAR_KINDS = frozenset({"preset", "upload", "none"})
-_FARM_ID_RE = re.compile(r"^[0-9]{6,32}$")
-_AVATAR_KEY_RE = re.compile(r"^media/avatars/[0-9]{6,32}/avatar\.(jpg|png|webp|gif)$")
+_AVATAR_KEY_RE = re.compile(r"^media/avatars/[0-9]{1,32}/avatar\.(jpg|png|webp|gif)$")
 
 
 def avatar_object_key(farm_id: str, ext: str) -> str:
     fid = str(farm_id or "").strip()
-    if not _FARM_ID_RE.fullmatch(fid):
+    if not FARM_ID_RE.fullmatch(fid):
         raise MediaError("farm_id must be a numeric id")
     safe_ext = str(ext or "").strip().lower()
     if safe_ext not in set(ALLOWED_CONTENT_TYPES.values()):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,6 +14,12 @@ from botocore.exceptions import ClientError
 logger = logging.getLogger(__name__)
 
 TRACKED_FARMS_KEY = "config/tracked-farms.json"
+FARM_ID_RE = re.compile(r"^[0-9]{1,32}$")
+
+
+def is_valid_farm_id(farm_id: str) -> bool:
+    """True when ``farm_id`` is a non-empty decimal string (1–32 digits)."""
+    return bool(FARM_ID_RE.fullmatch(str(farm_id or "").strip()))
 
 
 def utc_now_iso() -> str:

@@ -37,7 +37,7 @@ from tournament.catalog import (
     tournament_record,
     update_tournament,
 )
-from tournament.farms import FarmRegistry
+from tournament.farms import FarmRegistry, is_valid_farm_id
 from tournament.history import recorded_farm_stats
 from tournament.avatars import (
     apply_avatar_update,
@@ -330,7 +330,7 @@ def handle_get_farm_memberships(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _path_params(event).get("farm_id", "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
-    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+    if not is_valid_farm_id(farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     memberships = public_farm_memberships(_get_store(), farm_id)
     return create_response(200, {"memberships": memberships, "count": len(memberships)})
@@ -345,7 +345,7 @@ def handle_identify_farm(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _farm_id_from_body(body)
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
-    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+    if not is_valid_farm_id(farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     try:
         looked_up = lookup_farm_name(farm_id)
@@ -366,7 +366,7 @@ def handle_get_farm_profile(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _path_params(event).get("farm_id", "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
-    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+    if not is_valid_farm_id(farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     identity = _get_store().get_identity(farm_id)
     if not identity:
@@ -378,7 +378,7 @@ def handle_put_farm_avatar(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _path_params(event).get("farm_id", "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
-    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+    if not is_valid_farm_id(farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     store = _get_store()
     try:
@@ -417,7 +417,7 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
     name = str(body.get("name") or "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
-    if not re.fullmatch(r"[0-9]{6,32}", farm_id):
+    if not is_valid_farm_id(farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     try:
         tournament_ids = parse_tournament_ids(body)

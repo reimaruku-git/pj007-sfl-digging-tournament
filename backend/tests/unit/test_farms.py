@@ -2,7 +2,16 @@ import json
 
 import boto3
 
-from tournament.farms import FarmRegistry
+from tournament.farms import FarmRegistry, is_valid_farm_id
+
+
+def test_is_valid_farm_id_accepts_short_numeric_ids():
+    assert is_valid_farm_id("7916")
+    assert is_valid_farm_id("1")
+    assert is_valid_farm_id("3666918801844311")
+    assert not is_valid_farm_id("")
+    assert not is_valid_farm_id("not-a-farm")
+    assert not is_valid_farm_id("12abc")
 
 
 def test_upsert_and_remove_round_trip(aws_env):
