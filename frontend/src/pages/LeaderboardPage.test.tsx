@@ -80,13 +80,16 @@ function archive(row: TournamentSummary, entries: LeaderboardEntry[]): Tournamen
   };
 }
 
-async function renderHome() {
+function testQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+}
+
+async function renderHome(client: QueryClient = testQueryClient()) {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
   act(() => {
     root.render(
       <QueryClientProvider client={client}>
@@ -126,6 +129,111 @@ afterEach(() => {
 });
 
 describe("LeaderboardPage home", () => {
+  it("shows a layout skeleton on first open while the catalog never resolves", async () => {
+    listTournaments.mockImplementation(() => new Promise(() => undefined));
+    const page = await renderHome();
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.querySelector('[data-testid="home-skeleton"]')).not.toBeNull();
+    expect(page.textContent).not.toMatch(/Three Otter Pebbles\. Fewest digs wins\./);
+    expect(page.textContent).not.toMatch(/Loading live tournament/);
+    expect(page.querySelector('[data-testid="featured-title"]')).toBeNull();
+    expect(page.querySelector('[data-testid="now-digging"]')).toBeNull();
+    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
+    expect(page.querySelector("table.board-table")).toBeNull();
+    expect(page.querySelector(".farm-card")).toBeNull();
+  });
+
+  it("does not paint a preloaded stale catalog while this visit's fetch is still pending", async () => {
+    const stale = summary({
+      tournament_id: "old-cup",
+      name: "Old Ended Cup",
+      status: "ended",
+    });
+    const client = testQueryClient();
+    client.setQueryData(["tournaments"], {
+      tournaments: [stale],
+      count: 1,
+      featured_tournament_id: "old-cup",
+    });
+    client.setQueryData(
+      ["tournament", "old-cup"],
+      archive(stale, [entry({ farm_id: "stale-1", rank: 1, score: 9, name: "StaleLead" })]),
+    );
+    listTournaments.mockImplementation(() => new Promise(() => undefined));
+    const page = await renderHome(client);
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.textContent).not.toMatch(/Old Ended Cup/);
+    expect(page.textContent).not.toMatch(/StaleLead/);
+    expect(page.textContent).not.toMatch(/Three Otter Pebbles\. Fewest digs wins\./);
+    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
+    expect(page.querySelector("table.board-table")).toBeNull();
+  });
+
+  it("shows the current board after this visit's catalog and board resolve, then empty copy when nothing is live", async () => {
+    let resolveList: (value: { tournaments: TournamentSummary[]; count: number }) => void =
+      () => undefined;
+    listTournaments.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
+      prize_amount: "100",
+      count: 2,
+    });
+    fetchTournament.mockResolvedValue(
+      archive(live, [
+        entry({ farm_id: "1", rank: 1, score: 10, name: "Alpha", digs_to_third_op: 10 }),
+        entry({ farm_id: "2", rank: 2, score: 12, name: "Beta", digs_to_third_op: 12 }),
+      ]),
+    );
+
+    const page = await renderHome();
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.textContent).not.toMatch(/Creators Digging Tournament/);
+    expect(page.textContent).not.toMatch(/Alpha/);
+
+    await act(async () => {
+      resolveList({ tournaments: [live], count: 1 });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(page.querySelector(".skeleton")).toBeNull();
+    expect(page.querySelector('[data-testid="home-skeleton"]')).toBeNull();
+    expect(page.querySelector('[data-testid="featured-title"]')?.textContent).toBe(
+      "Creators Digging Tournament",
+    );
+    expect(page.querySelector('[data-testid="tournament-podium"]')?.textContent).toMatch(/Alpha/);
+    expect(page.querySelector("table.board-table")?.textContent).toMatch(/Beta/);
+  });
+
+  it("shows empty copy after this visit's catalog resolves with no live event", async () => {
+    let resolveList: (value: { tournaments: TournamentSummary[]; count: number }) => void =
+      () => undefined;
+    listTournaments.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    const page = await renderHome();
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.textContent).not.toMatch(/No live tournament yet/);
+    expect(page.textContent).not.toMatch(/Three Otter Pebbles\. Fewest digs wins\./);
+
+    await act(async () => {
+      resolveList({ tournaments: [], count: 0 });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(page.querySelector(".skeleton")).toBeNull();
+    expect(page.textContent).toMatch(/No live tournament yet/);
+    expect(page.querySelector('[data-testid="now-digging"]')).toBeNull();
+    expect(page.querySelector("table.board-table")).toBeNull();
+  });
+
   it("stacks hero, top three, standings, then our rules", async () => {
     const live = summary({
       tournament_id: "sprint",

@@ -68,6 +68,7 @@ export function LeaderboardPage() {
   const catalog = useQuery({
     queryKey: ["tournaments"],
     queryFn: listTournaments,
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
 
@@ -82,19 +83,23 @@ export function LeaderboardPage() {
     return () => window.clearTimeout(id);
   }, [catalog.dataUpdatedAt, catalog.refetch]);
 
+  const catalogReady = catalog.isFetchedAfterMount;
   const featured = useMemo(
     () =>
-      featuredHomeTournament(
-        catalog.data?.tournaments ?? [],
-        catalog.data?.featured_tournament_id,
-      ),
-    [catalog.data],
+      catalogReady
+        ? featuredHomeTournament(
+            catalog.data?.tournaments ?? [],
+            catalog.data?.featured_tournament_id,
+          )
+        : null,
+    [catalogReady, catalog.data],
   );
 
   const board = useQuery({
     queryKey: ["tournament", featured?.tournament_id],
     queryFn: () => fetchTournament(featured!.tournament_id),
     enabled: Boolean(featured?.tournament_id),
+    refetchOnMount: "always",
   });
 
   const mineFarm = useQuery({
@@ -103,36 +108,43 @@ export function LeaderboardPage() {
     enabled: Boolean(mine),
   });
 
-  const featuredEntries = board.data?.entries ?? [];
+  const boardReady = !featured || board.isFetchedAfterMount;
+  const showSkeleton = !catalogReady || !boardReady;
+  const featuredEntries = showSkeleton ? [] : (board.data?.entries ?? []);
   const you =
     featuredEntries.find((row) => row.farm_id === mine) ??
     (mineFarm.data?.farm_id === mine ? mineFarm.data : undefined);
 
   return (
     <>
-      <Hero featured={featured} loading={catalog.isLoading} error={catalog.error as Error | undefined} />
+      <Hero
+        featured={showSkeleton ? null : featured}
+        pending={showSkeleton}
+        error={catalogReady ? (catalog.error as Error | undefined) : undefined}
+      />
 
       <div className="page-inner">
-        {featured && (
+        {showSkeleton && <HomeBoardSkeleton />}
+        {!showSkeleton && featured && (
           <LiveEventBand
             tournament={featured}
             entries={featuredEntries}
-            loading={board.isLoading}
+            loading={false}
             error={board.error as Error | undefined}
             sort={sort}
             onSort={setSort}
             mine={mine}
             you={identity ? you : undefined}
             youName={identity?.name}
-            youLoading={board.isLoading || mineFarm.isLoading}
+            youLoading={mineFarm.isLoading}
           />
         )}
-        {!catalog.isLoading && !featured && (
+        {!showSkeleton && !featured && (
           <p className="muted" data-testid="no-live">
             No live tournament yet.
           </p>
         )}
-        {identity && !featured && (
+        {identity && !showSkeleton && !featured && (
           <YouFarmCard
             farmId={identity.farm_id}
             name={identity.name}
@@ -196,13 +208,33 @@ function ThumbArt({ src }: { src?: string | null }) {
   );
 }
 
+function HomeBoardSkeleton() {
+  return (
+    <div className="live-event" data-testid="home-board-skeleton">
+      <section className="home-band" data-testid="top-three">
+        <div className="skeleton-stack" aria-hidden>
+          <div className="skeleton is-podium" />
+        </div>
+      </section>
+      <section className="home-band" id="standings" data-testid="standings">
+        <div className="skeleton-stack" aria-hidden>
+          <div className="skeleton is-row" />
+          <div className="skeleton is-row" />
+          <div className="skeleton is-row" />
+          <div className="skeleton is-row" />
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function Hero({
   featured,
-  loading,
+  pending,
   error,
 }: {
   featured: TournamentSummary | null;
-  loading: boolean;
+  pending: boolean;
   error?: Error;
 }) {
   const href = featured ? `/tournaments/${encodeURIComponent(featured.tournament_id)}` : "";
@@ -225,20 +257,31 @@ function Hero({
     <section className="live-hero" data-testid="home-hero">
       <HeroArt src={featured?.image_2_url} layers={featured?.hero_layers} />
       <div className="live-hero-inner">
-        <div className="hero-copy" data-testid="hero-copy">
-          <p className="hero-eyebrow">{eyebrow}</p>
-          {featured ? (
-            <h2 className="hero-title" data-testid="featured-title">
-              {featured.name}
-            </h2>
-          ) : (
-            <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
-          )}
-          <p className="hero-lead">
-            Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
-            affect your score.
-          </p>
-        </div>
+        {pending ? (
+          <div className="hero-copy" data-testid="home-skeleton">
+            <div className="skeleton-stack is-hero" aria-hidden>
+              <div className="skeleton is-kicker" />
+              <div className="skeleton is-title" />
+              <div className="skeleton is-lead" />
+              <div className="skeleton is-lead" />
+            </div>
+          </div>
+        ) : (
+          <div className="hero-copy" data-testid="hero-copy">
+            <p className="hero-eyebrow">{eyebrow}</p>
+            {featured ? (
+              <h2 className="hero-title" data-testid="featured-title">
+                {featured.name}
+              </h2>
+            ) : (
+              <h2 className="hero-title">Three Otter Pebbles. Fewest digs wins.</h2>
+            )}
+            <p className="hero-lead">
+              Get the 3 Otter Pebbles in as few digs as possible. Digs after the 3rd pebble do not
+              affect your score.
+            </p>
+          </div>
+        )}
         <div className="hero-actions">
           <Link to="/tournaments" className="btn primary" data-testid="see-tournaments">
             See tournaments
@@ -248,11 +291,24 @@ function Hero({
           </a>
         </div>
         {error && <p className="flash err">{error.message}</p>}
-        {loading && !featured && <p className="muted">Loading live tournament…</p>}
-        {!loading && !featured && !error && (
+        {!pending && !featured && !error && (
           <p className="muted">No live tournament right now. See upcoming tournaments.</p>
         )}
-        {featured && (
+        {pending && (
+          <div className="now-digging" aria-hidden>
+            <div className="skeleton is-thumb" />
+            <div className="skeleton-stack">
+              <div className="skeleton" />
+              <div className="skeleton" />
+            </div>
+            <div className="now-digging-stats">
+              <div className="skeleton" />
+              <div className="skeleton" />
+              <div className="skeleton" />
+            </div>
+          </div>
+        )}
+        {!pending && featured && (
           <Link to={href} className="now-digging-link" data-testid="featured-now-link">
             <NowDigging featured={featured} />
           </Link>

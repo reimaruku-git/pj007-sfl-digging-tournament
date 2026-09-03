@@ -170,8 +170,13 @@ export function TournamentsPage() {
 }
 
 function TournamentList() {
-  const query = useQuery({ queryKey: ["tournaments"], queryFn: listTournaments });
-  const items = query.data?.tournaments ?? [];
+  const query = useQuery({
+    queryKey: ["tournaments"],
+    queryFn: listTournaments,
+    refetchOnMount: "always",
+  });
+  const ready = query.isFetchedAfterMount;
+  const items = ready ? (query.data?.tournaments ?? []) : [];
   const live = liveTournamentsSoonestFirst(items);
   const upcoming = upcomingTournaments(items);
   const ended = pastTournaments(items);
@@ -181,9 +186,9 @@ function TournamentList() {
         <div className="kicker">Calendar</div>
         <h1 data-testid="tournaments-title">Tournaments</h1>
       </header>
-      {query.isLoading && <p className="muted">Loading tournaments…</p>}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
-      {!query.isLoading && (
+      {!ready && <CatalogSkeleton />}
+      {ready && (
         <div className="windows-board" data-testid="catalog-board">
           <CatalogGroup
             title="Live"
@@ -208,6 +213,25 @@ function TournamentList() {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+function CatalogSkeleton() {
+  return (
+    <div className="windows-board" data-testid="catalog-skeleton">
+      {["Live", "Upcoming", "Past"].map((title) => (
+        <section key={title} className="windows-group" aria-hidden>
+          <div className="windows-group-head">
+            <h2>{title}</h2>
+            <span className="skeleton is-count" />
+          </div>
+          <div className="windows-group-list">
+            <div className="skeleton is-card" />
+            <div className="skeleton is-card" />
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

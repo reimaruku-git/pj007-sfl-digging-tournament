@@ -224,8 +224,10 @@ export type TournamentList = {
   featured_tournament_id?: string | null;
 };
 
+const FRESH_GET: RequestInit = { cache: "no-store" };
+
 export async function listTournaments(): Promise<TournamentList> {
-  const { response, data } = await requestJson<TournamentList>("tournaments");
+  const { response, data } = await requestJson<TournamentList>("tournaments", FRESH_GET);
   if (!response.ok || !data) throw new Error(errorMessage(data, "failed to load tournaments"));
   return data;
 }
@@ -233,6 +235,7 @@ export async function listTournaments(): Promise<TournamentList> {
 export async function fetchTournament(tournamentId: string): Promise<TournamentArchive> {
   const { response, data } = await requestJson<{ tournament: TournamentArchive }>(
     `tournaments/${encodeURIComponent(tournamentId)}`,
+    FRESH_GET,
   );
   if (!response.ok || !data) throw new Error(errorMessage(data, "tournament not found"));
   return data.tournament;
