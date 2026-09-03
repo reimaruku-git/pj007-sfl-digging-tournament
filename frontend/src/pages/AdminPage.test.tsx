@@ -31,7 +31,7 @@ vi.mock("../api/admin", () => ({
   deleteTournament: vi.fn(),
   fetchAdminFarm: vi.fn(),
   fetchSnapshot: vi.fn(),
-  fetchTournamentRoster: vi.fn(),
+  fetchTournamentRoster: vi.fn().mockResolvedValue([]),
   setFeaturedTournament: vi.fn(),
   refreshFarm: vi.fn(),
   rejectSubmission: vi.fn(),
@@ -53,6 +53,7 @@ vi.mock("../api/public", async (importOriginal) => {
 });
 
 import { getAuthToken } from "../auth/session";
+import { adminSession } from "../api/admin";
 import { AdminPage } from "./AdminPage";
 
 let root: Root;
@@ -102,10 +103,18 @@ describe("AdminPage", () => {
 
   it("sits Force full sync below the header on the authed dashboard", async () => {
     vi.mocked(getAuthToken).mockResolvedValue("id-token");
+    vi.mocked(adminSession).mockResolvedValue(true);
     const el = renderAdmin();
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 40));
+      await Promise.resolve();
+      await Promise.resolve();
     });
+    for (let i = 0; i < 15 && !el.querySelector('[data-testid="admin-force-sync"]'); i += 1) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    }
+    expect(adminSession).toHaveBeenCalled();
     const sync = el.querySelector('[data-testid="admin-force-sync"]');
     expect(sync).not.toBeNull();
     expect(sync?.textContent).toMatch(/Force full sync/);

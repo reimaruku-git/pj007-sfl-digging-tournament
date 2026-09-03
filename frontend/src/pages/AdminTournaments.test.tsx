@@ -708,9 +708,7 @@ describe("AdminTournaments", () => {
     );
   });
 
-  it("opens a pending-only review from an upcoming card with confirmed bulk approve and reject", async () => {
-    const onApprove = vi.fn().mockResolvedValue(undefined);
-    const onReject = vi.fn().mockResolvedValue(undefined);
+  it("opens the roster from an upcoming card so pending and add-players are on one overlay", () => {
     const { container } = render(
       [
         row({
@@ -719,13 +717,6 @@ describe("AdminTournaments", () => {
           status: "scheduled",
           start_at: "2026-09-01T00:00:00.000Z",
           end_at: "2026-09-08T00:00:00.000Z",
-          description: "Bring a shovel.",
-          prize_amount: "30",
-          prize_places: [{ place: 1, amount: "30" }],
-          min_bumpkin_island: "desert",
-          vip_required: true,
-          join_mode: "confirm",
-          max_players: 16,
         }),
       ],
       {
@@ -738,13 +729,6 @@ describe("AdminTournaments", () => {
             submitted_at: "2026-08-14T13:00:00+00:00",
           },
           {
-            farm_id: "12",
-            name: "pending-b",
-            tournament_id: "next",
-            status: "pending",
-            submitted_at: "2026-08-14T13:10:00+00:00",
-          },
-          {
             farm_id: "22",
             name: "already-in",
             tournament_id: "next",
@@ -752,69 +736,26 @@ describe("AdminTournaments", () => {
             submitted_at: "2026-08-14T12:00:00+00:00",
           },
         ],
-        onApprove,
-        onReject,
+        players: [
+          { farm_id: "11", name: "pending-a", active: true },
+          { farm_id: "22", name: "already-in", active: true },
+          { farm_id: "99", name: "fresh", active: true },
+        ],
       },
     );
     act(() => {
       (container.querySelector('[data-testid="admin-open-next"]') as HTMLButtonElement).click();
     });
-    const overlay = container.querySelector('[data-testid="admin-pending-review"]');
-    expect(overlay).not.toBeNull();
-    expect(overlay?.textContent).toMatch(/September cup/);
-    expect(overlay?.querySelector('[data-testid="admin-review-facts"]')?.textContent).toMatch(
-      /Bring a shovel/,
-    );
-    expect(overlay?.querySelector('[data-testid="admin-review-prizes"]')?.textContent).toMatch(/30/);
-    expect(overlay?.textContent).toMatch(/pending-a/);
-    expect(overlay?.textContent).toMatch(/pending-b/);
-    expect(overlay?.textContent).not.toMatch(/already-in/);
-    expect(overlay?.textContent).not.toMatch(/Add existing players/);
-    expect(overlay?.textContent).not.toMatch(/Enrolled/);
-    expect(container.querySelector('[data-testid="admin-roster-next"]')).toBeNull();
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-select-all"]') as HTMLButtonElement).click();
-    });
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-approve"]') as HTMLButtonElement).click();
-    });
-    expect(onApprove).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-testid="confirm-dialog"]')?.textContent).toMatch(
-      /Approve 2 join requests/,
-    );
-    act(() => {
-      (container.querySelector('[data-testid="confirm-no"]') as HTMLButtonElement).click();
-    });
-    expect(onApprove).not.toHaveBeenCalled();
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-approve"]') as HTMLButtonElement).click();
-    });
-    await act(async () => {
-      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
-    });
-    expect(onApprove).toHaveBeenCalledTimes(2);
-    expect(onApprove).toHaveBeenCalledWith("11", "next");
-    expect(onApprove).toHaveBeenCalledWith("12", "next");
-
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-pick-11"]') as HTMLInputElement).click();
-      (container.querySelector('[data-testid="admin-review-pick-12"]') as HTMLInputElement).click();
-    });
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-deselect-all"]') as HTMLButtonElement).click();
-    });
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-pick-11"]') as HTMLInputElement).click();
-    });
-    act(() => {
-      (container.querySelector('[data-testid="admin-review-reject"]') as HTMLButtonElement).click();
-    });
-    expect(onReject).not.toHaveBeenCalled();
-    await act(async () => {
-      (container.querySelector('[data-testid="confirm-yes"]') as HTMLButtonElement).click();
-    });
-    expect(onReject).toHaveBeenCalledTimes(1);
-    expect(onReject).toHaveBeenCalledWith("11", "next");
+    const roster = container.querySelector('[data-testid="admin-roster-next"]');
+    expect(roster).not.toBeNull();
+    expect(container.querySelector('[data-testid="admin-pending-review"]')).toBeNull();
+    expect(roster?.textContent).toMatch(/pending-a/);
+    expect(roster?.textContent).toMatch(/already-in/);
+    expect(roster?.textContent).toMatch(/Add existing players/);
+    const addLabels = [...roster!.querySelectorAll(".join-option")].map((node) => node.textContent);
+    expect(addLabels.join(" ")).toMatch(/fresh/);
+    expect(addLabels.join(" ")).not.toMatch(/pending-a/);
+    expect(addLabels.join(" ")).not.toMatch(/already-in/);
   });
 
   it("opens the same pending review when reviewId is set from pending joins", () => {

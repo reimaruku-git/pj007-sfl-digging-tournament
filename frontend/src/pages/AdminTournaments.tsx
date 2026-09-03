@@ -120,20 +120,16 @@ export function AdminTournaments({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [localReviewId, setLocalReviewId] = useState<string | null>(null);
+  const [localRosterId, setLocalRosterId] = useState<string | null>(null);
   const [liveOverflow, setLiveOverflow] = useState(false);
   const [pastOverflow, setPastOverflow] = useState(false);
   const confirm = useConfirm();
   const openReviewId = localReviewId;
+  const rosterId = selectedId ?? localRosterId;
 
   useEffect(() => {
     if (reviewId !== undefined) setLocalReviewId(reviewId);
   }, [reviewId]);
-
-  function openPendingReview(id: string) {
-    setLocalReviewId(id);
-    onReview?.(id);
-    onSelect?.(id);
-  }
 
   function closePendingReview() {
     setLocalReviewId(null);
@@ -143,7 +139,10 @@ export function AdminTournaments({
   function openRoster(id: string) {
     setLocalReviewId(null);
     onReview?.(null);
-    onSelect?.(selectedId === id ? null : id);
+    const current = selectedId ?? localRosterId;
+    const next = current === id ? null : id;
+    setLocalRosterId(next);
+    onSelect?.(next);
   }
 
   function requestDelete(row: TournamentSummary) {
@@ -316,18 +315,15 @@ export function AdminTournaments({
     setError(null);
     try {
       let tournamentId = editor?.mode === "edit" ? editor.id : "";
-      if (editor?.mode !== "edit") {
+      if (!tournamentId) {
         const created = await onCreate(payload);
         tournamentId = created.tournament_id;
+        setEditor({ mode: "edit", id: tournamentId });
       }
       const imagePatch = await uploadPendingTournamentImages(tournamentId, pendingImages);
       payload.image_1_url = nextImageUrl("image_1", imagePatch);
       payload.image_2_url = nextImageUrl("image_2", imagePatch);
-      if (editor?.mode === "edit") {
-        await onUpdate(editor.id, payload);
-      } else if (imagePatch.image_1_url || imagePatch.image_2_url) {
-        await onUpdate(tournamentId, payload);
-      }
+      await onUpdate(tournamentId, payload);
       setEditor(null);
       resetImageDraft();
     } catch (err) {
@@ -369,7 +365,7 @@ export function AdminTournaments({
             selectedId={selectedId}
             featuredId={featuredId}
             canFeature
-            onOpen={openPendingReview}
+            onOpen={openRoster}
             onEdit={openEdit}
             onDelete={requestDelete}
             onFeature={onFeature}
@@ -424,7 +420,7 @@ export function AdminTournaments({
           }}
           onOpenUpcoming={(id) => {
             setLiveOverflow(false);
-            openPendingReview(id);
+            openRoster(id);
           }}
           onEdit={(row) => {
             setLiveOverflow(false);
@@ -445,7 +441,7 @@ export function AdminTournaments({
           featuredId={featuredId}
           onClose={() => setPastOverflow(false)}
           onOpenLive={openRoster}
-          onOpenUpcoming={openPendingReview}
+          onOpenUpcoming={openRoster}
           onOpenPast={(id) => {
             setPastOverflow(false);
             openRoster(id);
@@ -468,17 +464,20 @@ export function AdminTournaments({
         />
       )}
 
-      {selectedId && !openReviewId && (
+      {rosterId && !openReviewId && (
         <TournamentRoster
-          tournamentId={selectedId}
-          name={items.find((item) => item.tournament_id === selectedId)?.name || selectedId}
+          tournamentId={rosterId}
+          name={items.find((item) => item.tournament_id === rosterId)?.name || rosterId}
           players={players}
           roster={roster}
           onAddFarms={onAddFarms}
           onRemoveFarm={requestRemoveFarm}
           onApprove={onApprove}
           onReject={requestReject}
-          onClose={() => onSelect?.(null)}
+          onClose={() => {
+            setLocalRosterId(null);
+            onSelect?.(null);
+          }}
         />
       )}
 
@@ -948,8 +947,9 @@ function islandLabel(island: string | null | undefined): string {
 function optionalPositiveInt(raw: string): number | null {
   const text = raw.trim();
   if (!text) return null;
+  if (!/^\d+$/.test(text)) return null;
   const value = Number(text);
-  if (!Number.isFinite(value)) return null;
+  if (!Number.isInteger(value) || value < 1) return null;
   return value;
 }
 
@@ -1458,7 +1458,12 @@ function TournamentRoster({
     roster.filter((item) => item.status === "enrolled").map((item) => item.farm_id),
   );
   const pending = roster.filter((item) => item.status === "pending");
-  const available = players.filter((item) => !enrolled.has(item.farm_id));
+  const taken = new Set(
+    roster
+      .filter((item) => item.status === "enrolled" || item.status === "pending")
+      .map((item) => item.farm_id),
+  );
+  const available = players.filter((item) => !taken.has(item.farm_id));
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 

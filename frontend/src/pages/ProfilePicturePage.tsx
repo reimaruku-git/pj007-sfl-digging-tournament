@@ -6,7 +6,7 @@ import { DetailBackLink } from "../components/DetailBackLink";
 import { FarmAvatar } from "../components/FarmAvatar";
 import { ImageCropModal } from "../components/ImageCropModal";
 import { useActivity } from "../components/LoadingPopup";
-import { AVATAR_PRESETS } from "../lib/avatars";
+import { AVATAR_PRESETS, type AvatarFields } from "../lib/avatars";
 import { useFarmSession } from "../lib/farmSession";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -92,6 +92,18 @@ export function ProfilePicturePage() {
   const current = savedDraft(profile);
   const pending = draft ?? current;
   const dirty = !draftsEqual(draft, current) && draft !== null;
+  const previewFields: AvatarFields = !pending
+    ? profile
+    : pending.kind === "none"
+      ? { avatar_kind: null, avatar_preset: null, avatar_url: null }
+      : pending.kind === "preset"
+        ? { avatar_kind: "preset", avatar_preset: pending.preset_id, avatar_url: null }
+        : pending.data
+          ? {
+              avatar_kind: "upload",
+              avatar_url: `data:${pending.content_type};base64,${pending.data}`,
+            }
+          : profile;
 
   async function onSave() {
     if (!draft) return;
@@ -148,7 +160,7 @@ export function ProfilePicturePage() {
       </div>
       <div className="kicker">Profile picture</div>
       <div className="profile-hero">
-        <FarmAvatar fields={profile} className="profile-avatar-lg" alt="" />
+        <FarmAvatar fields={previewFields} className="profile-avatar-lg" alt="" />
         <div>
           <h2 data-testid="profile-name">{profile.name || identity.name}</h2>
           <p className="farm-id" data-testid="profile-farm-id">

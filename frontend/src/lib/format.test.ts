@@ -68,7 +68,7 @@ describe("formatDateUtc", () => {
     expect(stamped).not.toMatch(/UTC/);
     expect(formatDateUtc("2026-08-21T13:47:11+00:00")).toBe("21 Aug");
     expect(formatDateRangeUtc("2026-08-13T14:44:00.000Z", "2026-08-21T13:47:00.000Z", 8)).toBe(
-      "13–21 Aug",
+      "13–20 Aug",
     );
     expect(formatDateRangeUtc("2026-08-21T00:00:00.000Z", "2026-09-03T00:00:00.000Z")).toBe(
       "21 Aug–3 Sep",

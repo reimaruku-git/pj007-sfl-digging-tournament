@@ -824,6 +824,11 @@ a.tourney-card-link:hover {
   text-transform: none;
 }
 
+.now-digging-copy .tourney-next {
+  text-align: left;
+  margin-top: 8px;
+}
+
 .tourney-catalog-head {
   margin-bottom: 14px;
 }
@@ -2731,7 +2736,19 @@ a.past-card:hover {
   }
 
   .farm-connect-input {
-    width: 104px;
+    width: 18ch;
+    min-width: 16ch;
+    flex: 1 1 16ch;
+  }
+
+  .public-footer-inner {
+    flex-direction: column;
+    flex-wrap: wrap;
+    align-items: stretch;
+  }
+
+  .public-footer-support {
+    align-items: flex-start;
   }
 
   .farm-connected-name {
@@ -3528,6 +3545,19 @@ a.past-card:hover {
 
 .public-footer .site-version {
   margin: 0;
+}
+
+.farm-pebbles-today {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.farm-pebbles-today .muted {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .site-version {

@@ -52,7 +52,7 @@ from tournament.images import (
     store_tournament_image,
     public_api_base_from_event,
 )
-from tournament.leaderboard import official_score, public_entry, rank_scores
+from tournament.leaderboard import public_entry, rank_scores
 from tournament.membership import (
     MembershipError,
     add_farms_to_tournament,
@@ -69,7 +69,7 @@ from tournament.membership import (
     request_joins,
     roster_members,
 )
-from tournament.scoring import STATUS_COMPLETED
+
 from tournament.slogans import (
     SloganError,
     add_slogan,
@@ -863,46 +863,6 @@ def handle_admin_sync(event: dict[str, Any]) -> dict[str, Any]:
     return create_response(202, {"accepted": True})
 
 
-def handle_admin_put_score(event: dict[str, Any]) -> dict[str, Any]:
-    farm_id = _path_params(event).get("farm_id", "").strip()
-    store = _get_store()
-    row = store.get_score(farm_id)
-    if not row:
-        tracked = _get_registry().get(farm_id)
-        if not tracked:
-            return create_error_response(404, "score not found", "NOT_FOUND")
-        row = store.empty_score(farm_id, tracked.get("name") or "")
-    body = _body(event)
-    if "invalidated" in body:
-        row["invalidated"] = bool(body.get("invalidated"))
-    if "override_digs_to_third_op" in body or "overrideDigsToThirdOp" in body:
-        raw = body.get("override_digs_to_third_op", body.get("overrideDigsToThirdOp"))
-        if raw is None or raw == "":
-            row["override_digs_to_third_op"] = None
-        else:
-            try:
-                value = int(raw)
-            except (TypeError, ValueError):
-                return create_error_response(
-                    400, "override_digs_to_third_op must be an integer", "VALIDATION_ERROR"
-                )
-            if value < 1:
-                return create_error_response(
-                    400, "override_digs_to_third_op must be >= 1", "VALIDATION_ERROR"
-                )
-            row["override_digs_to_third_op"] = value
-            row["status"] = STATUS_COMPLETED
-            row["otter_count"] = 3
-    if "override_reason" in body or "overrideReason" in body:
-        row["override_reason"] = (
-            str(body.get("override_reason") or body.get("overrideReason") or "").strip() or None
-        )
-    stored = store.put_score(row)
-    _refresh_public_board(store)
-    stored["digs_to_third_op"] = official_score(stored)
-    return create_response(200, {"score": stored})
-
-
 def handle_admin_get_snapshot(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _path_params(event).get("farm_id", "").strip()
     snapshot = _get_store().read_snapshot(farm_id)
@@ -1013,7 +973,6 @@ ROUTES: list[tuple[str, re.Pattern[str], Any]] = [
         handle_admin_refresh_farm,
     ),
     ("POST", re.compile(r"^/admin/sync$"), handle_admin_sync),
-    ("PUT", re.compile(r"^/admin/scores/(?P<farm_id>[^/]+)$"), handle_admin_put_score),
     (
         "GET",
         re.compile(r"^/admin/scores/(?P<farm_id>[^/]+)/snapshot$"),

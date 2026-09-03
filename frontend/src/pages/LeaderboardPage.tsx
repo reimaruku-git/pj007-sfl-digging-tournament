@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchFarm,
   fetchTournament,
   listTournaments,
   type LeaderboardEntry,
   type TournamentSummary,
 } from "../api/public";
+import { SyncCountdown } from "../components/SyncCountdown";
 import { ColorCanvas, farmCanvasTone } from "../components/ColorCanvas";
 import { FarmAvatar } from "../components/FarmAvatar";
 import { HeroLayerStack } from "../components/HeroLayerStack";
@@ -71,17 +71,6 @@ export function LeaderboardPage() {
     refetchOnWindowFocus: true,
   });
 
-  useEffect(() => {
-    const wait = Math.min(msUntilNextSync() + 45_000, 6 * 60 * 60_000);
-    const id = window.setTimeout(
-      () => {
-        void catalog.refetch();
-      },
-      Math.max(wait, 15_000),
-    );
-    return () => window.clearTimeout(id);
-  }, [catalog.dataUpdatedAt, catalog.refetch]);
-
   const catalogPending = catalog.isPending;
   const featured = useMemo(
     () =>
@@ -100,17 +89,21 @@ export function LeaderboardPage() {
     enabled: Boolean(featured?.tournament_id),
   });
 
-  const mineFarm = useQuery({
-    queryKey: ["farm", mine],
-    queryFn: () => fetchFarm(mine),
-    enabled: Boolean(mine),
-  });
+  useEffect(() => {
+    const wait = Math.min(msUntilNextSync() + 45_000, 6 * 60 * 60_000);
+    const id = window.setTimeout(
+      () => {
+        void catalog.refetch();
+        void board.refetch();
+      },
+      Math.max(wait, 15_000),
+    );
+    return () => window.clearTimeout(id);
+  }, [catalog.dataUpdatedAt, catalog.refetch, board.dataUpdatedAt, board.refetch]);
 
   const boardPending = Boolean(featured) && board.isPending;
   const featuredEntries = board.data?.entries ?? [];
-  const you =
-    featuredEntries.find((row) => row.farm_id === mine) ??
-    (mineFarm.data?.farm_id === mine ? mineFarm.data : undefined);
+  const you = featuredEntries.find((row) => row.farm_id === mine);
 
   return (
     <>
@@ -131,9 +124,9 @@ export function LeaderboardPage() {
             sort={sort}
             onSort={setSort}
             mine={mine}
-            you={identity ? you : undefined}
+            you={you}
             youName={identity?.name}
-            youLoading={boardPending || mineFarm.isLoading}
+            youLoading={boardPending}
           />
         )}
         {!catalogPending && !featured && (
@@ -141,14 +134,7 @@ export function LeaderboardPage() {
             No live tournament yet.
           </p>
         )}
-        {identity && !catalogPending && !featured && (
-          <YouFarmCard
-            farmId={identity.farm_id}
-            name={identity.name}
-            farm={you}
-            loading={mineFarm.isLoading}
-          />
-        )}
+        {!catalogPending && !featured && <SyncCountdown variant="card" />}
         <RulesBand />
       </div>
     </>
@@ -332,6 +318,7 @@ function NowDigging({ featured }: { featured: TournamentSummary }) {
           {windowCopy}
           {remaining ? ` · ${remaining}` : ""}
         </p>
+        <SyncCountdown variant="card" />
       </div>
       <dl className="now-digging-stats">
         <div>
@@ -420,10 +407,10 @@ function LiveEventBand({
             </Link>
           </>
         )}
-        {youName && (
+        {you && (
           <YouFarmCard
             farmId={mine}
-            name={youName}
+            name={youName || you.name || ""}
             farm={you}
             loading={Boolean(youLoading)}
             tournamentId={tournament.tournament_id}
@@ -460,7 +447,6 @@ function SortHeader({
       type="button"
       className={sortClass(sort, column)}
       data-testid={`sort-${column}`}
-      aria-sort={sortAria(sort, column)}
       onClick={() => onSort(nextColumnSort(sort, column))}
     >
       {label}
@@ -493,14 +479,14 @@ function StandingsTable({
           <tr>
             <th>Rank</th>
             <th>Farm</th>
-            <th>
+            <th aria-sort={sortAria(sort, "total")}>
               <SortHeader column="total" label="Total" sort={sort} onSort={onSort} />
             </th>
-            <th>
+            <th aria-sort={sortAria(sort, "today")}>
               <SortHeader column="today" label="Today" sort={sort} onSort={onSort} />
             </th>
             <th>Pebbles</th>
-            <th>
+            <th aria-sort={sortAria(sort, "avg")}>
               <SortHeader column="avg" label={AVG_SCORE_LABEL} sort={sort} onSort={onSort} />
             </th>
           </tr>

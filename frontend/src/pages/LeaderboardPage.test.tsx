@@ -409,7 +409,7 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector('[data-testid="home-hero-scrim"]')).toBeNull();
     expect(page.querySelector('[data-testid="now-digging-scrim"]')).toBeNull();
     expect(page.querySelector(".place-1 [data-testid='color-canvas']")).not.toBeNull();
-    expect(page.querySelector(".you-farm-art [data-testid='color-canvas']")).not.toBeNull();
+    expect(page.querySelector('[data-testid="you-farm"]')).toBeNull();
 
     const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
     const publicRoot = resolve(srcRoot, "../public");
