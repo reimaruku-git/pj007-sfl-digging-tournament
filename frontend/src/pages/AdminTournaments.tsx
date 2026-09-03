@@ -1454,9 +1454,6 @@ function TournamentRoster({
   onReject?: (farmId: string, tournamentId: string, name: string) => void;
   onClose: () => void;
 }) {
-  const enrolled = new Set(
-    roster.filter((item) => item.status === "enrolled").map((item) => item.farm_id),
-  );
   const pending = roster.filter((item) => item.status === "pending");
   const taken = new Set(
     roster
