@@ -118,13 +118,16 @@ function places(...items: PrizePlace[]): PrizePlace[] {
   return items;
 }
 
-async function renderAt(path: string, state?: { from?: string }) {
+function testQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+}
+
+async function renderAt(path: string, state?: { from?: string }, client: QueryClient = testQueryClient()) {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
   act(() => {
     root.render(
       <QueryClientProvider client={client}>
@@ -167,6 +170,77 @@ afterEach(() => {
 });
 
 describe("TournamentsPage", () => {
+  it("shows catalog-group skeletons on first open while the list never resolves", async () => {
+    listTournaments.mockImplementation(() => new Promise(() => undefined));
+    const page = await renderAt("/tournaments");
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.querySelector('[data-testid="catalog-skeleton"]')).not.toBeNull();
+    expect(page.textContent).not.toMatch(/Loading tournaments/);
+    expect(page.querySelector('[data-testid="catalog-board"]')).toBeNull();
+    expect(page.querySelector('[data-testid^="tourney-window-"]')).toBeNull();
+  });
+
+  it("does not paint a preloaded stale catalog while this visit's fetch is still pending", async () => {
+    const staleLive = summary({
+      tournament_id: "old-live",
+      name: "Old Live Cup",
+      status: "active",
+    });
+    const stalePast = summary({
+      tournament_id: "old-past",
+      name: "Forgotten Spring Cup",
+      status: "ended",
+    });
+    const client = testQueryClient();
+    client.setQueryData(["tournaments"], {
+      tournaments: [staleLive, stalePast],
+      count: 2,
+    });
+    listTournaments.mockImplementation(() => new Promise(() => undefined));
+    const page = await renderAt("/tournaments", undefined, client);
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.textContent).not.toMatch(/Old Live Cup/);
+    expect(page.textContent).not.toMatch(/Forgotten Spring Cup/);
+    expect(page.querySelector('[data-testid="tourney-window-old-live"]')).toBeNull();
+    expect(page.querySelector('[data-testid="catalog-board"]')).toBeNull();
+  });
+
+  it("shows the current catalog after this visit's fetch resolves, including empty-bucket copy", async () => {
+    let resolveList: (value: { tournaments: TournamentSummary[]; count: number }) => void =
+      () => undefined;
+    listTournaments.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        }),
+    );
+    const live = summary({
+      tournament_id: "soon",
+      name: "Ends first",
+      status: "active",
+    });
+    const page = await renderAt("/tournaments");
+    expect(page.querySelector(".skeleton")).not.toBeNull();
+    expect(page.textContent).not.toMatch(/Ends first/);
+
+    await act(async () => {
+      resolveList({ tournaments: [live], count: 1 });
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    });
+    expect(page.querySelector(".skeleton")).toBeNull();
+    expect(page.querySelector('[data-testid="catalog-skeleton"]')).toBeNull();
+    expect(page.querySelector('[data-testid="catalog-board"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(
+      /Ends first/,
+    );
+    expect(page.querySelector('[data-testid="catalog-upcoming"]')?.textContent).toMatch(
+      /No upcoming tournaments/,
+    );
+    expect(page.querySelector('[data-testid="catalog-ended"]')?.textContent).toMatch(
+      /No past tournaments yet/,
+    );
+  });
+
   it("lists live and upcoming windows with prize and farm count from the catalog payload", async () => {
     clearFarmIdentity();
     const lateLive = summary({

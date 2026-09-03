@@ -235,7 +235,7 @@ describe("public api", () => {
       }),
     );
     const tournament = await fetchTournament("cup-1");
-    expect(mockRequest).toHaveBeenCalledWith("tournaments/cup-1");
+    expect(mockRequest).toHaveBeenCalledWith("tournaments/cup-1", { cache: "no-store" });
     expect(tournament.config.prize_amount).toBe("45");
     expect(tournament.config.join_mode).toBe("auto");
     expect(tournament.config.min_bumpkin_island).toBe("desert");
@@ -267,7 +267,7 @@ describe("public api", () => {
       }),
     );
     const listed = await listTournaments();
-    expect(mockRequest).toHaveBeenCalledWith("tournaments");
+    expect(mockRequest).toHaveBeenCalledWith("tournaments", { cache: "no-store" });
     expect(listed.featured_tournament_id).toBe("cup-1");
     expect(listed.tournaments[0]?.tournament_id).toBe("cup-1");
   });
