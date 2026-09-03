@@ -180,29 +180,37 @@ describe("TournamentsPage", () => {
     expect(page.querySelector('[data-testid^="tourney-window-"]')).toBeNull();
   });
 
-  it("does not paint a preloaded stale catalog while this visit's fetch is still pending", async () => {
-    const staleLive = summary({
-      tournament_id: "old-live",
-      name: "Old Live Cup",
+  it("paints a cached catalog immediately when remounting while a refetch is pending", async () => {
+    const live = summary({
+      tournament_id: "soon",
+      name: "Ends first",
       status: "active",
     });
-    const stalePast = summary({
-      tournament_id: "old-past",
+    const past = summary({
+      tournament_id: "past",
       name: "Forgotten Spring Cup",
       status: "ended",
     });
     const client = testQueryClient();
-    client.setQueryData(["tournaments"], {
-      tournaments: [staleLive, stalePast],
-      count: 2,
+    listTournaments.mockResolvedValue({ tournaments: [live, past], count: 2 });
+    const first = await renderAt("/tournaments", undefined, client);
+    expect(first.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(
+      /Ends first/,
+    );
+    act(() => {
+      root.unmount();
     });
+    container.remove();
     listTournaments.mockImplementation(() => new Promise(() => undefined));
     const page = await renderAt("/tournaments", undefined, client);
-    expect(page.querySelector(".skeleton")).not.toBeNull();
-    expect(page.textContent).not.toMatch(/Old Live Cup/);
-    expect(page.textContent).not.toMatch(/Forgotten Spring Cup/);
-    expect(page.querySelector('[data-testid="tourney-window-old-live"]')).toBeNull();
-    expect(page.querySelector('[data-testid="catalog-board"]')).toBeNull();
+    expect(page.querySelector('[data-testid="catalog-skeleton"]')).toBeNull();
+    expect(page.querySelector('[data-testid="catalog-board"]')).not.toBeNull();
+    expect(page.querySelector('[data-testid="tourney-window-soon"]')?.textContent).toMatch(
+      /Ends first/,
+    );
+    expect(page.querySelector('[data-testid="tourney-window-past"]')?.textContent).toMatch(
+      /Forgotten Spring Cup/,
+    );
   });
 
   it("shows the current catalog after this visit's fetch resolves, including empty-bucket copy", async () => {

@@ -68,7 +68,6 @@ export function LeaderboardPage() {
   const catalog = useQuery({
     queryKey: ["tournaments"],
     queryFn: listTournaments,
-    refetchOnMount: "always",
     refetchOnWindowFocus: true,
   });
 
@@ -83,23 +82,22 @@ export function LeaderboardPage() {
     return () => window.clearTimeout(id);
   }, [catalog.dataUpdatedAt, catalog.refetch]);
 
-  const catalogReady = catalog.isFetchedAfterMount;
+  const catalogPending = catalog.isPending;
   const featured = useMemo(
     () =>
-      catalogReady
-        ? featuredHomeTournament(
+      catalogPending
+        ? null
+        : featuredHomeTournament(
             catalog.data?.tournaments ?? [],
             catalog.data?.featured_tournament_id,
-          )
-        : null,
-    [catalogReady, catalog.data],
+          ),
+    [catalogPending, catalog.data],
   );
 
   const board = useQuery({
     queryKey: ["tournament", featured?.tournament_id],
     queryFn: () => fetchTournament(featured!.tournament_id),
     enabled: Boolean(featured?.tournament_id),
-    refetchOnMount: "always",
   });
 
   const mineFarm = useQuery({
@@ -108,9 +106,8 @@ export function LeaderboardPage() {
     enabled: Boolean(mine),
   });
 
-  const boardReady = !featured || board.isFetchedAfterMount;
-  const showSkeleton = !catalogReady || !boardReady;
-  const featuredEntries = showSkeleton ? [] : (board.data?.entries ?? []);
+  const boardPending = Boolean(featured) && board.isPending;
+  const featuredEntries = board.data?.entries ?? [];
   const you =
     featuredEntries.find((row) => row.farm_id === mine) ??
     (mineFarm.data?.farm_id === mine ? mineFarm.data : undefined);
@@ -118,33 +115,33 @@ export function LeaderboardPage() {
   return (
     <>
       <Hero
-        featured={showSkeleton ? null : featured}
-        pending={showSkeleton}
-        error={catalogReady ? (catalog.error as Error | undefined) : undefined}
+        featured={featured}
+        pending={catalogPending}
+        error={catalogPending ? undefined : (catalog.error as Error | undefined)}
       />
 
       <div className="page-inner">
-        {showSkeleton && <HomeBoardSkeleton />}
-        {!showSkeleton && featured && (
+        {catalogPending && <HomeBoardSkeleton />}
+        {!catalogPending && featured && (
           <LiveEventBand
             tournament={featured}
             entries={featuredEntries}
-            loading={false}
+            loading={boardPending}
             error={board.error as Error | undefined}
             sort={sort}
             onSort={setSort}
             mine={mine}
             you={identity ? you : undefined}
             youName={identity?.name}
-            youLoading={mineFarm.isLoading}
+            youLoading={boardPending || mineFarm.isLoading}
           />
         )}
-        {!showSkeleton && !featured && (
+        {!catalogPending && !featured && (
           <p className="muted" data-testid="no-live">
             No live tournament yet.
           </p>
         )}
-        {identity && !showSkeleton && !featured && (
+        {identity && !catalogPending && !featured && (
           <YouFarmCard
             farmId={identity.farm_id}
             name={identity.name}

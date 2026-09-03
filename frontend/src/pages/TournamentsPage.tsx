@@ -173,9 +173,8 @@ function TournamentList() {
   const query = useQuery({
     queryKey: ["tournaments"],
     queryFn: listTournaments,
-    refetchOnMount: "always",
   });
-  const ready = query.isFetchedAfterMount;
+  const ready = !query.isPending;
   const items = ready ? (query.data?.tournaments ?? []) : [];
   const live = liveTournamentsSoonestFirst(items);
   const upcoming = upcomingTournaments(items);

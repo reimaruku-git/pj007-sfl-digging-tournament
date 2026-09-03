@@ -143,30 +143,34 @@ describe("LeaderboardPage home", () => {
     expect(page.querySelector(".farm-card")).toBeNull();
   });
 
-  it("does not paint a preloaded stale catalog while this visit's fetch is still pending", async () => {
-    const stale = summary({
-      tournament_id: "old-cup",
-      name: "Old Ended Cup",
-      status: "ended",
+  it("paints a cached catalog immediately when remounting while a refetch is pending", async () => {
+    const live = summary({
+      tournament_id: "sprint",
+      name: "Creators Digging Tournament",
+      status: "active",
     });
     const client = testQueryClient();
-    client.setQueryData(["tournaments"], {
-      tournaments: [stale],
-      count: 1,
-      featured_tournament_id: "old-cup",
-    });
-    client.setQueryData(
-      ["tournament", "old-cup"],
-      archive(stale, [entry({ farm_id: "stale-1", rank: 1, score: 9, name: "StaleLead" })]),
+    listTournaments.mockResolvedValue({ tournaments: [live], count: 1 });
+    fetchTournament.mockResolvedValue(
+      archive(live, [entry({ farm_id: "1", rank: 1, score: 10, name: "Alpha", digs_to_third_op: 10 })]),
     );
+    const first = await renderHome(client);
+    expect(first.querySelector('[data-testid="featured-title"]')?.textContent).toBe(
+      "Creators Digging Tournament",
+    );
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
     listTournaments.mockImplementation(() => new Promise(() => undefined));
+    fetchTournament.mockImplementation(() => new Promise(() => undefined));
     const page = await renderHome(client);
-    expect(page.querySelector(".skeleton")).not.toBeNull();
-    expect(page.textContent).not.toMatch(/Old Ended Cup/);
-    expect(page.textContent).not.toMatch(/StaleLead/);
+    expect(page.querySelector('[data-testid="home-skeleton"]')).toBeNull();
+    expect(page.querySelector('[data-testid="featured-title"]')?.textContent).toBe(
+      "Creators Digging Tournament",
+    );
+    expect(page.querySelector('[data-testid="tournament-podium"]')?.textContent).toMatch(/Alpha/);
     expect(page.textContent).not.toMatch(/Three Otter Pebbles\. Fewest digs wins\./);
-    expect(page.querySelector('[data-testid="tournament-podium"]')).toBeNull();
-    expect(page.querySelector("table.board-table")).toBeNull();
   });
 
   it("shows the current board after this visit's catalog and board resolve, then empty copy when nothing is live", async () => {
