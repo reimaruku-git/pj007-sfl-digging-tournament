@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { FarmSessionProvider } from "./lib/farmSession";
 import { FarmPage } from "./pages/FarmPage";
@@ -12,6 +12,11 @@ const AdminPage = lazy(async () => {
   const module = await import("./pages/AdminPage");
   return { default: module.AdminPage };
 });
+
+function RecordsRedirect() {
+  const { tournamentId = "" } = useParams();
+  return <Navigate to={`/tournaments/${encodeURIComponent(tournamentId)}`} replace />;
+}
 
 export default function App() {
   return (
@@ -31,7 +36,7 @@ export default function App() {
           <Route path="/tournaments/:tournamentId" element={<TournamentsPage />} />
           <Route path="/tournaments/:tournamentId/farm/:farmId" element={<FarmPage />} />
           <Route path="/records" element={<Navigate to="/tournaments" replace />} />
-          <Route path="/records/:tournamentId" element={<Navigate to="/tournaments" replace />} />
+          <Route path="/records/:tournamentId" element={<RecordsRedirect />} />
           <Route path="/farm/:farmId" element={<FarmPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/picture" element={<ProfilePicturePage />} />

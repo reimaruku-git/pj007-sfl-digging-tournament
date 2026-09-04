@@ -278,6 +278,9 @@ describe("public chrome", () => {
     expect(css).toMatch(/\.public-footer-support\s*\{[^}]*flex-direction:\s*column/s);
     expect(css).toMatch(/\.public-footer-inner\s*\{[^}]*flex-wrap:\s*nowrap/s);
     expect(css).toMatch(/\.public-footer-inner\s*\{[^}]*align-items:\s*center/s);
+    expect(css).toMatch(
+      /@media \(max-width: 800px\)[\s\S]*\.public-footer-inner\s*\{[^}]*flex-direction:\s*column/s,
+    );
     expect(css).not.toMatch(/\.public-footer \.donation-line\s*\{[^}]*flex:\s*1 1 100%/s);
     expect(css).toMatch(/\.public-footer\s*\{[^}]*padding:\s*12px 18px 14px/s);
     vi.unstubAllGlobals();

@@ -162,7 +162,7 @@ def test_submit_then_admin_approve(aws_env, monkeypatch, live_join_open):
     assert board["entries"][0]["status"] == "not_started"
 
 
-def test_admin_override_score(aws_env, monkeypatch):
+def test_admin_put_score_removed(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     add = app.lambda_handler(
         _event("POST", "/admin/farms", {"farm_id": "42", "name": "x"}),
@@ -178,31 +178,7 @@ def test_admin_override_score(aws_env, monkeypatch):
         ),
         None,
     )
-    assert updated["statusCode"] == 200
-    assert _json(updated)["score"]["override_digs_to_third_op"] == 11
-    opened = app.lambda_handler(
-        _event(
-            "POST",
-            "/admin/tournaments",
-            {
-                "name": "Override cup",
-                "start_at": "2026-08-10T00:00:00+00:00",
-                "end_at": "2026-09-20T00:00:00+00:00",
-                "prize_amount": "30",
-            },
-        ),
-        None,
-    )
-    assert opened["statusCode"] == 201
-    tid = _json(opened)["tournament"]["tournament_id"]
-    enrolled = app.lambda_handler(
-        _event("POST", f"/admin/tournaments/{tid}/farms", {"farm_ids": ["42"]}),
-        None,
-    )
-    assert enrolled["statusCode"] == 200
-    board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
-    assert board["entries"][0]["digs_to_third_op"] == 11
-    assert board["entries"][0]["status"] == "completed"
+    assert updated["statusCode"] == 404
 
 
 def _open_live_cup(app):

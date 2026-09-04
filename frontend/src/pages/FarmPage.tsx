@@ -1,11 +1,12 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchFarm, fetchTournamentFarm } from "../api/public";
-import { FarmResult } from "../components/FarmResult";
+import { FarmResult, FarmResultFallback } from "../components/FarmResult";
 import { farmBackTarget } from "../lib/backTarget";
 
 export function FarmPage() {
   const { farmId = "", tournamentId } = useParams();
+  const overall = !tournamentId;
   const query = useQuery({
     queryKey: tournamentId ? ["farm", tournamentId, farmId] : ["farm", farmId],
     queryFn: () =>
@@ -15,10 +16,11 @@ export function FarmPage() {
 
   const farm = query.data;
   const back = farmBackTarget(tournamentId);
+  const hasRecord = farm?.recorded_average_per_day != null;
 
   return (
     <div className="card farm-sheet">
-      <div className="kicker">Personal result</div>
+      <div className="kicker">{overall ? "Overall record" : "Personal result"}</div>
       <p className="meta">
         <Link to={back.to} data-testid="back-link">
           ← {back.label}
@@ -31,7 +33,16 @@ export function FarmPage() {
         </div>
       )}
       {query.isError && <p className="flash err">{(query.error as Error).message}</p>}
-      {farm && <FarmResult farm={farm} />}
+      {farm && overall && !hasRecord ? (
+        <FarmResultFallback
+          name={farm.name || "Unnamed farm"}
+          farmId={farm.farm_id}
+          avatarFields={farm}
+        />
+      ) : null}
+      {farm && (!overall || hasRecord) ? (
+        <FarmResult farm={farm} variant={overall ? "overall" : "event"} />
+      ) : null}
     </div>
   );
 }

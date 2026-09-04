@@ -1,7 +1,6 @@
 import { errorMessage, requestJson } from "./client";
 import type {
   HeroLayer,
-  LeaderboardEntry,
   Slogan,
   SloganList,
   Submission,
@@ -379,21 +378,6 @@ export async function triggerSync(): Promise<void> {
     method: "POST",
   });
   if (!response.ok) throw new Error(errorMessage(data, "failed to start sync"));
-}
-
-export async function overrideScore(
-  farmId: string,
-  patch: {
-    override_digs_to_third_op?: number | null;
-    invalidated?: boolean;
-    override_reason?: string;
-  },
-): Promise<void> {
-  const { response, data } = await requestJson<{ score: LeaderboardEntry }>(
-    `admin/scores/${encodeURIComponent(farmId)}`,
-    { method: "PUT", body: JSON.stringify(patch) },
-  );
-  if (!response.ok) throw new Error(errorMessage(data, "failed to override score"));
 }
 
 export async function fetchSnapshot(farmId: string): Promise<unknown> {

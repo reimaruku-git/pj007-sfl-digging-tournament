@@ -118,10 +118,12 @@ export function formatDateUtc(value: string | null | undefined): string {
 export function formatDateRangeUtc(
   start: string | null | undefined,
   end: string | null | undefined,
-  _days?: number | null,
+  days?: number | null,
 ): string {
+  const last =
+    start && days != null && Number(days) > 0 ? inclusiveFinalDayIso(start, days) : end;
   const from = start ? utcDayMonth(start) : null;
-  const to = end ? utcDayMonth(end) : null;
+  const to = last ? utcDayMonth(last) : null;
   if (!from && !to) return "—";
   if (!from) return formatDateUtc(end);
   if (!to) return formatDateUtc(start);

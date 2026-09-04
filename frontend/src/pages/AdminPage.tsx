@@ -124,11 +124,11 @@ export function AdminPage() {
     }
   }
 
-  if (checking) {
+  if (checking || (authed && session.isPending)) {
     return <p className="muted">Checking session…</p>;
   }
 
-  if (!authed) {
+  if (!authed || !session.isSuccess) {
     return (
       <form className="card login" onSubmit={(event) => void onSubmit(event)}>
         <div className="kicker">Master admin</div>

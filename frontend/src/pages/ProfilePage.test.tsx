@@ -46,6 +46,7 @@ function farm(partial: Partial<LeaderboardEntry> = {}): LeaderboardEntry {
     avatar_kind: "preset",
     avatar_preset: "betty",
     days: [],
+    recorded_average_per_day: 14.0,
     ...partial,
   };
 }
@@ -112,7 +113,9 @@ describe("ProfilePage", () => {
   it("shows the personal result and opens the picture page from the avatar", async () => {
     const el = await renderAt("/profile");
     expect(el.querySelector('[data-testid="profile-name"]')?.textContent).toBe("rmr");
-    expect(el.querySelector('[data-testid="farm-total"]')?.textContent).toBe("14");
+    expect(el.querySelector('[data-testid="farm-overall-avg"]')?.textContent).toBe("14.00");
+    expect(el.querySelector('[data-testid="farm-total"]')).toBeNull();
+    expect(el.querySelector('[data-testid="farm-pebbles-lights"]')?.textContent).toMatch(/Today/);
     expect(el.querySelector('[data-testid="avatar-presets"]')).toBeNull();
     const back = el.querySelector('[data-testid="back-link"]');
     expect(back?.textContent).toMatch(/^Back$/);
@@ -169,7 +172,7 @@ describe("ProfilePicturePage", () => {
     });
     expect(putFarmAvatar).not.toHaveBeenCalled();
     expect(el.querySelector('[data-testid="farm-avatar"] img')?.getAttribute("src")).toBe(
-      "/avatars/betty.webp",
+      "/avatars/jafar.webp",
     );
     expect(el.querySelector('[data-testid="avatar-preset-jafar"]')?.getAttribute("aria-pressed")).toBe(
       "true",

@@ -36,10 +36,15 @@ export function ProfilePage() {
   const farm = farmQuery.data;
   const profile = profileQuery.data;
   const pictureState = { from };
+  const hasRecord = farm?.recorded_average_per_day != null;
+  const shareUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/farm/${encodeURIComponent(identity.farm_id)}`
+      : `/farm/${identity.farm_id}`;
 
   return (
     <div className="card farm-sheet" data-testid="profile-page">
-      <div className="kicker">Personal result</div>
+      <div className="kicker">Overall record</div>
       <div className="detail-chrome">
         <DetailBackLink to={back.to} label={back.label} />
       </div>
@@ -49,18 +54,15 @@ export function ProfilePage() {
           <div className="skeleton" />
         </div>
       )}
-      {farm ? (
+      {farm && hasRecord ? (
         <FarmResult
           farm={farm}
+          variant="overall"
           avatarTo="/profile/picture"
           avatarState={pictureState}
-          shareUrl={
-            typeof window !== "undefined"
-              ? `${window.location.origin}/farm/${encodeURIComponent(farm.farm_id)}`
-              : `/farm/${farm.farm_id}`
-          }
+          shareUrl={shareUrl}
         />
-      ) : farmQuery.isError ? (
+      ) : farmQuery.isLoading ? null : (
         <FarmResultFallback
           name={profile?.name || identity.name}
           farmId={identity.farm_id}
@@ -68,7 +70,7 @@ export function ProfilePage() {
           avatarTo="/profile/picture"
           avatarState={pictureState}
         />
-      ) : null}
+      )}
     </div>
   );
 }

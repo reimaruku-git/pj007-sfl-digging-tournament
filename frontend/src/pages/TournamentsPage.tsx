@@ -273,9 +273,10 @@ function CatalogWindow({
   row: TournamentSummary;
   tone: "ongoing" | "upcoming" | "ended";
 }) {
+  const lastDay = inclusiveFinalDayIso(row.start_at, row.duration_days);
   const when =
     tone === "ongoing"
-      ? remainingLabel(row.end_at)
+      ? remainingLabel(lastDay)
       : tone === "upcoming"
         ? opensLabel(row.start_at)
         : "Ended";

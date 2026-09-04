@@ -56,6 +56,7 @@ function farm(partial: Partial<LeaderboardEntry> = {}): LeaderboardEntry {
         finalized: false,
       },
     ],
+    recorded_average_per_day: 14.0,
     ...partial,
   };
 }
@@ -101,48 +102,31 @@ describe("FarmPage days", () => {
     container.remove();
   });
 
-  it("shows total, scored-days average, score today, and pebbles today", async () => {
+  it("shows overall career average on /farm/:id, not a featured-event rank", async () => {
     await renderFarm();
-    const facts = container.querySelector("[data-testid='farm-score-facts']");
-    expect(container.querySelector("[data-testid='farm-total']")?.textContent).toBe("14");
-    expect(facts?.textContent).toMatch(/AVG SCORE/);
-    expect(container.querySelector("[data-testid='farm-average']")?.textContent).toBe("14.00");
-    const avgRow = container.querySelector("[data-testid='farm-pebble-averages']");
-    expect(avgRow).not.toBeNull();
-    const avgKids = [...(avgRow?.children ?? [])] as HTMLElement[];
-    expect(avgKids[0]?.textContent).toMatch(/AVG SCORE/);
-    expect(avgKids[1]?.textContent).toMatch(/1st pebble avg/);
-    expect(avgKids[2]?.textContent).toMatch(/2nd pebble avg/);
-    expect(container.querySelector("[data-testid='farm-first-average']")?.textContent).toBe("4.00");
-    expect(container.querySelector("[data-testid='farm-second-average']")?.textContent).toBe(
-      "8.00",
+    expect(container.querySelector("[data-testid='farm-overall-avg']")?.textContent).toBe("14.00");
+    expect(container.querySelector("[data-testid='farm-total']")).toBeNull();
+    expect(container.querySelector("[data-testid='farm-pebble-averages']")).toBeNull();
+    expect(container.querySelector("[data-testid='farm-pebbles-lights']")?.textContent).toMatch(
+      /Today/,
     );
-    expect(
-      container.querySelector("[data-testid='farm-first-average']")?.closest(".stat-pebble"),
-    ).not.toBeNull();
-    expect(
-      container.querySelector("[data-testid='farm-second-average']")?.closest(".stat-pebble"),
-    ).not.toBeNull();
-    expect(
-      container.querySelector("[data-testid='farm-average']")?.closest(".stat-pebble"),
-    ).toBeNull();
+    expect(container.querySelector("[data-testid='farm-score-today']")?.textContent).toBe("—");
+    expect(container.querySelector("[data-testid='farm-pebbles-today']")?.textContent).toBe("0");
+    expect(container.querySelector("[data-testid='farm-days']")).toBeNull();
+  });
+
+  it("keeps event pebble averages on a tournament farm page", async () => {
+    fetchTournamentFarm.mockResolvedValue(farm({ score_first_op: null, score_second_op: null }));
+    await renderFarm("/tournaments/20260817T000000Z_7d/farm/3666918801844311");
+    expect(container.querySelector("[data-testid='farm-total']")?.textContent).toBe("14");
+    expect(container.querySelector("[data-testid='farm-first-average']")?.textContent).toBe("—");
+    expect(container.querySelector("[data-testid='farm-second-average']")?.textContent).toBe("—");
     const css = readFileSync(
       resolve(dirname(fileURLToPath(import.meta.url)), "../index.css"),
       "utf8",
     );
     expect(css).toMatch(/\.stat b\s*\{[^}]*font-size:\s*18px/s);
     expect(css).toMatch(/\.farm-avg-row \.stat-pebble b\s*\{[^}]*font-size:\s*14px/s);
-    expect(facts?.textContent).toMatch(/Score today/);
-    expect(container.querySelector("[data-testid='farm-score-today']")?.textContent).toBe("—");
-    expect(facts?.textContent).toMatch(/Pebbles today/);
-    expect(container.querySelector("[data-testid='farm-pebbles-today']")?.textContent).toBe("0");
-  });
-
-  it("dashes 1st and 2nd pebble averages when no day has that pebble", async () => {
-    fetchFarm.mockResolvedValue(farm({ score_first_op: null, score_second_op: null }));
-    await renderFarm();
-    expect(container.querySelector("[data-testid='farm-first-average']")?.textContent).toBe("—");
-    expect(container.querySelector("[data-testid='farm-second-average']")?.textContent).toBe("—");
   });
 
   it("returns home from a home-board farm and the tournament from a tournament farm", async () => {
@@ -164,7 +148,8 @@ describe("FarmPage days", () => {
   });
 
   it("lists each stored tournament day instead of only today", async () => {
-    await renderFarm();
+    fetchTournamentFarm.mockResolvedValue(farm());
+    await renderFarm("/tournaments/20260817T000000Z_7d/farm/3666918801844311");
     const days = container.querySelector("[data-testid='farm-days']");
     expect(days?.textContent).toMatch(/17 Aug/);
     expect(days?.textContent).toMatch(/18 Aug/);

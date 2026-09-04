@@ -1095,16 +1095,6 @@ the 15-minute window is almost up; that is not a second HTTP call.
 { "accepted": true }
 ```
 
-### `PUT /admin/scores/{farm_id}`
-
-```json
-{
-  "override_digs_to_third_op": 40,
-  "invalidated": false,
-  "override_reason": "manual correction"
-}
-```
-
 ### `GET /admin/scores/{farm_id}/snapshot`
 
 ```json
