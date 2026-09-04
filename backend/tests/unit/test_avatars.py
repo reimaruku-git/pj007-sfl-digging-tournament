@@ -79,10 +79,7 @@ def test_avatar_object_key_and_path():
     assert avatar_object_key("3666918801844311", "webp") == (
         "media/avatars/3666918801844311/avatar.webp"
     )
-    assert (
-        avatar_key_from_path("7916", "avatar.jpg")
-        == "media/avatars/7916/avatar.jpg"
-    )
+    assert avatar_key_from_path("7916", "avatar.jpg") == "media/avatars/7916/avatar.jpg"
     with pytest.raises(MediaError):
         avatar_object_key("../x", "png")
     with pytest.raises(MediaError):

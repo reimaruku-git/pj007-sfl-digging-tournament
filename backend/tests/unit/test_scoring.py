@@ -276,18 +276,20 @@ def test_tournament_window_ignores_tiles_after_end():
     assert result.status == STATUS_IN_PROGRESS
 
 
-def test_missing_dug_at_still_counts_inside_a_window():
+def test_missing_dug_at_is_ignored():
     start = datetime(2026, 8, 14, 0, 0, tzinfo=timezone.utc)
     end = datetime(2026, 8, 21, 0, 0, tzinfo=timezone.utc)
-    grid = [
-        pebble(),
-        pebble(),
-        {"items": {"Otter Pebble": 1}, "tool": "Sand Shovel"},
-    ]
+    undated = {"items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}
+    grid = [pebble(), pebble(), undated]
     result = score_grid(grid, now=NOW, window_start=start, window_end=end)
-    assert result.total_digs == 3
-    assert result.digs_to_third_op == 3
-    assert result.status == STATUS_COMPLETED
+    assert result.total_digs == 2
+    assert result.otter_count == 2
+    assert result.digs_to_third_op is None
+    assert result.status == STATUS_IN_PROGRESS
+
+    unbounded = score_grid([undated, pebble()], now=NOW)
+    assert unbounded.total_digs == 1
+    assert unbounded.otter_count == 1
 
 
 def test_unknown_tool_costs_one():

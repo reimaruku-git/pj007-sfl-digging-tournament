@@ -29,7 +29,9 @@ from tournament.farms import FarmRegistry
 from tournament.sfl_client import build_sfl_client, load_sfl_keys
 from tournament.store import Store
 from tournament.membership import farm_live_tournament_ids
+from tournament.scoring import is_finalize_clock
 from tournament.sync import (
+    apply_day_finalize,
     drop_untracked_scores,
     parse_iso,
     refresh_leaderboard,
@@ -195,7 +197,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if seeded_live and not farm_live_tournament_ids(store, farm_id):
             logger.info("farm_sync skip: farm %s is not enrolled in a live event", farm_id)
             return {"synced": 0, "failures": 0, "skipped": "not_enrolled", "farm_id": farm_id}
-        row = sync_one_farm(store, client, farm, now=clock, finalize=False)
+        finalize = is_finalize_clock(clock)
+        row = sync_one_farm(store, client, farm, now=clock, finalize=finalize)
+        if finalize:
+            apply_day_finalize(store, now=clock)
         refresh_leaderboard(store, registry=registry)
         failed = bool(row.get("error"))
         logger.info("farm_sync one farm %s error=%s", farm_id, row.get("error"))

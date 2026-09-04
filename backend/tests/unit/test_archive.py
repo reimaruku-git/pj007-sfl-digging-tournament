@@ -44,7 +44,13 @@ def test_ended_window_is_archived_and_survives_new_event(aws_env, monkeypatch):
     )
     now = datetime(2026, 7, 10, tzinfo=timezone.utc)
     computed = score_grid(
-        [{"dugAt": int(datetime(2026, 7, 2, tzinfo=timezone.utc).timestamp() * 1000), "items": {"Otter Pebble": 3}, "tool": "Sand Shovel"}],
+        [
+            {
+                "dugAt": int(datetime(2026, 7, 2, tzinfo=timezone.utc).timestamp() * 1000),
+                "items": {"Otter Pebble": 3},
+                "tool": "Sand Shovel",
+            }
+        ],
         now=now,
     )
     apply_computed_score(store, farm_id="99", name="rmr", computed=computed)
@@ -120,14 +126,16 @@ def test_ended_window_is_archived_and_survives_new_event(aws_env, monkeypatch):
     assert still["statusCode"] == 200
     again = json.loads(still["body"])["tournament"]
     assert again["entries"][0]["farm_id"] == "99"
-    live = json.loads(app.lambda_handler(
-        {
-            "rawPath": "/leaderboard",
-            "requestContext": {"http": {"method": "GET"}, "stage": "dev"},
-            "headers": {},
-            "body": None,
-            "pathParameters": {},
-        },
-        None,
-    )["body"])
+    live = json.loads(
+        app.lambda_handler(
+            {
+                "rawPath": "/leaderboard",
+                "requestContext": {"http": {"method": "GET"}, "stage": "dev"},
+                "headers": {},
+                "body": None,
+                "pathParameters": {},
+            },
+            None,
+        )["body"]
+    )
     assert live["config"]["start_at"].startswith("2026-08-01")

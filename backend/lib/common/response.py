@@ -18,18 +18,22 @@ def set_request_origin(origin: str | None) -> None:
     _current_request_origin = (origin or "").strip()
 
 
-def _resolve_allowed_origin() -> str:
-    """Resolve the CORS origin header value for the current request."""
+def _allowed_origins() -> list[str]:
     allowed_origins_raw = os.environ.get(ALLOWED_ORIGINS_ENV_VAR, "")
-    allowed_origins = [item.strip() for item in allowed_origins_raw.split(",") if item.strip()]
+    origins = [item.strip() for item in allowed_origins_raw.split(",") if item.strip()]
+    single = os.environ.get(ALLOWED_ORIGIN_ENV_VAR, "").strip()
+    if single and single != "*" and single not in origins:
+        origins.append(single)
+    return origins
 
-    if _current_request_origin and _current_request_origin in allowed_origins:
+
+def _resolve_allowed_origin() -> str | None:
+    """Echo the request origin when it is on the allowlist. Never '*'."""
+    if not _current_request_origin:
+        return None
+    if _current_request_origin in _allowed_origins():
         return _current_request_origin
-
-    if allowed_origins:
-        return allowed_origins[0]
-
-    return os.environ.get(ALLOWED_ORIGIN_ENV_VAR, "*")
+    return None
 
 
 def create_response(
@@ -41,11 +45,12 @@ def create_response(
     headers.update(
         {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": allowed_origin,
             "Access-Control-Allow-Headers": "Content-Type,Authorization",
             "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
         }
     )
+    if allowed_origin:
+        headers["Access-Control-Allow-Origin"] = allowed_origin
     return {
         "statusCode": status_code,
         "headers": headers,
@@ -68,12 +73,13 @@ def create_binary_response(
     headers.update(
         {
             "Content-Type": content_type,
-            "Access-Control-Allow-Origin": allowed_origin,
             "Access-Control-Allow-Headers": "Content-Type,Authorization",
             "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
             "Cache-Control": "public, max-age=300",
         }
     )
+    if allowed_origin:
+        headers["Access-Control-Allow-Origin"] = allowed_origin
     return {
         "statusCode": status_code,
         "headers": headers,

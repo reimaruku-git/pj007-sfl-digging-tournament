@@ -260,13 +260,11 @@ def parse_event_settings(
     else:
         prize_places = parse_prize_places(src.get("prize_places") or [], nft_giveaway=nft_giveaway)
 
-    if "prize_amount" in body or "prizeAmount" in body:
-        prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip()
+    if "prize_amount" in body:
+        prize = str(body.get("prize_amount") or "").strip()
     else:
         prize = str(src.get("prize_amount") or "").strip()
-    writing_prizes = any(
-        key in body for key in ("prize_places", "prize_amount", "prizeAmount", "nft_giveaway")
-    )
+    writing_prizes = any(key in body for key in ("prize_places", "prize_amount", "nft_giveaway"))
     if writing_prizes and prize_places and not nft_giveaway:
         pool = _flower_amount(prize or "0", field="prize_amount")
         if prize_places_sum(prize_places) != pool:

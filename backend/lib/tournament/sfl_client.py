@@ -26,9 +26,11 @@ COMMUNITY_FARM_PATH = "/community/farms/{farm_id}"
 DEFAULT_FAILURE_INTERVAL_SECONDS = 12.0
 DEFAULT_SUCCESS_ROUND_SECONDS = 10.0
 DEFAULT_KEYS_OBJECT = "sfl-api-keys.json"
-# Identify is user-facing (API Gateway ~29s). One timed GET, no sweep retries.
-IDENTIFY_TIMEOUT_SECONDS = 12
-IDENTIFY_MAX_RETRIES = 1
+# HTTP join/identify must finish under API Gateway's ~30s cap.
+HTTP_SFL_TIMEOUT_SECONDS = 8
+HTTP_SFL_MAX_RETRIES = 1
+IDENTIFY_TIMEOUT_SECONDS = HTTP_SFL_TIMEOUT_SECONDS
+IDENTIFY_MAX_RETRIES = HTTP_SFL_MAX_RETRIES
 
 
 class SFLApiError(Exception):

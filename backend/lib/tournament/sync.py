@@ -487,17 +487,15 @@ def sync_one_farm(
         return store.put_score(row)
 
 
-def notify_new_leader(webhook_url: str, entry: dict[str, Any]) -> None:
+def notify_new_leader(webhook_url: str, entry: dict[str, Any], *, event_name: str = "") -> None:
     if not webhook_url:
         return
     name = entry.get("name") or ""
     farm_id = entry.get("farm_id")
     score = entry.get("digs_to_third_op")
     label = f"{name} ({farm_id})" if name else str(farm_id)
-    content = (
-        f"New digging-tournament leader: **{label}** "
-        f"with **{score}** digs to the 3rd Otter Pebble."
-    )
+    board = str(event_name or "").strip() or "digging-tournament"
+    content = f"New {board} leader: **{label}** " f"with **{score}** digs to the 3rd Otter Pebble."
     body = json.dumps({"content": content}).encode("utf-8")
     req = request.Request(
         webhook_url,
@@ -550,11 +548,19 @@ def sync_all_farms(
     clock = now or datetime.now(timezone.utc)
     ensure_default_config(store, now=clock)
     recover_daily_history(store, now=clock)
-    previous_cache = store.get_leaderboard_cache() or {}
-    if use_cached_leader:
-        previous_leader = previous_cache.get("leader_farm_id")
-    else:
-        previous_leader = previous_leader_farm_id
+    catalog = store.list_tournament_items()
+    previous_leaders: dict[str, Any] = {}
+    for item in catalog:
+        if item.get("status") != "active":
+            continue
+        tid = str(item.get("tournament_id") or "").strip()
+        if not tid:
+            continue
+        previous_leaders[tid] = (store.get_event_leaderboard(tid) or {}).get("leader_farm_id")
+    if not use_cached_leader and previous_leader_farm_id is not None:
+        featured_id = str(store.get_config().get("current_tournament_id") or "").strip()
+        if featured_id:
+            previous_leaders[featured_id] = previous_leader_farm_id or None
     finalize = is_finalize_clock(clock)
 
     seed_legacy_roster(store, registry)
@@ -620,16 +626,29 @@ def sync_all_farms(
         cache = refresh_leaderboard(store, registry=registry)
     store.mark_synced()
     config = store.get_config()
-    new_leader = cache.get("leader_farm_id")
-    if new_leader and new_leader != previous_leader:
+    for item in store.list_tournament_items():
+        if item.get("status") != "active":
+            continue
+        tid = str(item.get("tournament_id") or "").strip()
+        if not tid:
+            continue
+        board = store.get_event_leaderboard(tid) or {}
+        new_leader = board.get("leader_farm_id")
+        if not new_leader or new_leader == previous_leaders.get(tid):
+            continue
         leader_entry = next(
-            (entry for entry in cache.get("entries", []) if entry.get("rank") == 1),
+            (entry for entry in board.get("entries", []) if entry.get("rank") == 1),
             None,
         )
         if leader_entry and leader_entry.get("status") == "completed":
-            notify_new_leader(webhook_url, leader_entry)
-            config["leader_farm_id"] = new_leader
-            store.put_config(config)
+            notify_new_leader(
+                webhook_url,
+                leader_entry,
+                event_name=str(item.get("name") or tid),
+            )
+            if tid == str(config.get("current_tournament_id") or "").strip():
+                config["leader_farm_id"] = new_leader
+                store.put_config(config)
 
     daily = {
         "captured_at": utc_now_iso(),

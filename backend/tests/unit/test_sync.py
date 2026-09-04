@@ -875,3 +875,64 @@ def test_rollover_archives_ended_and_keeps_other_live(aws_env):
     assert store.get_tournament(sprint["tournament_id"])["status"] == "ended"
     assert store.get_tournament(month["tournament_id"])["status"] == "active"
     assert store.get_config()["current_tournament_id"] == month["tournament_id"]
+
+
+def test_sync_pings_each_live_board_leader(aws_env, monkeypatch):
+    pings: list[tuple[str, str]] = []
+
+    def _capture(url, entry, *, event_name=""):
+        pings.append((event_name, str(entry.get("farm_id"))))
+
+    monkeypatch.setattr("tournament.sync.notify_new_leader", _capture)
+    store = _store(aws_env)
+    registry = FarmRegistry(aws_env["bucket"])
+    clock = datetime(2026, 8, 15, 16, tzinfo=timezone.utc)
+    week = create_tournament(
+        store,
+        {
+            "name": "Week cup",
+            "start_at": "2026-08-14T00:00:00+00:00",
+            "duration_days": 7,
+            "prize_amount": "30",
+        },
+        now=clock,
+    )
+    month = create_tournament(
+        store,
+        {
+            "name": "Month cup",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "duration_days": 30,
+            "prize_amount": "45",
+        },
+        now=clock,
+    )
+    registry.upsert("1", name="lead")
+    add_farms_to_tournament(store, registry, tournament_id=week["tournament_id"], farm_ids=["1"])
+    add_farms_to_tournament(store, registry, tournament_id=month["tournament_id"], farm_ids=["1"])
+    pebbles = [
+        shovel({"Otter Pebble": 1}),
+        shovel({"Otter Pebble": 1}),
+        shovel({"Otter Pebble": 1}),
+    ]
+    client = FakeClient({"1": _grid_payload(pebbles)})
+    sync_all_farms(store, registry, client, webhook_url="https://example.invalid/hook", now=clock)
+    assert sorted(pings) == [("Month cup", "1"), ("Week cup", "1")]
+
+
+def test_list_members_uses_gsi_keys(aws_env):
+    store = _store(aws_env)
+    store.put_member(
+        {
+            "farm_id": "99",
+            "tournament_id": "cup-1",
+            "status": "enrolled",
+            "submitted_at": "2026-08-14T12:00:00+00:00",
+        }
+    )
+    by_event = store.list_members(tournament_id="cup-1")
+    assert [row["farm_id"] for row in by_event] == ["99"]
+    assert by_event[0]["gsi1pk"] == "MEMBER#cup-1"
+    by_farm = store.list_members(farm_id="99")
+    assert [row["tournament_id"] for row in by_farm] == ["cup-1"]
+    assert by_farm[0]["gsi2pk"] == "MEMBER_FARM#99"

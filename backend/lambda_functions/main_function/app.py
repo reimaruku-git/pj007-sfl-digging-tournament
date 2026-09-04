@@ -52,13 +52,12 @@ from tournament.images import (
     store_tournament_image,
     public_api_base_from_event,
 )
-from tournament.leaderboard import public_entry, rank_scores
+from tournament.leaderboard import annotate_score, public_entry
 from tournament.membership import (
     MembershipError,
     add_farms_to_tournament,
     approve_join,
     drop_farm_members,
-    enrolled_farm_ids,
     farm_live_tournament_ids,
     parse_farm_ids,
     parse_tournament_ids,
@@ -78,6 +77,8 @@ from tournament.slogans import (
 )
 from tournament.stats import player_detail, player_list_row
 from tournament.sfl_client import (
+    HTTP_SFL_MAX_RETRIES,
+    HTTP_SFL_TIMEOUT_SECONDS,
     SFLApiError,
     build_identify_sfl_client,
     build_sfl_client,
@@ -144,7 +145,11 @@ def _join_sfl_client():
     keys = load_sfl_keys(SECRETS_BUCKET, SFL_KEYS_OBJECT)
     if not keys:
         return None
-    return build_sfl_client(keys)
+    return build_sfl_client(
+        keys,
+        timeout=HTTP_SFL_TIMEOUT_SECONDS,
+        max_retries=HTTP_SFL_MAX_RETRIES,
+    )
 
 
 def _identify_from_community(farm_id: str) -> dict[str, Any] | None:
@@ -188,6 +193,10 @@ def _path(event: dict[str, Any]) -> str:
     return raw
 
 
+class InvalidJsonError(ValueError):
+    """Request body was present but not an object JSON payload."""
+
+
 def _body(event: dict[str, Any]) -> dict[str, Any]:
     raw = event.get("body")
     if not raw:
@@ -198,9 +207,11 @@ def _body(event: dict[str, Any]) -> dict[str, Any]:
         return raw
     try:
         parsed = json.loads(raw)
-    except (TypeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError) as exc:
+        raise InvalidJsonError("body is not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise InvalidJsonError("body is not valid JSON")
+    return parsed
 
 
 def _path_params(event: dict[str, Any]) -> dict[str, str]:
@@ -209,7 +220,7 @@ def _path_params(event: dict[str, Any]) -> dict[str, str]:
 
 
 def _farm_id_from_body(body: dict[str, Any]) -> str:
-    return str(body.get("farm_id") or body.get("farmId") or "").strip()
+    return str(body.get("farm_id") or "").strip()
 
 
 def handle_health(_event: dict[str, Any]) -> dict[str, Any]:
@@ -264,8 +275,6 @@ def _refresh_public_board(store: Store | None = None) -> dict[str, Any]:
 
 def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
     store = _get_store()
-    seed_catalog(store)
-    archive_current(store)
     if not active_tournament(store):
         return create_response(
             200,
@@ -277,7 +286,7 @@ def handle_get_leaderboard(_event: dict[str, Any]) -> dict[str, Any]:
             },
             extra_headers={"Cache-Control": "public, max-age=30"},
         )
-    cache = _refresh_public_board(store)
+    cache = store.get_leaderboard_cache() or {}
     entries = attach_avatars(store, [public_entry(row) for row in (cache.get("entries") or [])])
     return create_response(
         200,
@@ -295,30 +304,19 @@ def handle_get_farm(event: dict[str, Any]) -> dict[str, Any]:
     farm_id = _path_params(event).get("farm_id", "").strip()
     if not farm_id:
         return create_error_response(400, "farm_id is required", "VALIDATION_ERROR")
+    if not is_valid_farm_id(farm_id):
+        return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     store = _get_store()
     registry = _get_registry()
     tracked = registry.get(farm_id)
-    score = store.get_score(farm_id)
     if not tracked:
-        if score:
-            store.delete_score(farm_id)
-            _refresh_public_board(store)
         return create_error_response(404, "farm not found", "NOT_FOUND")
+    score = store.get_score(farm_id)
     row = score or store.empty_score(farm_id, tracked.get("name") or "")
     row["name"] = tracked.get("name") or row.get("name") or ""
-    config = store.get_config()
-    days = configured_duration_days(config)
-    tid = str(config.get("current_tournament_id") or "").strip()
-    allowed = registry.farm_ids(active_only=True)
-    event = store.get_tournament(tid) if tid else None
-    if tid and event and event.get("roster_seeded"):
-        allowed = allowed & enrolled_farm_ids(store, tid)
-    ranked = rank_scores(
-        [item for item in store.list_scores() if str(item.get("farm_id") or "") in allowed],
-        tournament_days=days,
-    )
-    match = next((item for item in ranked if item.get("farm_id") == farm_id), row)
-    entry = attach_avatars(store, [public_entry(match)])[0]
+    days = configured_duration_days(store.get_config())
+    entry = attach_avatars(store, [public_entry(annotate_score(row, days))])[0]
+    entry["rank"] = None
     stats = recorded_farm_stats(store, farm_id)
     entry["recorded_average_per_day"] = stats["recorded_average_per_day"]
     if stats["score_today"] is not None:
@@ -348,7 +346,7 @@ def handle_identify_farm(event: dict[str, Any]) -> dict[str, Any]:
     if not is_valid_farm_id(farm_id):
         return create_error_response(400, "farm_id must be a numeric id", "VALIDATION_ERROR")
     try:
-        looked_up = lookup_farm_name(farm_id)
+        looked_up = lookup_farm_name(farm_id, timeout=HTTP_SFL_TIMEOUT_SECONDS)
     except SflWorldError as exc:
         logger.warning("sfl.world identify failed for %s: %s", farm_id, exc.message)
         looked_up = _identify_from_community(farm_id)
@@ -439,6 +437,12 @@ def handle_submit_farm(event: dict[str, Any]) -> dict[str, Any]:
         )
     except MembershipError as exc:
         return _membership_error(exc)
+    except SFLApiError:
+        return create_error_response(
+            503,
+            "Sunflower Land is slow to respond. Try again.",
+            "SFL_TIMEOUT",
+        )
     if any(item.get("status") == "enrolled" for item in submissions):
         _refresh_public_board(store)
     return create_response(201, {"submissions": submissions, "count": len(submissions)})
@@ -499,9 +503,7 @@ def handle_get_tournament(event: dict[str, Any]) -> dict[str, Any]:
     tournament = _path_params(event).get("tournament_id", "").strip()
     if not tournament:
         return create_error_response(400, "tournament_id is required", "VALIDATION_ERROR")
-    store = _get_store()
-    _refresh_public_board(store)
-    payload = get_public_tournament(store, tournament)
+    payload = get_public_tournament(_get_store(), tournament, rebuild=False)
     if payload is None:
         return create_error_response(404, "tournament archive not found", "NOT_FOUND")
     return create_response(200, {"tournament": payload})
@@ -623,7 +625,7 @@ def handle_admin_put_config(event: dict[str, Any]) -> dict[str, Any]:
         name = normalize_name(body.get("name"), start)
     except CatalogError as exc:
         return _catalog_error(exc)
-    prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip() or "30"
+    prize = str(body.get("prize_amount") or "").strip() or "30"
     existing = store.get_config()
     new_id = tournament_id(
         {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
@@ -1002,6 +1004,8 @@ def lambda_handler(event: dict[str, Any], _context: Any) -> dict[str, Any]:
         event["pathParameters"] = params
         try:
             return handler(event)
+        except InvalidJsonError as exc:
+            return create_error_response(400, str(exc), "INVALID_JSON")
         except ValueError as exc:
             return create_error_response(400, str(exc), "VALIDATION_ERROR")
         except Exception:

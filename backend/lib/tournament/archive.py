@@ -15,7 +15,9 @@ from tournament.store import Store
 from tournament.window import parse_iso, tournament_id
 
 
-def archive_current(store: Store, *, now: datetime | None = None, force: bool = False) -> dict[str, Any] | None:
+def archive_current(
+    store: Store, *, now: datetime | None = None, force: bool = False
+) -> dict[str, Any] | None:
     clock = now or datetime.now(timezone.utc)
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=timezone.utc)

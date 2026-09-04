@@ -112,6 +112,40 @@ def test_one_farm_invoke_updates_only_that_farm(aws_env, monkeypatch):
     assert store.get_score("2") is None
 
 
+def test_one_farm_refresh_after_2300_ignores_late_tiles(aws_env, monkeypatch):
+    before = int(datetime(2026, 8, 14, 20, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    after = int(datetime(2026, 8, 14, 23, 10, tzinfo=timezone.utc).timestamp() * 1000)
+
+    def pebble(dug_at):
+        return {"dugAt": dug_at, "items": {"Otter Pebble": 1}, "tool": "Sand Shovel"}
+
+    client = FakeClient({"1": _grid_payload([pebble(before), pebble(before), pebble(after)])})
+    app = _load_sync(aws_env, monkeypatch, client)
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="late")
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    store.put_config(
+        {
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-21T00:00:00+00:00",
+            "prize_amount": "30",
+        }
+    )
+    result = app.lambda_handler(
+        {"source": "admin-refresh", "farm_id": "1", "now": "2026-08-14T23:05:00Z"},
+        None,
+    )
+    assert result["synced"] == 1
+    row = store.get_score("1")
+    assert row["otter_count"] == 2
+    assert row["digs_to_third_op"] == 35
+
+
 def test_untracked_farm_id_is_a_skip(aws_env, monkeypatch):
     client = FakeClient({"99": _grid_payload([shovel()])})
     app = _load_sync(aws_env, monkeypatch, client)

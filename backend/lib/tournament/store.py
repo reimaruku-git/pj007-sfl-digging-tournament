@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
 from botocore.exceptions import ClientError
 
@@ -22,6 +23,9 @@ CACHE_PK = "LEADERBOARD"
 TOURNAMENT_INDEX_PK = "TOURNAMENT_INDEX"
 TOURNAMENT_PK_PREFIX = "TOURNAMENT#"
 MEMBER_PK_PREFIX = "MEMBER#"
+MEMBER_FARM_GSI_PREFIX = "MEMBER_FARM#"
+MEMBERS_BY_TOURNAMENT_INDEX = "MembersByTournament"
+MEMBERS_BY_FARM_INDEX = "MembersByFarm"
 IDENT_PK_PREFIX = "IDENT#"
 SCORE_PK_PREFIX = "SCORE#"
 DEFAULT_PRIZE = "30"
@@ -173,40 +177,6 @@ class Store:
         }
 
     # ------------------------------------------------------------------
-    # Submissions
-    # ------------------------------------------------------------------
-
-    def put_submission(self, farm_id: str, name: str = "") -> dict[str, Any]:
-        item = {
-            "farm_id": str(farm_id).strip(),
-            "name": name.strip(),
-            "submitted_at": utc_now_iso(),
-            "status": "pending",
-        }
-        self.submissions_table.put_item(Item=_to_ddb(item))
-        return item
-
-    def get_submission(self, farm_id: str) -> dict[str, Any] | None:
-        response = self.submissions_table.get_item(Key={"farm_id": str(farm_id)})
-        item = response.get("Item")
-        return _from_ddb(item) if item else None
-
-    def list_submissions(self) -> list[dict[str, Any]]:
-        items: list[dict[str, Any]] = []
-        scan_kwargs: dict[str, Any] = {}
-        while True:
-            response = self.submissions_table.scan(**scan_kwargs)
-            items.extend(_from_ddb(item) for item in response.get("Items", []))
-            last_key = response.get("LastEvaluatedKey")
-            if not last_key:
-                break
-            scan_kwargs["ExclusiveStartKey"] = last_key
-        return items
-
-    def delete_submission(self, farm_id: str) -> None:
-        self.submissions_table.delete_item(Key={"farm_id": str(farm_id)})
-
-    # ------------------------------------------------------------------
     # Per-tournament membership (pending join or enrolled)
     # ------------------------------------------------------------------
 
@@ -222,6 +192,10 @@ class Store:
         stored["farm_id"] = farm_id
         stored["tournament_id"] = tournament_id
         stored["pk"] = self.member_pk(tournament_id, farm_id)
+        stored["gsi1pk"] = f"{MEMBER_PK_PREFIX}{tournament_id}"
+        stored["gsi1sk"] = farm_id
+        stored["gsi2pk"] = f"{MEMBER_FARM_GSI_PREFIX}{farm_id}"
+        stored["gsi2sk"] = tournament_id
         stored["updated_at"] = utc_now_iso()
         self.config_table.put_item(Item=_to_ddb(stored))
         return stored
@@ -236,16 +210,25 @@ class Store:
     def delete_member(self, tournament_id: str, farm_id: str) -> None:
         self.config_table.delete_item(Key={"pk": self.member_pk(str(tournament_id), str(farm_id))})
 
-    def list_members(
-        self,
-        *,
-        tournament_id: str | None = None,
-        status: str | None = None,
-        farm_id: str | None = None,
-    ) -> list[dict[str, Any]]:
-        prefix = MEMBER_PK_PREFIX
-        if tournament_id:
-            prefix = f"{MEMBER_PK_PREFIX}{tournament_id}#"
+    def _query_index(self, index_name: str, key_name: str, key_value: str) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": index_name,
+            "KeyConditionExpression": Key(key_name).eq(key_value),
+        }
+        try:
+            while True:
+                response = self.config_table.query(**kwargs)
+                items.extend(_from_ddb(item) for item in response.get("Items", []))
+                last_key = response.get("LastEvaluatedKey")
+                if not last_key:
+                    break
+                kwargs["ExclusiveStartKey"] = last_key
+        except ClientError:
+            return []
+        return items
+
+    def _scan_members(self, prefix: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         scan_kwargs: dict[str, Any] = {
             "FilterExpression": "begins_with(pk, :prefix)",
@@ -258,11 +241,55 @@ class Store:
             if not last_key:
                 break
             scan_kwargs["ExclusiveStartKey"] = last_key
+        return items
+
+    def backfill_member_gsi(self, rows: list[dict[str, Any]]) -> None:
+        for item in rows:
+            if item.get("gsi1pk") and item.get("gsi2pk"):
+                continue
+            try:
+                self.put_member(item)
+            except ValueError:
+                continue
+
+    def list_members(
+        self,
+        *,
+        tournament_id: str | None = None,
+        status: str | None = None,
+        farm_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        wanted_farm = str(farm_id).strip() if farm_id else ""
+        wanted_tid = str(tournament_id).strip() if tournament_id else ""
+        items: list[dict[str, Any]] = []
+        if wanted_farm and not wanted_tid:
+            items = self._query_index(
+                MEMBERS_BY_FARM_INDEX, "gsi2pk", f"{MEMBER_FARM_GSI_PREFIX}{wanted_farm}"
+            )
+            if not items:
+                scanned = self._scan_members(MEMBER_PK_PREFIX)
+                scanned = [
+                    item for item in scanned if str(item.get("farm_id") or "") == wanted_farm
+                ]
+                self.backfill_member_gsi(scanned)
+                items = scanned
+        elif wanted_tid:
+            items = self._query_index(
+                MEMBERS_BY_TOURNAMENT_INDEX, "gsi1pk", f"{MEMBER_PK_PREFIX}{wanted_tid}"
+            )
+            if not items:
+                scanned = self._scan_members(f"{MEMBER_PK_PREFIX}{wanted_tid}#")
+                self.backfill_member_gsi(scanned)
+                items = scanned
+            if wanted_farm:
+                items = [item for item in items if str(item.get("farm_id") or "") == wanted_farm]
+        else:
+            for row in self.list_tournament_items():
+                tid = str(row.get("tournament_id") or "").strip()
+                if tid:
+                    items.extend(self.list_members(tournament_id=tid))
         if status:
             items = [item for item in items if item.get("status") == status]
-        if farm_id:
-            wanted = str(farm_id)
-            items = [item for item in items if str(item.get("farm_id") or "") == wanted]
         items.sort(key=lambda item: str(item.get("submitted_at") or ""), reverse=True)
         return items
 

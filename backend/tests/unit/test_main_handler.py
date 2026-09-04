@@ -78,17 +78,10 @@ def test_health_and_public_leaderboard(aws_env, monkeypatch):
 def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
     """GET /leaderboard must emit score as a float after a Dynamo cache read."""
     app = _load_app(aws_env, monkeypatch)
+    cup = _open_live_cup(app)
     store = app._get_store()
-    store.put_config(
-        {
-            "start_at": "2026-08-01T00:00:00+00:00",
-            "end_at": "2026-08-31T00:00:00+00:00",
-            "duration_days": 30,
-            "prize_amount": "30",
-            "status": "active",
-            "current_tournament_id": "20260801T000000Z_30d",
-        }
-    )
+    app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "99", "name": "rmr"}), None)
+    _enroll(app, cup["tournament_id"], ["99"])
     store.put_score(
         {
             "farm_id": "99",
@@ -99,10 +92,10 @@ def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
             "total_digs": 70,
             "digs_today": 0,
             "invalidated": False,
+            "days": [{"day": "2026-08-14", "digs_to_third_op": 12, "otter_count": 3}],
         }
     )
-    app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "99", "name": "rmr"}), None)
-    refresh_leaderboard(store, now=datetime(2026, 8, 15, tzinfo=timezone.utc))
+    refresh_leaderboard(store)
     cached = store.get_leaderboard_cache()
     assert cached is not None
     assert cached["entries"]
@@ -111,7 +104,7 @@ def test_leaderboard_cached_score_is_json_number(aws_env, monkeypatch):
     assert board["statusCode"] == 200
     score = _json(board)["entries"][0]["score"]
     assert type(score) is float
-    assert score == 0.4
+    assert score == 12.0
 
 
 def test_submit_then_admin_approve(aws_env, monkeypatch, live_join_open):
@@ -235,6 +228,50 @@ def test_untracked_farm_is_purged_from_leaderboard(aws_env, monkeypatch):
     assert "ghost" not in ids
     assert "42" in ids
     assert store.get_score("ghost") is None
+
+
+def test_public_leaderboard_get_does_not_drop_or_rebuild(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    cup = _open_live_cup(app)
+    store = app._get_store()
+    store.put_score(
+        {
+            "farm_id": "ghost",
+            "name": "ghost",
+            "status": "completed",
+            "digs_to_third_op": 8,
+            "otter_count": 3,
+            "total_digs": 8,
+        }
+    )
+    store.put_leaderboard_cache(
+        {
+            "entries": [
+                {"farm_id": "42", "name": "kept", "rank": 1, "score": 12, "status": "completed"}
+            ],
+            "count": 1,
+            "leader_farm_id": "42",
+        }
+    )
+    store.put_config({**store.get_config(), "current_tournament_id": cup["tournament_id"]})
+    board = _json(app.lambda_handler(_event("GET", "/leaderboard"), None))
+    assert [row["farm_id"] for row in board["entries"]] == ["42"]
+    assert store.get_score("ghost") is not None
+
+
+def test_get_farm_rejects_non_numeric_id(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    response = app.lambda_handler(_event("GET", "/farms/not-a-farm", farm_id="not-a-farm"), None)
+    assert response["statusCode"] == 400
+
+
+def test_get_farm_untracked_does_not_delete_score(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    store = app._get_store()
+    store.put_score({"farm_id": "99", "name": "gone", "status": "completed", "digs_to_third_op": 8})
+    response = app.lambda_handler(_event("GET", "/farms/99", farm_id="99"), None)
+    assert response["statusCode"] == 404
+    assert store.get_score("99") is not None
 
 
 def test_remove_farm_deletes_score_and_board_row(aws_env, monkeypatch):
@@ -532,6 +569,7 @@ def test_get_farm_exposes_recorded_average_across_history_days(aws_env, monkeypa
     assert farm["name"] == "rmr"
     assert farm["recorded_average_per_day"] == 17.0
     assert farm["score_today"] is None
+    assert farm["rank"] is None
 
 
 def test_admin_put_featured_live_ended_and_scheduled(aws_env, monkeypatch):
@@ -676,3 +714,20 @@ def test_unknown_route(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     response = app.lambda_handler(_event("GET", "/nope"), None)
     assert response["statusCode"] == 404
+
+
+def test_invalid_json_body_is_invalid_json(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    event = _event("POST", "/identify", None)
+    event["body"] = "{not-json"
+    response = app.lambda_handler(event, None)
+    assert response["statusCode"] == 400
+    payload = _json(response)
+    assert payload["error"] == "INVALID_JSON"
+
+
+def test_identify_rejects_camelcase_farm_id(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    response = app.lambda_handler(_event("POST", "/identify", {"farmId": "3666918801844311"}), None)
+    assert response["statusCode"] == 400
+    assert _json(response)["error"] == "VALIDATION_ERROR"

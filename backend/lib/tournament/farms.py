@@ -123,9 +123,7 @@ class FarmRegistry:
                 found = True
                 break
         if not found:
-            registry["farms"].append(
-                {"farm_id": farm_id, "name": name.strip(), "active": active}
-            )
+            registry["farms"].append({"farm_id": farm_id, "name": name.strip(), "active": active})
         return self.save(registry)
 
     def remove(self, farm_id: str) -> dict[str, Any]:

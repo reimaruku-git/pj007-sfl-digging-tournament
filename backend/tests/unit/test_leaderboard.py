@@ -104,7 +104,7 @@ def test_finalized_incompletes_rank_after_completers_by_penalty():
 
 
 def test_same_third_breaks_on_second_then_first_then_times():
-    """Tie-break: 3rd digs, then 2nd, then 1st, then 3rd/2nd/1st times."""
+    """Tie-break: 3rd avg, then 2nd avg, then 1st avg, then 3rd/2nd/1st times."""
     base = {
         "status": "completed",
         "digs_to_third_op": 12,
@@ -152,6 +152,50 @@ def test_same_third_breaks_on_second_then_first_then_times():
     }
     by_time = rank_scores([same_digs_late, same_digs_early])
     assert [row["farm_id"] for row in by_time] == ["early-clock", "late-clock"]
+
+
+def test_same_third_average_breaks_on_second_average_not_sums():
+    """Same 3rd avg: lower 2nd-pebble average ranks first, even if its 2nd sum is worse."""
+    better_avg_worse_sum = {
+        "farm_id": "two-days",
+        "status": "completed",
+        "digs_to_third_op": 30,
+        "digs_to_second_op": 24,
+        "digs_to_first_op": 4,
+        "otter_count": 3,
+        "days": [
+            {
+                "day": "2026-08-13",
+                "digs_to_third_op": 15,
+                "digs_to_second_op": 12,
+                "digs_to_first_op": 2,
+            },
+            {
+                "day": "2026-08-14",
+                "digs_to_third_op": 15,
+                "digs_to_second_op": 12,
+                "digs_to_first_op": 2,
+            },
+        ],
+    }
+    worse_avg_better_sum = {
+        "farm_id": "one-day",
+        "status": "completed",
+        "digs_to_third_op": 15,
+        "digs_to_second_op": 20,
+        "digs_to_first_op": 3,
+        "otter_count": 3,
+        "days": [
+            {
+                "day": "2026-08-14",
+                "digs_to_third_op": 15,
+                "digs_to_second_op": 20,
+                "digs_to_first_op": 3,
+            },
+        ],
+    }
+    ranked = rank_scores([worse_avg_better_sum, better_avg_worse_sum])
+    assert [row["farm_id"] for row in ranked] == ["two-days", "one-day"]
 
 
 def test_average_uses_configured_length_when_ended():
