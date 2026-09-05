@@ -201,9 +201,24 @@ Resources:
       AttributeDefinitions:
         - AttributeName: pk
           AttributeType: S
+        - AttributeName: gsi1pk
+          AttributeType: S
+        - AttributeName: gsi1sk
+          AttributeType: S
       KeySchema:
         - AttributeName: pk
           KeyType: HASH
+      # DynamoDB allows only one GSI create per stack update. MembersByFarm
+      # is a follow-up once MembersByTournament is ACTIVE.
+      GlobalSecondaryIndexes:
+        - IndexName: MembersByTournament
+          KeySchema:
+            - AttributeName: gsi1pk
+              KeyType: HASH
+            - AttributeName: gsi1sk
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: BillingTag
           Value: !Ref BillingTag
@@ -324,40 +339,6 @@ Resources:
               issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}"
               audience:
                 - !Ref CognitoUserPoolClient
-      CorsConfiguration:
-        AllowOrigins: !Split
-          - ","
-          - !If
-            - IsDev
-            - !Join
-              - ","
-              - - http://localhost:5173
-                - !Ref AllowedOrigin
-            - !If
-              - HasWwwOrigin
-              - !Join
-                - ","
-                - - !Ref AllowedOrigin
-                  - !Ref WwwOrigin
-                  - !Sub "https://${FrontendDistribution.DomainName}"
-              - !Join
-                - ","
-                - - !Ref AllowedOrigin
-                  - !Sub "https://${FrontendDistribution.DomainName}"
-        AllowHeaders:
-          - Content-Type
-          - Authorization
-          - X-Amz-Date
-          - X-Api-Key
-          - X-Amz-Security-Token
-          - X-Amz-User-Agent
-        AllowMethods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-          - OPTIONS
-        MaxAge: 600
 
   MainFunctionLogGroup:
     Type: AWS::Logs::LogGroup
@@ -408,6 +389,7 @@ Resources:
                   - dynamodb:Query
                 Resource:
                   - !GetAtt TournamentConfigTable.Arn
+                  - !Sub ${TournamentConfigTable.Arn}/index/*
                   - !GetAtt DigScoresTable.Arn
                   - !GetAtt PendingSubmissionsTable.Arn
         - PolicyName: MainS3
@@ -497,6 +479,7 @@ Resources:
                   - dynamodb:Query
                 Resource:
                   - !GetAtt TournamentConfigTable.Arn
+                  - !Sub ${TournamentConfigTable.Arn}/index/*
                   - !GetAtt DigScoresTable.Arn
                   - !GetAtt PendingSubmissionsTable.Arn
         - PolicyName: FarmSyncS3
@@ -553,7 +536,7 @@ Resources:
       CodeUri: lambda_functions/main_function/
       Handler: app.lambda_handler
       MemorySize: 256
-      Timeout: 60
+      Timeout: 30
       Role: !GetAtt MainFunctionRole.Arn
       Layers:
         - !Ref CommonLayer

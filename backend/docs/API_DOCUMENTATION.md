@@ -196,18 +196,25 @@ keys from a private S3 JSON list (`sfl-api-keys.json`), not Lambda env.
 After every loaded key has had a successful fetch, the next wait is 10s.
 Failed SFL calls still back off at least 12s.
 
-Ranking (lowest better): `score`, then `digs_to_third_op`, then
-`digs_to_second_op`, then `digs_to_first_op`, then `third_op_at`,
-`second_op_at`, `first_op_at`.
+Ranking (lowest better): 3rd-OP average (`score`), then 2nd-pebble
+average (`score_second_op`), then 1st-pebble average (`score_first_op`),
+then earlier `third_op_at`, `second_op_at`, `first_op_at`.
+
+Public `GET /leaderboard` and `GET /tournaments/{id}` are **read-only**.
+They serve the cached board (empty `entries` if FarmSync/admin has not
+built one). Rebuild happens on FarmSync and admin mutations, not on GET.
 
 ### `GET /farms/{farm_id}`
 
-Shareable personal result.
+Overall career for a tracked farm. `rank` is always `null` — event rank
+is `GET /tournaments/{id}/farms/{id}`. `recorded_average_per_day` is the
+mean of stored days that already have a numeric 3rd-OP. Does not scan
+the scores table or write Dynamo.
 
 ```json
 {
   "farm": {
-    "rank": 1,
+    "rank": null,
     "farm_id": "3666918801844311",
     "name": "rmr",
     "score": 21.0,
@@ -376,7 +383,10 @@ fetch (`GET /community/farms/{farm_id}`) using the secrets-bucket keys.
 A Community farm with no `username` still identifies using `farm_id` as
 the stored name. The resolved name is stored so admin can retrieve the
 farm ID later (`GET /admin/identities`). Identify fails only when both
-lookups miss.
+lookups miss. Each lookup is one attempt with an 8s timeout so the
+request stays under API Gateway's 30s cap. `400` `INVALID_JSON` if the
+body is not an object. Wire fields are snake_case only (`farm_id`, not
+`farmId`).
 
 ```json
 { "farm_id": "3666918801844311" }
@@ -489,7 +499,8 @@ accounts; they send a numeric farm ID. The display name is the
 username from `POST /identify` when that farm has identified; the client
 does not collect a typed display name. Already-tracked farms may still
 request another event. `tournament_id` (one) or `tournament_ids` (many)
-is required.
+is required. Gated joins fetch SFL once with an 8s timeout and no 12s
+retry; `503` `SFL_TIMEOUT` if that fetch is too slow.
 
 ```json
 {

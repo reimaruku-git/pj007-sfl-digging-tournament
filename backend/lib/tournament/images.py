@@ -166,4 +166,6 @@ def media_key_from_path(tournament_id: str, filename: str) -> str:
     return key
 
 
-CONTENT_TYPE_BY_EXT = {ext: f"image/{ext if ext != 'jpg' else 'jpeg'}" for ext in ALLOWED_CONTENT_TYPES.values()}
+CONTENT_TYPE_BY_EXT = {
+    ext: f"image/{ext if ext != 'jpg' else 'jpeg'}" for ext in ALLOWED_CONTENT_TYPES.values()
+}

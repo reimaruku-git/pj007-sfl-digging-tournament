@@ -249,9 +249,11 @@ Canonical: `backend/lib/tournament/scoring.py` +
   yesterday's file or score with today's fetch.
 - Once a day's 3rd-pebble dig count is set, later tiles that day do not
   change it. A finalized day is not rewritten by a later sync.
-- Tie-break: fewer digs to 3rd OP, then 2nd, then 1st; then earlier
-  `third_op_at`, `second_op_at`, `first_op_at`.
-- Tiles outside the tournament window (by `dugAt`) are ignored.
+- Tie-break: lower 3rd-OP **average**, then 2nd-pebble average, then
+  1st-pebble average; then earlier `third_op_at`, `second_op_at`,
+  `first_op_at`.
+- Tiles outside the tournament window (by `dugAt`) are ignored. A tile
+  with no `dugAt` is ignored.
 - Scheduled full syncs: **14:00, 16:00, 18:00, 20:00, 23:00 UTC**.
   23:00 is the day’s final sync. Admin `POST /admin/sync` is on-demand.
   One invocation is 15 minutes; a larger roster continues in the next
@@ -283,10 +285,15 @@ Canonical: `backend/lib/tournament/scoring.py` +
   one **active** event and still tracked + `active`. A farm whose
   **today** file already has a numeric 3rd-OP is not fetched again that
   UTC day (still on the board; 23:00 finalize uses the stored day).
-  Admin one-farm refresh still fetches. The same UTC-day
+  Admin one-farm refresh still fetches, and after 23:00 UTC uses the
+  same finalize cutoff as the sweep. The same UTC-day
   grid can count on two boards. Each event stores `SCORE#{id}#{farm}`
   and `LEADERBOARD#{id}` on the config table. `GET /config` and
-  `GET /leaderboard` follow the soonest-ending live event. Ended events
+  `GET /leaderboard` follow the soonest-ending live event. Public
+  `GET /leaderboard` and `GET /tournaments/{id}` only read the cached
+  board (empty if none). FarmSync and admin mutations rebuild it.
+  `GET /farms/{id}` is overall career (`recorded_average_per_day`, no
+  featured rank). Ended events
   freeze to S3 `archives/{id}/` (meta + standings + farm snapshots).
   After a complete standings archive exists, that event's `SCORE#` and
   `LEADERBOARD#{id}` live-cache rows are deleted. Catalog and membership

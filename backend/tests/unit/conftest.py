@@ -63,7 +63,31 @@ def aws_env():
         dynamodb.create_table(
             TableName=CONFIG_TABLE,
             KeySchema=[{"AttributeName": "pk", "KeyType": "HASH"}],
-            AttributeDefinitions=[{"AttributeName": "pk", "AttributeType": "S"}],
+            AttributeDefinitions=[
+                {"AttributeName": "pk", "AttributeType": "S"},
+                {"AttributeName": "gsi1pk", "AttributeType": "S"},
+                {"AttributeName": "gsi1sk", "AttributeType": "S"},
+                {"AttributeName": "gsi2pk", "AttributeType": "S"},
+                {"AttributeName": "gsi2sk", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "MembersByTournament",
+                    "KeySchema": [
+                        {"AttributeName": "gsi1pk", "KeyType": "HASH"},
+                        {"AttributeName": "gsi1sk", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+                {
+                    "IndexName": "MembersByFarm",
+                    "KeySchema": [
+                        {"AttributeName": "gsi2pk", "KeyType": "HASH"},
+                        {"AttributeName": "gsi2sk", "KeyType": "RANGE"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
+            ],
             BillingMode="PAY_PER_REQUEST",
         )
         dynamodb.create_table(

@@ -3,6 +3,7 @@
 import importlib
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +44,15 @@ def _event(method: str, path: str, body=None):
 
 def _json(response):
     return json.loads(response["body"])
+
+
+def _live_and_scheduled_windows():
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    live_start = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    live_end = (now + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    later_start = (now + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    later_end = (now + timedelta(days=37)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    return live_start, live_end, later_start, later_end
 
 
 def _create(app, name, start, end):
@@ -215,8 +225,9 @@ def test_multi_add_and_remove_from_one_tournament_only(aws_env, monkeypatch):
 
 def test_public_board_lists_only_enrolled_active_farms(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
-    later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
+    live_start, live_end, later_start, later_end = _live_and_scheduled_windows()
+    live = _create(app, "Live cup", live_start, live_end)
+    later = _create(app, "Later cup", later_start, later_end)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "111111", "name": "in"}), None)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "222222", "name": "out"}), None)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "333333", "name": "off"}), None)
@@ -250,8 +261,9 @@ def test_public_board_lists_only_enrolled_active_farms(aws_env, monkeypatch):
 
 def test_scheduled_tournament_does_not_leak_live_score(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
-    live = _create(app, "Live cup", "2026-08-10T00:00:00+00:00", "2026-09-20T00:00:00+00:00")
-    later = _create(app, "September cup", "2026-09-01T00:00:00+00:00", "2026-09-08T00:00:00+00:00")
+    live_start, live_end, later_start, later_end = _live_and_scheduled_windows()
+    live = _create(app, "Live cup", live_start, live_end)
+    later = _create(app, "Later cup", later_start, later_end)
     app.lambda_handler(_event("POST", "/admin/farms", {"farm_id": "111111", "name": "Ada"}), None)
     app.lambda_handler(
         _event(

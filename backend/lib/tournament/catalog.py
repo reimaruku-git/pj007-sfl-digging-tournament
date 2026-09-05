@@ -69,17 +69,15 @@ def normalize_name(raw: Any, start: datetime | None) -> str:
 
 
 def parse_window(body: dict[str, Any]) -> tuple[datetime, datetime, int]:
-    start = parse_iso(body.get("start_at") or body.get("startAt"))
+    start = parse_iso(body.get("start_at"))
     raw_days = body.get("duration_days")
-    if raw_days is None:
-        raw_days = body.get("durationDays")
     days: int | None = None
     if raw_days is not None and str(raw_days).strip() != "":
         try:
             days = int(raw_days)
         except (TypeError, ValueError) as exc:
             raise CatalogError("duration_days must be an integer") from exc
-    end = parse_iso(body.get("end_at") or body.get("endAt"))
+    end = parse_iso(body.get("end_at"))
     if start is None:
         raise CatalogError("start_at is required")
     if days is not None:
@@ -328,7 +326,7 @@ def create_tournament(
     seed_catalog(store, now=clock)
     start, end, days = parse_window(body)
     name = normalize_name(body.get("name"), start)
-    prize = str(body.get("prize_amount") or body.get("prizeAmount") or "").strip() or "30"
+    prize = str(body.get("prize_amount") or "").strip() or "30"
     tid = tournament_id(
         {"start_at": start.isoformat(), "end_at": end.isoformat(), "duration_days": days}
     )
@@ -375,22 +373,20 @@ def update_tournament(
         parse_iso(existing.get("start_at")),
     )
     prize = str(
-        body.get("prize_amount")
-        if "prize_amount" in body or "prizeAmount" in body
-        else existing.get("prize_amount") or "30"
+        body.get("prize_amount") if "prize_amount" in body else existing.get("prize_amount") or "30"
     )
     prize = prize.strip() or "30"
 
-    window_keys = ("start_at", "startAt", "end_at", "endAt", "duration_days", "durationDays")
+    window_keys = ("start_at", "end_at", "duration_days")
     window_changed = any(key in body for key in window_keys)
     if window_changed:
         payload = {
-            "start_at": body.get("start_at", body.get("startAt", existing.get("start_at"))),
-            "end_at": body.get("end_at", body.get("endAt", existing.get("end_at"))),
+            "start_at": body.get("start_at", existing.get("start_at")),
+            "end_at": body.get("end_at", existing.get("end_at")),
         }
-        if "duration_days" in body or "durationDays" in body:
-            payload["duration_days"] = body.get("duration_days", body.get("durationDays"))
-        elif "end_at" not in body and "endAt" not in body:
+        if "duration_days" in body:
+            payload["duration_days"] = body.get("duration_days")
+        elif "end_at" not in body:
             payload["duration_days"] = existing.get("duration_days")
         start, end, days = parse_window(payload)
     else:
@@ -617,7 +613,11 @@ def _board_with_avatars(store: Store, payload: dict[str, Any] | None) -> dict[st
 
 
 def get_public_tournament(
-    store: Store, tournament_id_value: str, *, now: datetime | None = None
+    store: Store,
+    tournament_id_value: str,
+    *,
+    now: datetime | None = None,
+    rebuild: bool = True,
 ) -> dict[str, Any] | None:
     clock = _clock(now)
     seed_catalog(store, now=clock)
@@ -648,7 +648,9 @@ def get_public_tournament(
             ),
         )
     if row and row.get("status") == STATUS_ACTIVE:
-        board = live_board_payload(store, now=clock, tournament_id=tournament_id_value)
+        board = live_board_payload(
+            store, now=clock, tournament_id=tournament_id_value, rebuild=rebuild
+        )
         live_config = public_config({**row, "current_tournament_id": tournament_id_value})
         live_config["enrolled_count"] = len(enrolled_farm_ids(store, tournament_id_value))
         return _board_with_avatars(
@@ -704,18 +706,27 @@ def get_public_tournament(
 
 
 def live_board_payload(
-    store: Store, *, now: datetime | None = None, tournament_id: str | None = None
+    store: Store,
+    *,
+    now: datetime | None = None,
+    tournament_id: str | None = None,
+    rebuild: bool = True,
 ) -> dict[str, Any]:
+    empty = {"entries": [], "count": 0, "leader_farm_id": None, "generated_at": None}
     tid = str(tournament_id or "").strip()
     if tid:
         cache = store.get_event_leaderboard(tid)
         if cache and cache.get("entries") is not None:
             return cache
-        return refresh_leaderboard(store, now=now, tournament_id=tid)
+        if rebuild:
+            return refresh_leaderboard(store, now=now, tournament_id=tid)
+        return empty
     cache = store.get_leaderboard_cache()
     if cache and cache.get("entries"):
         return cache
-    return refresh_leaderboard(store, now=now)
+    if rebuild:
+        return refresh_leaderboard(store, now=now)
+    return empty
 
 
 def enrollment_board(store: Store, tournament_id_value: str, *, days: int) -> dict[str, Any]:
@@ -737,7 +748,7 @@ def enrollment_board(store: Store, tournament_id_value: str, *, days: int) -> di
 def get_public_tournament_farm(
     store: Store, tournament_id_value: str, farm_id: str, *, now: datetime | None = None
 ) -> dict[str, Any] | None:
-    payload = get_public_tournament(store, tournament_id_value, now=now)
+    payload = get_public_tournament(store, tournament_id_value, now=now, rebuild=False)
     if payload is None:
         return None
     for entry in payload.get("entries") or []:

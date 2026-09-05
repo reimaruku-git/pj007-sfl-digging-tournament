@@ -15,6 +15,7 @@ Rules
   produced the **3rd Otter Pebble**.
 * Once the score is set, later tiles do not change it.
 * Tiles outside the tournament window (by ``dugAt``) are ignored.
+  A tile with no ``dugAt`` is ignored.
 * At 23:00 UTC finalize (and later that UTC day) the window end is also
   clipped to that day's 23:00 — tiles with ``dugAt`` after 23:00 UTC are
   not counted. Farms that still do not have 3 Otter Pebbles receive
@@ -113,10 +114,9 @@ def _in_window(
     window_start: datetime | None,
     window_end: datetime | None,
 ) -> bool:
-    if window_start is None and window_end is None:
-        return True
     if dug_at_ms is None:
-        # Undated tiles still count — do not silently drop history.
+        return False
+    if window_start is None and window_end is None:
         return True
     dug_at = _ms_to_utc(dug_at_ms)
     if window_start is not None and dug_at < window_start:

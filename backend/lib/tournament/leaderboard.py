@@ -37,15 +37,6 @@ _MISSING_DIGS = 10**12
 _LATE = "9999-12-31T23:59:59+00:00"
 
 
-def _as_rank_int(value: Any) -> int:
-    if value is None:
-        return _MISSING_DIGS
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return _MISSING_DIGS
-
-
 def _as_rank_time(value: Any) -> str:
     text = str(value or "").strip()
     return text if text else _LATE
@@ -60,12 +51,17 @@ def _score_sort_key(value: Any) -> int:
         return _MISSING_DIGS
 
 
+def _pebble_avg_sort(row: dict[str, Any], annotated_key: str, raw_key: str) -> int:
+    if row.get(annotated_key) is not None:
+        return _score_sort_key(row.get(annotated_key))
+    return _score_sort_key(row.get(raw_key))
+
+
 def _tie_break(row: dict[str, Any]) -> tuple:
-    """Raw 3rd/2nd/1st pebble digs, then earlier 3rd/2nd/1st times."""
+    """2nd then 1st pebble averages, then earlier 3rd/2nd/1st times."""
     return (
-        _as_rank_int(row.get("digs_to_third_op")),
-        _as_rank_int(row.get("digs_to_second_op")),
-        _as_rank_int(row.get("digs_to_first_op")),
+        _pebble_avg_sort(row, "score_second_op", "digs_to_second_op"),
+        _pebble_avg_sort(row, "score_first_op", "digs_to_first_op"),
         _as_rank_time(row.get("third_op_at")),
         _as_rank_time(row.get("second_op_at")),
         _as_rank_time(row.get("first_op_at")),
@@ -92,6 +88,8 @@ def annotate_score(row: dict[str, Any], tournament_days: int) -> dict[str, Any]:
             out["digs_to_third_op"] = derived["total"]
             out["score"] = derived["average"]
             out["scored_days"] = derived["scored_days"]
+        out["score_second_op"] = average_field_days(day_rows, "digs_to_second_op")["average"]
+        out["score_first_op"] = average_field_days(day_rows, "digs_to_first_op")["average"]
         return out
     official = official_score(out)
     out["digs_to_third_op"] = official
