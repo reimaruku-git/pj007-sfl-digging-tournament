@@ -28,12 +28,24 @@ class FakeClient:
         self.payloads = payloads or {}
         self.errors = errors or {}
         self.called: list[str] = []
+        self.batch_calls: list[list[str]] = []
 
     def fetch_farm(self, farm_id: str):
         self.called.append(farm_id)
         if farm_id in self.errors:
             raise self.errors[farm_id]
         return self.payloads[farm_id]
+
+    def fetch_farms(self, farm_ids):
+        ids = [str(item) for item in farm_ids]
+        self.batch_calls.append(ids)
+        found: dict = {}
+        for farm_id in ids:
+            try:
+                found[farm_id] = self.fetch_farm(farm_id)
+            except SFLApiError as exc:
+                found[farm_id] = exc
+        return found
 
 
 def _grid_payload(tiles, streak_count=3):
@@ -125,6 +137,31 @@ def test_sync_all_records_failures_and_rebuilds_cache(aws_env):
     assert result["complete"] is True
 
 
+def test_sync_all_fetches_numeric_ids_in_batches(aws_env):
+    store = Store(
+        config_table=aws_env["config_table"],
+        scores_table=aws_env["scores_table"],
+        submissions_table=aws_env["submissions_table"],
+        data_bucket=aws_env["bucket"],
+    )
+    registry = FarmRegistry(aws_env["bucket"])
+    registry.upsert("1", name="one")
+    registry.upsert("2", name="two")
+    registry.upsert("3", name="three")
+    client = FakeClient(
+        {
+            "1": _grid_payload([shovel()]),
+            "2": _grid_payload([shovel()]),
+            "3": _grid_payload([shovel()]),
+        }
+    )
+    result = sync_all_farms(store, registry, client, now=NOW, batch_size=2)
+    assert client.batch_calls == [["1", "2"], ["3"]]
+    assert client.called == ["1", "2", "3"]
+    assert result["synced"] == 3
+    assert result["complete"] is True
+
+
 def test_farms_after_cursor_skips_through_the_named_farm():
     farms = [{"farm_id": "1"}, {"farm_id": "2"}, {"farm_id": "3"}]
     assert [farm["farm_id"] for farm in farms_after_cursor(farms, None)] == ["1", "2", "3"]
@@ -161,7 +198,7 @@ def test_sync_all_stops_before_later_farms_and_does_not_mark_complete(aws_env):
         calls["n"] += 1
         return True
 
-    result = sync_all_farms(store, registry, client, now=NOW, should_stop=should_stop)
+    result = sync_all_farms(store, registry, client, now=NOW, should_stop=should_stop, batch_size=1)
     assert client.called == ["1"]
     assert result["synced"] == 1
     assert result["continued"] is True
@@ -301,7 +338,9 @@ def test_sync_all_does_not_finalize_until_the_roster_is_done(aws_env):
             "2": _grid_payload([pebble(before), pebble(after)]),
         }
     )
-    first = sync_all_farms(store, registry, client, now=clock, should_stop=lambda: True)
+    first = sync_all_farms(
+        store, registry, client, now=clock, should_stop=lambda: True, batch_size=1
+    )
     assert first["continued"] is True
     assert first["finalized"] is False
     assert store.get_score("1")["digs_to_third_op"] == 3

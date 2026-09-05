@@ -895,8 +895,9 @@ Resources:
           FARM_SYNC_FUNCTION: !Sub ${ProjectNo}-${Environment}-${ProjectName}-farm-sync
           SECRETS_BUCKET: !Ref SecretsBucket
           SFL_KEYS_OBJECT: sfl-api-keys.json
-          SFL_SUCCESS_ROUND_SECONDS: "10"
-          SFL_MIN_INTERVAL_SECONDS: "12"
+          SFL_SUCCESS_INTERVAL_SECONDS: "5.5"
+          SFL_MIN_INTERVAL_SECONDS: "10"
+          SFL_BATCH_SIZE: "25"
       Tags:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo

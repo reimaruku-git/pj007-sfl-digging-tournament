@@ -18,10 +18,16 @@ class FakeClient:
     def __init__(self, payloads: dict[str, dict] | None = None):
         self.payloads = payloads or {}
         self.called: list[str] = []
+        self.batch_calls: list[list[str]] = []
 
     def fetch_farm(self, farm_id: str):
         self.called.append(farm_id)
         return self.payloads[farm_id]
+
+    def fetch_farms(self, farm_ids):
+        ids = [str(item) for item in farm_ids]
+        self.batch_calls.append(ids)
+        return {farm_id: self.fetch_farm(farm_id) for farm_id in ids}
 
 
 def _grid_payload(tiles):
@@ -41,8 +47,9 @@ def _load_sync(aws_env, monkeypatch, client: FakeClient):
     monkeypatch.setenv("CONFIG_TABLE", aws_env["config_table"])
     monkeypatch.setenv("SCORES_TABLE", aws_env["scores_table"])
     monkeypatch.setenv("SUBMISSIONS_TABLE", aws_env["submissions_table"])
-    monkeypatch.setenv("SFL_MIN_INTERVAL_SECONDS", "12")
-    monkeypatch.setenv("SFL_SUCCESS_ROUND_SECONDS", "10")
+    monkeypatch.setenv("SFL_MIN_INTERVAL_SECONDS", "10")
+    monkeypatch.setenv("SFL_SUCCESS_INTERVAL_SECONDS", "5.5")
+    monkeypatch.setenv("SFL_BATCH_SIZE", "1")
     monkeypatch.setenv("SECRETS_BUCKET", "pj007-test-secrets")
     monkeypatch.setenv("SFL_KEYS_OBJECT", "sfl-api-keys.json")
     monkeypatch.setenv("DISCORD_WEBHOOK_URL", "")
@@ -296,7 +303,7 @@ def test_low_remaining_time_invokes_continuation_and_skips_finalize(aws_env, mon
     assert payload["after_farm_id"] == "1"
     assert payload["chunk"] == 2
     assert payload["now"] == "2026-08-14T23:00:00Z"
-    assert payload["cooldown_seconds"] == 10
+    assert payload["cooldown_seconds"] == 5.5
 
     payload["cooldown_seconds"] = 0
     second = app.lambda_handler(payload, FakeContext([900_000, 900_000]))

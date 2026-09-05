@@ -2,14 +2,15 @@
 
 Walks farms that are enrolled in at least one live event (and still
 active in the S3 registry). SFL keys are a JSON list in the private
-secrets bucket. A successful pass through every key waits 10s before
-the next fetch; 429/403 keep the longer backoff.
+secrets bucket. Throttle is per IP: one key, ~5.5s between successes,
+≥10s on 429/403. Sweeps POST /community/getFarms in batches; GET one
+farm is the fallback (and the admin one-farm refresh path).
 
 A sweep is capped at 15 minutes (Lambda max). Before the remaining time
 falls under ``STOP_REMAINING_MS``, this function async-invokes itself
 with ``after_farm_id`` and the frozen ``now`` so a 23:00 finalize still
-applies on the last chunk. Two SFL keys still take turns in one process;
-chunks are sequential so the keys never overlap across Lambdas.
+applies on the last chunk. Chunks stay sequential so the IP never
+overlaps across Lambdas.
 """
 
 from __future__ import annotations
@@ -26,7 +27,14 @@ import boto3
 from tournament.archive import archive_current
 from tournament.catalog import rollover
 from tournament.farms import FarmRegistry
-from tournament.sfl_client import build_sfl_client, load_sfl_keys
+from tournament.sfl_client import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_FAILURE_INTERVAL_SECONDS,
+    DEFAULT_SUCCESS_INTERVAL_SECONDS,
+    MAX_GET_FARMS_IDS,
+    build_sfl_client,
+    load_sfl_keys,
+)
 from tournament.store import Store
 from tournament.membership import farm_live_tournament_ids
 from tournament.scoring import is_finalize_clock
@@ -47,8 +55,19 @@ CONFIG_TABLE = os.environ.get("CONFIG_TABLE", "")
 SCORES_TABLE = os.environ.get("SCORES_TABLE", "")
 SUBMISSIONS_TABLE = os.environ.get("SUBMISSIONS_TABLE", "")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
-SFL_MIN_INTERVAL_SECONDS = float(os.environ.get("SFL_MIN_INTERVAL_SECONDS", "12"))
-SFL_SUCCESS_ROUND_SECONDS = float(os.environ.get("SFL_SUCCESS_ROUND_SECONDS", "10"))
+SFL_MIN_INTERVAL_SECONDS = float(
+    os.environ.get("SFL_MIN_INTERVAL_SECONDS", str(DEFAULT_FAILURE_INTERVAL_SECONDS))
+)
+SFL_SUCCESS_INTERVAL_SECONDS = float(
+    os.environ.get(
+        "SFL_SUCCESS_INTERVAL_SECONDS",
+        os.environ.get("SFL_SUCCESS_ROUND_SECONDS", str(DEFAULT_SUCCESS_INTERVAL_SECONDS)),
+    )
+)
+try:
+    SFL_BATCH_SIZE = int(os.environ.get("SFL_BATCH_SIZE", str(DEFAULT_BATCH_SIZE)))
+except (TypeError, ValueError):
+    SFL_BATCH_SIZE = DEFAULT_BATCH_SIZE
 FARM_SYNC_FUNCTION = os.environ.get("FARM_SYNC_FUNCTION", "")
 SECRETS_BUCKET = os.environ.get("SECRETS_BUCKET", "")
 SFL_KEYS_OBJECT = os.environ.get("SFL_KEYS_OBJECT", "sfl-api-keys.json")
@@ -60,6 +79,14 @@ MAX_CHUNKS = 40
 
 _lambda = None
 _sleeper = time.sleep
+
+
+def _success_interval_seconds() -> float:
+    return max(float(SFL_SUCCESS_INTERVAL_SECONDS), 5.0)
+
+
+def _batch_size() -> int:
+    return max(1, min(int(SFL_BATCH_SIZE or DEFAULT_BATCH_SIZE), MAX_GET_FARMS_IDS))
 
 
 def _lambda_client():
@@ -128,7 +155,7 @@ def _cooldown_seconds(event: dict[str, Any] | None) -> float:
         except (TypeError, ValueError):
             return 0.0
     if _event_after_farm_id(payload):
-        return max(SFL_SUCCESS_ROUND_SECONDS, 10)
+        return _success_interval_seconds()
     return 0.0
 
 
@@ -148,7 +175,9 @@ def _make_client():
     return build_sfl_client(
         _sfl_keys(),
         min_interval_seconds=max(SFL_MIN_INTERVAL_SECONDS, 10),
-        success_round_seconds=max(SFL_SUCCESS_ROUND_SECONDS, 10),
+        success_interval_seconds=_success_interval_seconds(),
+        batch_size=_batch_size(),
+        timeout=60,
     )
 
 
@@ -226,6 +255,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         should_stop=lambda: _should_stop(context),
         previous_leader_farm_id=original_leader or None,
         use_cached_leader=False,
+        batch_size=_batch_size(),
     )
     if result.get("continued"):
         if chunk >= MAX_CHUNKS:
@@ -254,7 +284,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "time": frozen,
                 "chunk": chunk + 1,
                 "notify_leader_farm_id": original_leader,
-                "cooldown_seconds": max(SFL_SUCCESS_ROUND_SECONDS, 10),
+                "cooldown_seconds": _success_interval_seconds(),
             }
         )
         logger.info(

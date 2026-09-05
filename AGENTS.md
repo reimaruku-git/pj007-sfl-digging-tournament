@@ -55,10 +55,15 @@ One git remote. Not two-repo like the SFL tracker.
    a **private secrets bucket** JSON list (`sfl-api-keys.json`), not
    Lambda env. FarmSync reads them at invoke. Never call
    `https://api.sunflower-land.com` from the frontend.
-5. After a **successful** pass through every loaded key, the next fetch
-   waits **10 seconds**. 429/403/5xx still back off at least 12s per key.
-   Adding a key is editing the JSON only. Logs show `sfl.` plus the
-   token’s first 4 and last 4 characters, never the full key.
+5. Community API throttle is **per IP** (~1 request / 5s, 10s if you
+   hammer). FarmSync uses the **first** secrets-bucket key, waits **5.5s**
+   after a success and **≥10s** on 429/403/5xx. Sweeps
+   `POST /community/getFarms` in batches of up to 25 ids; one-farm refresh,
+   join, identify, and a gone/failed batch route use
+   `GET /community/farms/{id}`. Extra keys in the JSON do not increase
+   rate. Logs show `sfl.` plus the token’s first 4 and last 4 characters,
+   never the full key. Canonical notes:
+   `.cursor/skills/sunflower-land-community-api/`.
 6. Explicit IAM: `AWS::IAM::Role` + `Role: !GetAtt …Arn`. No SAM
    `Policies:` shorthand. `CAPABILITY_NAMED_IAM` in every
    `samconfig.toml` env.
@@ -137,8 +142,9 @@ not score. Scoring sweeps still go through FarmSync only. The browser
 never calls SFL.
 
 FarmSync timeout is 15 minutes (Lambda max). Keys are a JSON list in
-`s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json`. After a
-successful pass through every key, wait 10s; 429/403 still wait ≥12s.
+`s3://pj007-dev-digging-tournament-secrets/sfl-api-keys.json`. The first
+key is used. Success wait is 5.5s; 429/403 wait ≥10s. Sweeps POST
+`/community/getFarms` (legacy batch); GET one farm is the fallback.
 Farms that already have today's 3rd-OP recorded are not fetched again
 that UTC day. If remaining time drops under 90s with farms left, it
 async-invokes itself with `after_farm_id` and the frozen `now`. Only
@@ -487,6 +493,7 @@ and our API — it must not POST `/submissions` or call SFL.
 | `README.md` | Human overview + local commands |
 | `SETUP_CHECKLIST.md` | First-deploy + console Admin user |
 | `backend/docs/API_DOCUMENTATION.md` | HTTP contract (source of truth for FE types) |
+| `.cursor/skills/sunflower-land-community-api/` | SFL Community API (external) + FarmSync throttle options. Also copied to `~/.cursor/skills/` and `~/.grok/skills/` so Cursor and Grok both load it. |
 
 ---
 
@@ -507,6 +514,7 @@ and our API — it must not POST `/submissions` or call SFL.
 | Hardcoded `VITE_API_BASE` | Wrong API in the wrong env |
 | Neon gold `#e8b923` on near-black | Eye strain; dusk palette is the look |
 | Invent dig scoring | Tests + `scoring.py` are the rules |
+| Assume two SFL keys double FarmSync speed | Community API throttle is per IP, not per key |
 | Create the Cognito `Admin` user unasked | Operator does that in the console |
 
 ---
@@ -516,10 +524,12 @@ and our API — it must not POST `/submissions` or call SFL.
 1. Trust **this AGENTS.md**, then the fullstack-api skill.
 2. HTTP changes → `backend/docs/API_DOCUMENTATION.md` in the same diff.
 3. Scoring changes → `scoring.py` + unit tests together.
-4. Deploy → push `dev` when the change is done. Do not wait to be asked.
+4. SFL Community API / FarmSync rate limits → skill
+   `sunflower-land-community-api` (do not invent throttle or batch shapes).
+5. Deploy → push `dev` when the change is done. Do not wait to be asked.
    Do not improvise a second pipeline. **Merge to main** means: after
    testing on `dev`, PR `dev` → `main` and merge so prd deploys.
-5. Auth → Cognito ID token on `/admin/*` only. Public stays public.
-6. After a change: run the tests that belong with it and glance at the
+6. Auth → Cognito ID token on `/admin/*` only. Public stays public.
+7. After a change: run the tests that belong with it and glance at the
    diff. Launch `/workflow pj007-review` or `pj007-live-check` only if
    the user asked for that full review.

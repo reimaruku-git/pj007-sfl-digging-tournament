@@ -1,0 +1,18 @@
+---
+description: SFL Community API is per-IP throttled; extra keys do not go faster
+globs: backend/lib/tournament/sfl_client.py,backend/lib/tournament/sfl_world.py,backend/lambda_functions/farm_sync/**,backend/tests/unit/test_sfl_client.py,backend/tests/unit/test_sfl_world.py
+alwaysApply: false
+---
+
+# SFL Community API
+
+Before changing farm fetches, identify, join SFL calls, or key pooling, read
+the **sunflower-land-community-api** skill:
+
+`.cursor/skills/sunflower-land-community-api/SKILL.md`
+
+Live upstream docs: https://sunflower-land.com/community-docs/#/endpoints
+
+- Throttle is **per IP**, ~1 request / 5s, 10s if you hammer. FarmSync uses
+  one key, POST `/community/getFarms` in batches, GET as fallback.
+- Never call `api.sunflower-land.com` from the frontend. Never log full keys.

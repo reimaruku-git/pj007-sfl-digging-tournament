@@ -9,11 +9,11 @@ import responses
 from tournament.sfl_client import (
     IDENTIFY_MAX_RETRIES,
     IDENTIFY_TIMEOUT_SECONDS,
-    PooledSFLClient,
     RateLimitedSFLClient,
     SFLApiError,
     build_identify_sfl_client,
     build_sfl_client,
+    envelope_community_farm,
     identity_from_community_payload,
     key_fingerprint,
     load_sfl_keys,
@@ -39,15 +39,16 @@ KEY_B = "sfl.ddddffffeeee2222"
 KEY_C = "sfl.gggghhhhiiii3333"
 
 
-def _client(clock: FakeClock, keys: list[str] | None = None):
+def _client(clock: FakeClock, keys: list[str] | None = None, **kwargs):
     return build_sfl_client(
         keys if keys is not None else [KEY_A],
-        min_interval_seconds=12,
-        success_round_seconds=10,
+        min_interval_seconds=10,
+        success_interval_seconds=5.5,
         max_retries=3,
         retry_delay=1,
         sleeper=clock.sleep,
         monotonic=clock.monotonic,
+        **kwargs,
     )
 
 
@@ -70,8 +71,8 @@ def test_fetch_farm_success_and_rate_limit_gap():
     first = client.fetch_farm("111")
     second = client.fetch_farm("222")
     assert first["farm"]["desert"]["digging"]["grid"] == []
-    assert second == {"farm": {}}
-    assert clock.sleeps == [10]
+    assert second["farm"] == {}
+    assert clock.sleeps == [5.5]
     assert responses.calls[0].request.headers["X-Api-Key"] == KEY_A
 
 
@@ -92,9 +93,9 @@ def test_retries_429_then_succeeds():
         status=200,
     )
     payload = client.fetch_farm("111")
-    assert payload == {"farm": {}}
-    assert clock.sleeps[0] >= 12
-    assert 10 not in clock.sleeps
+    assert payload["farm"] == {}
+    assert clock.sleeps[0] >= 10
+    assert 5.5 not in clock.sleeps
 
 
 @responses.activate
@@ -110,7 +111,7 @@ def test_403_exhausts_retries():
         client.fetch_farm("111")
     assert exc.value.status_code == 403
     assert len(responses.calls) == 3
-    assert all(sleep >= 12 for sleep in clock.sleeps)
+    assert all(sleep >= 10 for sleep in clock.sleeps)
 
 
 def test_rejects_interval_under_ten_seconds():
@@ -118,10 +119,16 @@ def test_rejects_interval_under_ten_seconds():
         RateLimitedSFLClient("key", min_interval_seconds=9)
 
 
+def test_rejects_success_interval_under_five_seconds():
+    with pytest.raises(ValueError):
+        RateLimitedSFLClient("key", success_interval_seconds=4)
+
+
 @responses.activate
-def test_two_keys_fetch_without_sharing_interval():
+def test_extra_keys_are_ignored_and_share_the_success_gap():
     clock = FakeClock()
     client = _client(clock, [KEY_A, KEY_B])
+    assert isinstance(client, RateLimitedSFLClient)
     responses.add(
         responses.GET,
         "https://api.sunflower-land.com/community/farms/111",
@@ -134,61 +141,17 @@ def test_two_keys_fetch_without_sharing_interval():
         json={"farm": {"id": 222}},
         status=200,
     )
-    first = client.fetch_farm("111")
-    second = client.fetch_farm("222")
-    assert first == {"farm": {"id": 111}}
-    assert second == {"farm": {"id": 222}}
-    assert clock.sleeps == []
-    assert [call.request.headers["X-Api-Key"] for call in responses.calls] == [KEY_A, KEY_B]
-
-
-@responses.activate
-def test_two_key_round_waits_ten_seconds_before_next_success():
-    clock = FakeClock()
-    client = _client(clock, [KEY_A, KEY_B])
-    for farm_id in ("111", "222", "333"):
-        responses.add(
-            responses.GET,
-            f"https://api.sunflower-land.com/community/farms/{farm_id}",
-            json={"farm": {"id": int(farm_id)}},
-            status=200,
-        )
     client.fetch_farm("111")
     client.fetch_farm("222")
-    assert clock.sleeps == []
-    client.fetch_farm("333")
-    assert clock.sleeps == [10]
-    assert [call.request.headers["X-Api-Key"] for call in responses.calls] == [
-        KEY_A,
-        KEY_B,
-        KEY_A,
-    ]
-
-
-@responses.activate
-def test_three_keys_wait_after_full_round_only():
-    clock = FakeClock()
-    client = _client(clock, [KEY_A, KEY_B, KEY_C])
-    for farm_id in ("1", "2", "3", "4"):
-        responses.add(
-            responses.GET,
-            f"https://api.sunflower-land.com/community/farms/{farm_id}",
-            json={"farm": {}},
-            status=200,
-        )
-    client.fetch_farm("1")
-    client.fetch_farm("2")
-    client.fetch_farm("3")
-    assert clock.sleeps == []
-    client.fetch_farm("4")
-    assert clock.sleeps == [10]
+    assert clock.sleeps == [5.5]
+    assert [call.request.headers["X-Api-Key"] for call in responses.calls] == [KEY_A, KEY_A]
 
 
 @responses.activate
 def test_blank_second_key_rate_limits_like_one_key():
     clock = FakeClock()
     client = _client(clock, [KEY_A, "", "  "])
-    assert isinstance(client, PooledSFLClient)
+    assert isinstance(client, RateLimitedSFLClient)
     responses.add(
         responses.GET,
         "https://api.sunflower-land.com/community/farms/111",
@@ -203,12 +166,12 @@ def test_blank_second_key_rate_limits_like_one_key():
     )
     client.fetch_farm("111")
     client.fetch_farm("222")
-    assert clock.sleeps == [10]
+    assert clock.sleeps == [5.5]
     assert [call.request.headers["X-Api-Key"] for call in responses.calls] == [KEY_A, KEY_A]
 
 
 @responses.activate
-def test_429_on_one_key_does_not_block_the_other():
+def test_429_then_next_farm_still_uses_the_same_key():
     clock = FakeClock()
     client = _client(clock, [KEY_A, KEY_B])
     responses.add(
@@ -231,18 +194,134 @@ def test_429_on_one_key_does_not_block_the_other():
     )
     first = client.fetch_farm("111")
     second = client.fetch_farm("222")
-    assert first == {"farm": {"id": 111}}
-    assert second == {"farm": {"id": 222}}
-    assert clock.sleeps[0] >= 12
+    assert first["farm"] == {"id": 111}
+    assert second["farm"] == {"id": 222}
+    assert clock.sleeps[0] >= 10
     assert responses.calls[0].request.headers["X-Api-Key"] == KEY_A
-    assert responses.calls[-1].request.headers["X-Api-Key"] == KEY_B
-    assert clock.sleeps == [12]
+    assert responses.calls[-1].request.headers["X-Api-Key"] == KEY_A
 
 
-def test_build_sfl_client_skips_duplicate_and_blank_keys():
-    client = _client(FakeClock(), [KEY_A, KEY_A, ""])
-    assert isinstance(client, PooledSFLClient)
-    assert len(client._clients) == 1
+def test_build_sfl_client_uses_first_key_only():
+    client = _client(FakeClock(), [KEY_A, KEY_A, "", KEY_B])
+    assert isinstance(client, RateLimitedSFLClient)
+    assert client._api_key == KEY_A
+
+
+def test_envelope_wraps_legacy_farm_object():
+    wrapped = envelope_community_farm(
+        "111",
+        {
+            "desert": {"digging": {"grid": []}},
+            "isBlacklisted": True,
+            "updatedAt": "2026-08-27T00:00:00Z",
+        },
+    )
+    assert wrapped["id"] == 111
+    assert wrapped["farm"]["desert"]["digging"]["grid"] == []
+    assert wrapped["isBlacklisted"] is True
+
+
+@responses.activate
+def test_fetch_farms_posts_legacy_get_farms_and_envelopes_blobs():
+    clock = FakeClock()
+    client = _client(clock, batch_size=25)
+    responses.add(
+        responses.POST,
+        "https://api.sunflower-land.com/community/getFarms",
+        json={
+            "farms": {
+                "111": {
+                    "desert": {"digging": {"grid": []}},
+                    "isBlacklisted": False,
+                    "updatedAt": "2026-08-27T21:14:03.221Z",
+                },
+                "222": {"inventory": {}},
+            },
+            "skipped": [],
+            "warning": "This endpoint is deprecated. Please use pagination",
+        },
+        status=200,
+    )
+    found = client.fetch_farms(["111", "222"])
+    assert json.loads(responses.calls[0].request.body) == {"ids": [111, 222]}
+    assert found["111"]["farm"]["desert"]["digging"]["grid"] == []
+    assert found["222"]["farm"]["inventory"] == {}
+    assert clock.sleeps == []
+
+
+@responses.activate
+def test_fetch_farms_retries_skipped_then_gets_remaining():
+    clock = FakeClock()
+    client = _client(clock, batch_size=2)
+    responses.add(
+        responses.POST,
+        "https://api.sunflower-land.com/community/getFarms",
+        json={"farms": {"111": {"inventory": {"Sand": 1}}}, "skipped": [222]},
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        "https://api.sunflower-land.com/community/getFarms",
+        json={"farms": {}, "skipped": [222]},
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.sunflower-land.com/community/farms/222",
+        json={"farm": {"inventory": {"Gold": 1}}, "id": 222},
+        status=200,
+    )
+    found = client.fetch_farms(["111", "222"])
+    assert found["111"]["farm"]["inventory"] == {"Sand": 1}
+    assert found["222"]["farm"]["inventory"] == {"Gold": 1}
+    assert [call.request.method for call in responses.calls] == ["POST", "POST", "GET"]
+
+
+@responses.activate
+def test_fetch_farms_falls_back_to_get_when_post_is_gone():
+    clock = FakeClock()
+    client = _client(clock, batch_size=25)
+    responses.add(
+        responses.POST,
+        "https://api.sunflower-land.com/community/getFarms",
+        status=404,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.sunflower-land.com/community/farms/111",
+        json={"farm": {"id": 111}},
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.sunflower-land.com/community/farms/222",
+        json={"farm": {"id": 222}},
+        status=200,
+    )
+    found = client.fetch_farms(["111", "222"])
+    assert found["111"]["farm"]["id"] == 111
+    assert found["222"]["farm"]["id"] == 222
+    assert [call.request.method for call in responses.calls] == ["POST", "GET", "GET"]
+    assert clock.sleeps == [5.5, 5.5]
+
+
+@responses.activate
+def test_fetch_farms_omits_a_farm_that_get_404s():
+    clock = FakeClock()
+    client = _client(clock, batch_size=1)
+    responses.add(
+        responses.POST,
+        "https://api.sunflower-land.com/community/getFarms",
+        json={"farms": {}, "skipped": [111]},
+        status=200,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.sunflower-land.com/community/farms/111",
+        status=404,
+    )
+    found = client.fetch_farms(["111"])
+    assert found == {}
 
 
 def test_key_fingerprint_uses_first_four_and_last_four():

@@ -36,7 +36,7 @@ from tournament.scoring import (
     score_grid,
     scoring_window_end,
 )
-from tournament.sfl_client import RateLimitedSFLClient, SFLApiError
+from tournament.sfl_client import DEFAULT_BATCH_SIZE, RateLimitedSFLClient, SFLApiError
 from tournament.store import Store
 from tournament.window import (
     configured_duration_days,
@@ -424,6 +424,47 @@ def apply_computed_score(
     return row
 
 
+def _record_sync_fetch_error(
+    store: Store,
+    *,
+    farm_id: str,
+    name: str,
+    exc: BaseException,
+    previous: dict[str, Any] | None,
+    clock: datetime,
+) -> dict[str, Any]:
+    logger.error("Failed to fetch farm %s: %s", farm_id, exc)
+    if store.list_farm_days(farm_id):
+        rebuilt = rebuild_score_from_days(
+            store,
+            farm_id,
+            name=name,
+            previous=previous,
+            error=str(exc),
+            now=clock,
+        )
+        apply_live_event_scores(store, farm_id=farm_id, name=name, now=clock, error=str(exc))
+        return rebuilt
+    row = previous or store.empty_score(farm_id, name)
+    row["name"] = name
+    row["error"] = str(exc)
+    return store.put_score(row)
+
+
+def _client_fetch_farms(client: Any, farm_ids: list[str]) -> dict[str, Any]:
+    """Prefer ``fetch_farms`` (batch POST). Fake clients may only implement GET."""
+    method = getattr(client, "fetch_farms", None)
+    if callable(method):
+        return method(farm_ids) or {}
+    found: dict[str, Any] = {}
+    for farm_id in farm_ids:
+        try:
+            found[farm_id] = client.fetch_farm(farm_id)
+        except SFLApiError as exc:
+            found[farm_id] = exc
+    return found
+
+
 def sync_one_farm(
     store: Store,
     client: RateLimitedSFLClient,
@@ -431,6 +472,7 @@ def sync_one_farm(
     *,
     now: datetime | None = None,
     finalize: bool = False,
+    payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     farm_id = str(farm["farm_id"])
     name = farm.get("name") or ""
@@ -440,8 +482,8 @@ def sync_one_farm(
     previous = store.get_score(farm_id)
 
     try:
-        payload = client.fetch_farm(farm_id)
-        grid = extract_grid(payload)
+        live = payload if payload is not None else client.fetch_farm(farm_id)
+        grid = extract_grid(live)
         computed = score_grid(
             grid,
             now=clock,
@@ -454,7 +496,7 @@ def sync_one_farm(
                 "farm_id": farm_id,
                 "fetched_at": utc_now_iso(),
                 "grid": grid,
-                **farm_profile_fields(payload, now=clock),
+                **farm_profile_fields(live, now=clock),
                 "score": computed.to_dict(),
             },
         )
@@ -469,22 +511,14 @@ def sync_one_farm(
         )
         return row
     except SFLApiError as exc:
-        logger.error("Failed to fetch farm %s: %s", farm_id, exc)
-        if store.list_farm_days(farm_id):
-            rebuilt = rebuild_score_from_days(
-                store,
-                farm_id,
-                name=name,
-                previous=previous,
-                error=str(exc),
-                now=clock,
-            )
-            apply_live_event_scores(store, farm_id=farm_id, name=name, now=clock, error=str(exc))
-            return rebuilt
-        row = previous or store.empty_score(farm_id, name)
-        row["name"] = name
-        row["error"] = str(exc)
-        return store.put_score(row)
+        return _record_sync_fetch_error(
+            store,
+            farm_id=farm_id,
+            name=name,
+            exc=exc,
+            previous=previous,
+            clock=clock,
+        )
 
 
 def notify_new_leader(webhook_url: str, entry: dict[str, Any], *, event_name: str = "") -> None:
@@ -544,6 +578,7 @@ def sync_all_farms(
     should_stop: Callable[[], bool] | None = None,
     previous_leader_farm_id: Any = None,
     use_cached_leader: bool = True,
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> dict[str, Any]:
     clock = now or datetime.now(timezone.utc)
     ensure_default_config(store, now=clock)
@@ -589,15 +624,48 @@ def sync_all_farms(
     failures = 0
     stopped = False
     last_id = str(after_farm_id or "").strip() or None
-    for index, farm in enumerate(fetch_queue):
+    step = max(1, min(int(batch_size or DEFAULT_BATCH_SIZE), 100))
+    index = 0
+    while index < len(fetch_queue):
         if index > 0 and should_stop is not None and should_stop():
             stopped = True
             break
-        row = sync_one_farm(store, client, farm, now=clock, finalize=finalize)
-        last_id = str(farm["farm_id"])
-        if row.get("error"):
-            failures += 1
-        results.append(row)
+        batch = fetch_queue[index : index + step]
+        ids = [str(item["farm_id"]) for item in batch]
+        try:
+            payloads = _client_fetch_farms(client, ids)
+        except SFLApiError as exc:
+            payloads = {farm_id: exc for farm_id in ids}
+        for farm in batch:
+            farm_id = str(farm["farm_id"])
+            live = payloads.get(farm_id)
+            if isinstance(live, SFLApiError):
+                previous = store.get_score(farm_id)
+                row = _record_sync_fetch_error(
+                    store,
+                    farm_id=farm_id,
+                    name=farm.get("name") or "",
+                    exc=live,
+                    previous=previous,
+                    clock=clock,
+                )
+            elif live is None:
+                previous = store.get_score(farm_id)
+                row = _record_sync_fetch_error(
+                    store,
+                    farm_id=farm_id,
+                    name=farm.get("name") or "",
+                    exc=SFLApiError("SFL HTTP 404", status_code=404),
+                    previous=previous,
+                    clock=clock,
+                )
+            else:
+                row = sync_one_farm(store, client, farm, now=clock, finalize=finalize, payload=live)
+            last_id = farm_id
+            if row.get("error"):
+                failures += 1
+            results.append(row)
+        index += len(batch)
 
     remaining = max(0, len(fetch_queue) - len(results))
     cache = refresh_leaderboard(store, registry=registry)

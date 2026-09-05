@@ -146,11 +146,12 @@ origins. Dev stays on the CloudFront / execute-api URLs.
 |---|---|
 | `SECRETS_BUCKET` | Private SFL keys JSON bucket |
 | `SFL_KEYS_OBJECT` | `sfl-api-keys.json` |
-| `SFL_SUCCESS_ROUND_SECONDS` | `10` after a successful pass through every key |
+| `SFL_SUCCESS_INTERVAL_SECONDS` | `5.5` between successful Community API calls |
+| `SFL_BATCH_SIZE` | `25` farm ids per `POST /community/getFarms` (max 100) |
 | `DATA_BUCKET` | App bucket |
 | `CONFIG_TABLE` / `SCORES_TABLE` / `SUBMISSIONS_TABLE` | DynamoDB |
 | `ALLOWED_ORIGIN` / `ALLOWED_ORIGINS` | CORS |
-| `SFL_MIN_INTERVAL_SECONDS` | `12` failure backoff (must be ≥ 10) |
+| `SFL_MIN_INTERVAL_SECONDS` | `10` failure backoff (must be ≥ 10) |
 | `DISCORD_WEBHOOK_URL` | Optional 1st-place ping |
 | `FARM_SYNC_FUNCTION` | Main Lambda invokes this for full sync |
 

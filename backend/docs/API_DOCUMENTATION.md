@@ -198,8 +198,9 @@ daily snapshot, and archive run only after the last farm. Farms that
 already have a numeric 3rd-OP for that UTC day are not fetched again;
 23:00 still tallies them from the stored day file. FarmSync loads SFL
 keys from a private S3 JSON list (`sfl-api-keys.json`), not Lambda env.
-After every loaded key has had a successful fetch, the next wait is 10s.
-Failed SFL calls still back off at least 12s.
+The first key is used (throttle is per IP). Sweeps POST
+`/community/getFarms` in batches; GET `/community/farms/{id}` is the
+fallback. Success wait is 5.5s; failed SFL calls back off at least 10s.
 
 Ranking (lowest better): 3rd-OP average (`score`), then 2nd-pebble
 average (`score_second_op`), then 1st-pebble average (`score_first_op`),
