@@ -26,10 +26,15 @@ export async function requestJson<T>(
   options: RequestInit = {},
 ): Promise<ApiResponse<T>> {
   const token = await getAuthToken();
+  const method = String(options.method || "GET").toUpperCase();
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((options.headers as Record<string, string>) ?? {}),
   };
+  // JSON Content-Type on GET forces a CORS preflight. Only send it when
+  // there is a body (POST/PUT/PATCH) so public reads stay simple requests.
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    headers["Content-Type"] = headers["Content-Type"] || "application/json";
+  }
   if (token) headers["Authorization"] = token;
 
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });

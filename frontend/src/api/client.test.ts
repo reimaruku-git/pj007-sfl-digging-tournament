@@ -27,6 +27,18 @@ describe("requestJson", () => {
     expect(url.endsWith("health")).toBe(true);
     expect(url.includes("/health")).toBe(true);
     expect((init.headers as Record<string, string>).Authorization).toBe("cognito.id.token");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
     expect(result.data).toEqual({ status: "healthy" });
+  });
+
+  it("sets JSON content-type on POST so bodies stay application/json", async () => {
+    fetchMock.mockResolvedValue({
+      status: 200,
+      ok: true,
+      text: async () => JSON.stringify({ ok: true }),
+    });
+    await requestJson("submissions", { method: "POST", body: "{}" });
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
   });
 });

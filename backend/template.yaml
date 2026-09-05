@@ -549,6 +549,20 @@ Resources:
         BillingTag: !Ref BillingTag
         ProjectNo: !Ref ProjectNo
       Events:
+        # Browser preflight (Content-Type: application/json on GET). No
+        # HttpApi CorsConfiguration — that duplicated Lambda ACAO headers.
+        CorsRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: OPTIONS
+        CorsProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: OPTIONS
         Health:
           Type: HttpApi
           Properties:
