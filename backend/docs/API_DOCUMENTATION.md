@@ -6,6 +6,11 @@ Auth for admin routes: Cognito **ID token** in `Authorization` — raw token, no
 API Gateway verifies the JWT. There is no `/admin/login` on this API; the browser signs in to Cognito (Amplify SRP).
 Public routes (`/health`, `/config`, `/slogans`, `/leaderboard`, `/farms/{farm_id}`, `/farms/{farm_id}/memberships`, `/farms/{farm_id}/profile`, `PUT /farms/{farm_id}/avatar`, `/tournaments`, `/tournaments/{id}`, `/tournaments/{id}/farms/{farm_id}`, `POST /identify`, `POST /submissions`, `/media/*`) have no authorizer.
 
+CORS: Lambda echoes `Origin` when it is on `ALLOWED_ORIGIN` / `ALLOWED_ORIGINS`.
+`OPTIONS` on any path returns `{ "ok": true }` so browser preflights
+(`Content-Type: application/json`) succeed. Unknown origins get no
+`Access-Control-Allow-Origin`. Never `*`.
+
 Errors:
 
 ```json

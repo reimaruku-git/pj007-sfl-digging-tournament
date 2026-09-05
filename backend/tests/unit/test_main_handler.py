@@ -56,6 +56,20 @@ def _json(response):
     return json.loads(response["body"])
 
 
+def test_options_preflight_echoes_allowlisted_origin(aws_env, monkeypatch):
+    app = _load_app(aws_env, monkeypatch)
+    monkeypatch.setenv("ALLOWED_ORIGIN", "http://localhost:5173")
+    monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
+    response = app.lambda_handler(_event("OPTIONS", "/tournaments"), None)
+    assert response["statusCode"] == 200
+    assert _json(response) == {"ok": True}
+    assert response["headers"]["Access-Control-Allow-Origin"] == "http://localhost:5173"
+    assert "OPTIONS" in response["headers"]["Access-Control-Allow-Methods"]
+    admin = app.lambda_handler(_event("OPTIONS", "/admin/session"), None)
+    assert admin["statusCode"] == 200
+    assert admin["headers"]["Access-Control-Allow-Origin"] == "http://localhost:5173"
+
+
 def test_health_and_public_leaderboard(aws_env, monkeypatch):
     app = _load_app(aws_env, monkeypatch)
     health = app.lambda_handler(_event("GET", "/health"), None)
