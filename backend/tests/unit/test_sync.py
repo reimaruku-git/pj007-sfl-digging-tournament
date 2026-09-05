@@ -920,6 +920,32 @@ def test_sync_pings_each_live_board_leader(aws_env, monkeypatch):
     assert sorted(pings) == [("Month cup", "1"), ("Week cup", "1")]
 
 
+def test_list_members_includes_pending_rows_missing_gsi_keys(aws_env):
+    store = _store(aws_env)
+    store.put_member(
+        {
+            "farm_id": "99",
+            "tournament_id": "cup-1",
+            "status": "enrolled",
+            "submitted_at": "2026-08-14T12:00:00+00:00",
+        }
+    )
+    store.config_table.put_item(
+        Item={
+            "pk": store.member_pk("cup-1", "7"),
+            "farm_id": "7",
+            "tournament_id": "cup-1",
+            "name": "wait",
+            "status": "pending",
+            "submitted_at": "2026-08-14T13:00:00+00:00",
+        }
+    )
+    rows = store.list_members(tournament_id="cup-1")
+    assert sorted(row["farm_id"] for row in rows) == ["7", "99"]
+    pending = store.list_members(tournament_id="cup-1", status="pending")
+    assert [row["farm_id"] for row in pending] == ["7"]
+
+
 def test_list_members_uses_gsi_keys(aws_env):
     store = _store(aws_env)
     store.put_member(

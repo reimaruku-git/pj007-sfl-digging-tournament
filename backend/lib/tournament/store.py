@@ -228,12 +228,18 @@ class Store:
             return []
         return items
 
-    def _scan_members(self, prefix: str) -> list[dict[str, Any]]:
+    def _scan_members(self, prefix: str, *, missing_gsi: bool = False) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
-        scan_kwargs: dict[str, Any] = {
-            "FilterExpression": "begins_with(pk, :prefix)",
-            "ExpressionAttributeValues": {":prefix": prefix},
-        }
+        if missing_gsi:
+            scan_kwargs: dict[str, Any] = {
+                "FilterExpression": "begins_with(pk, :prefix) AND attribute_not_exists(gsi1pk)",
+                "ExpressionAttributeValues": {":prefix": prefix},
+            }
+        else:
+            scan_kwargs = {
+                "FilterExpression": "begins_with(pk, :prefix)",
+                "ExpressionAttributeValues": {":prefix": prefix},
+            }
         while True:
             response = self.config_table.scan(**scan_kwargs)
             items.extend(_from_ddb(item) for item in response.get("Items", []))
@@ -274,11 +280,21 @@ class Store:
                 self.backfill_member_gsi(scanned)
                 items = scanned
         elif wanted_tid:
+            prefix = f"{MEMBER_PK_PREFIX}{wanted_tid}#"
             items = self._query_index(
                 MEMBERS_BY_TOURNAMENT_INDEX, "gsi1pk", f"{MEMBER_PK_PREFIX}{wanted_tid}"
             )
-            if not items:
-                scanned = self._scan_members(f"{MEMBER_PK_PREFIX}{wanted_tid}#")
+            missing = self._scan_members(prefix, missing_gsi=True)
+            if missing:
+                self.backfill_member_gsi(missing)
+                by_pk = {str(item.get("pk")): item for item in items}
+                for item in missing:
+                    pk = str(item.get("pk") or "")
+                    if pk:
+                        by_pk[pk] = item
+                items = list(by_pk.values())
+            elif not items:
+                scanned = self._scan_members(prefix)
                 self.backfill_member_gsi(scanned)
                 items = scanned
             if wanted_farm:
